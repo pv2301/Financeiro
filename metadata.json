@@ -1,0 +1,5 @@
+{
+  "name": "Cardápio Baby",
+  "description": "Sistema completo de gestão de cardápio nutricional infantil, com controle de restrições, receitas, substituições e PWA.",
+  "requestFramePermissions": []
+}

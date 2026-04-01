@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-orange: #f27205;
+  --color-brand-blue: #2F5496;
+  --color-brand-lime: #70AD47;
+  --color-brand-dark: #1b4332;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#f8fafc] text-slate-900;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  body {
+    background: white !important;
+  }
+  aside, .no-print {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+}

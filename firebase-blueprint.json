@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "Item": {
+      "title": "Item",
+      "description": "Item de alimentação",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "categoria": { "type": "string" },
+        "contemOvo": { "type": "boolean" },
+        "contemLactose": { "type": "boolean" },
+        "contemGluten": { "type": "boolean" },
+        "receitaVinculadaId": { "type": "string" },
+        "corFundo": { "type": "string" },
+        "negrito": { "type": "boolean" }
+      },
+      "required": ["id", "nome", "categoria"]
+    },
+    "Recipe": {
+      "title": "Recipe",
+      "description": "Receita culinária",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "ingredientes": { "type": "string" },
+        "modoPreparo": { "type": "string" },
+        "porcoes": { "type": "number" },
+        "itemVinculadoId": { "type": "string" },
+        "fotoUrl": { "type": "string" }
+      },
+      "required": ["id", "nome"]
+    },
+    "Substitution": {
+      "title": "Substitution",
+      "description": "Substituição de item por restrição",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "itemOriginalId": { "type": "string" },
+        "restricao": { "type": "string" },
+        "itemSubstitutoId": { "type": "string" },
+        "grupoDestino": { "type": "string" },
+        "observacao": { "type": "string" }
+      },
+      "required": ["id", "itemOriginalId", "restricao", "itemSubstitutoId", "grupoDestino"]
+    },
+    "MenuDay": {
+      "title": "MenuDay",
+      "description": "Dia do cardápio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "data": { "type": "string" },
+        "diaSemana": { "type": "string" },
+        "isFeriado": { "type": "boolean" }
+      },
+      "required": ["id", "data", "diaSemana"]
+    },
+    "GroupConfig": {
+      "title": "GroupConfig",
+      "description": "Configuração de grupo/perfil",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nomeCurto": { "type": "string" },
+        "nomeCompleto": { "type": "string" },
+        "cor": { "type": "string" },
+        "restricao": { "type": "string" },
+        "colunas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "categoria": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "nomeCurto", "nomeCompleto", "cor"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Configurações gerais do app",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string" },
+        "categories": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "firestore": {
+    "items": { "schema": "Item", "description": "Coleção de itens" },
+    "recipes": { "schema": "Recipe", "description": "Coleção de receitas" },
+    "substitutions": { "schema": "Substitution", "description": "Coleção de substituições" },
+    "menu": { "schema": "MenuDay", "description": "Coleção de dias do cardápio" },
+    "groups": { "schema": "GroupConfig", "description": "Coleção de grupos" },
+    "config": { "schema": "AppConfig", "description": "Configurações globais" }
+  }
+}

@@ -1,0 +1,2397 @@
+{
+  "CONFIG": [
+    {
+      "CONFIGURAÇÕES — Canteen": "Nutricionista",
+      "__EMPTY": "Simone Carneiro da Cunha"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CRN",
+      "__EMPTY": "CRN 1377"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "Escola",
+      "__EMPTY": "Canteen"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "Unidade 1",
+      "__EMPTY": "CFC"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "Unidade 2",
+      "__EMPTY": "AGNES"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "GRUPOS DO CARDÁPIO — Edite o nome da aba (col A), nome completo (col B), colunas (cols C-F) e cor (col G)"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "Nome da Aba",
+      "__EMPTY": "Nome Completo",
+      "__EMPTY_1": "Coluna 1",
+      "__EMPTY_2": "Coluna 2",
+      "__EMPTY_3": "Coluna 3",
+      "__EMPTY_4": "Coluna 4",
+      "__EMPTY_5": "Cor da Aba"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - GP 2,3",
+      "__EMPTY": "GRUPOS 2 e 3",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Manhã",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_4": "Opção Semana",
+      "__EMPTY_5": "#70AD47"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "AGN",
+      "__EMPTY": "AGNES",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Manhã",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_4": "Opção Semana",
+      "__EMPTY_5": "#4472C4"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - GP 1",
+      "__EMPTY": "GRUPO 1",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Manhã",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_4": "Opção Semana",
+      "__EMPTY_5": "#00B050"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - MAT",
+      "__EMPTY": "MATERNAL",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Manhã",
+      "__EMPTY_5": "#FFC000"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "AGN/CFC - ALM",
+      "__EMPTY": "ALMOÇO",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Prato Principal",
+      "__EMPTY_3": "Acompanhamento",
+      "__EMPTY_4": "Acompanhamento Líquido",
+      "__EMPTY_5": "#5B9BD5"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - INT",
+      "__EMPTY": "INTEGRAL - ED INFANTIL",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Tarde",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_4": "Opção Tarde",
+      "__EMPTY_5": "#7030A0"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - ECO",
+      "__EMPTY": "LANCHE INTEGRAL",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Tarde",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_5": "#375623"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - CEIA",
+      "__EMPTY": "CEIA",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Acompanhamento Líquido",
+      "__EMPTY_5": "#C00000"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - BABY 6 a 8",
+      "__EMPTY": "BABY 6 a 8",
+      "__EMPTY_1": "Fruta Manhã",
+      "__EMPTY_2": "Fruta Tarde",
+      "__EMPTY_3": "Almoço",
+      "__EMPTY_4": "Ceia",
+      "__EMPTY_5": "#F1948A"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - BABY 9 a 24 - Almoço/Ceia",
+      "__EMPTY": "BABY 9 a 24 - Almoço/Ceia",
+      "__EMPTY_1": "Almoço",
+      "__EMPTY_2": "Ceia",
+      "__EMPTY_5": "#85c1e9"
+    },
+    {
+      "CONFIGURAÇÕES — Canteen": "CFC - BABY 9 a 24 - Lanche",
+      "__EMPTY": "BABY 9 a 24 - Lanche",
+      "__EMPTY_1": "Lanche Manhã",
+      "__EMPTY_2": "Lanche Tarde",
+      "__EMPTY_5": "#70ad47"
+    }
+  ],
+  "BANCO DE ITENS": [
+    {
+      "BANCO DE ITENS — Canteen": "Cadastre aqui todos os alimentos. Use ➕ Adicionar/Editar Item no menu."
+    },
+    {
+      "BANCO DE ITENS — Canteen": "ID",
+      "__EMPTY": "Nome do Item",
+      "__EMPTY_1": "Categoria",
+      "__EMPTY_2": "Contém Ovo?",
+      "__EMPTY_3": "Contém Lactose?",
+      "__EMPTY_4": "Contém Glúten?",
+      "__EMPTY_5": "Receita Vinculada",
+      "__EMPTY_6": "Cor de Fundo"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 1,
+      "__EMPTY": "Seleta de Frutas",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 2,
+      "__EMPTY": "Banana",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 3,
+      "__EMPTY": "Pão Francês com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 4,
+      "__EMPTY": "Muffins de Banana e Coco",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 5,
+      "__EMPTY": "Muffins de Banana e Coco sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 6,
+      "__EMPTY": "Panini",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 7,
+      "__EMPTY": "Macaxeira com Ovos",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 8,
+      "__EMPTY": "Macaxeira com Carne",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 9,
+      "__EMPTY": "Pão Assado com Requeijão",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 10,
+      "__EMPTY": "Panqueca Americana com Calda de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 11,
+      "__EMPTY": "Panqueca sem Ovo com Calda de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 12,
+      "__EMPTY": "Bolo de Iogurte Natural",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 13,
+      "__EMPTY": "Bolo Simples sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 14,
+      "__EMPTY": "Tapioca de Queijo e Coco",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 15,
+      "__EMPTY": "Tapioca de Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 16,
+      "__EMPTY": "Tapioca",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 17,
+      "__EMPTY": "Biscoito Crocante de Aveia e Chocolate",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 18,
+      "__EMPTY": "Biscoito Aveia sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 19,
+      "__EMPTY": "Pão de Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 20,
+      "__EMPTY": "Bolo Mesclado de Cenoura",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 21,
+      "__EMPTY": "Bolo Mesclado sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 22,
+      "__EMPTY": "Toast com Banana e Calda de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 23,
+      "__EMPTY": "Torrada com Calda de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 24,
+      "__EMPTY": "Cuscuz com Ovos",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 25,
+      "__EMPTY": "Cuscuz com Requeijão",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 26,
+      "__EMPTY": "Açaí com Leite Pó e Granola",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 27,
+      "__EMPTY": "Biscoito Caseiro",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 28,
+      "__EMPTY": "Biscoito Caseiro sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 29,
+      "__EMPTY": "Biscoito Caseiro de Banana",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 30,
+      "__EMPTY": "Pão Delícia",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 31,
+      "__EMPTY": "Esfirra Saudável",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 32,
+      "__EMPTY": "Brownie de Batata Doce",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 33,
+      "__EMPTY": "Batata Doce com Frango",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 34,
+      "__EMPTY": "Mini Cachorro Quente",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 35,
+      "__EMPTY": "Bolo Bacia",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 36,
+      "__EMPTY": "Bolo Bacia sem Ovo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 37,
+      "__EMPTY": "Bolo de Laranja",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 38,
+      "__EMPTY": "Bolo Simples",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 39,
+      "__EMPTY": "Pãozinho de Batata Doce com Chia",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 40,
+      "__EMPTY": "Inhame com Carne",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 41,
+      "__EMPTY": "Inhame com Frango",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 42,
+      "__EMPTY": "Leite Pó, Granola, Aveia",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 43,
+      "__EMPTY": "Banana Comprida Grelhada com Canela",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 44,
+      "__EMPTY": "Creme de Legumes com Torrada",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 45,
+      "__EMPTY": "Bolo de Frutas",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 46,
+      "__EMPTY": "Pastelzinho de Carne com Legumes",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 47,
+      "__EMPTY": "Bolo Prestígio",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 48,
+      "__EMPTY": "Pão Sedinha com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 49,
+      "__EMPTY": "Coxinha de Forno",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 50,
+      "__EMPTY": "Mini Pizza",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 51,
+      "__EMPTY": "Bolo de Fubá",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 52,
+      "__EMPTY": "Cuca de Banana",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 53,
+      "__EMPTY": "Mini Broa",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 54,
+      "__EMPTY": "Cookie de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 55,
+      "__EMPTY": "Queijo Quente",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 56,
+      "__EMPTY": "Sopa Creme de Legumes com Torrada",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 57,
+      "__EMPTY": "Brioche com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 58,
+      "__EMPTY": "Cereal",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 59,
+      "__EMPTY": "Biscoito de Banana",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 60,
+      "__EMPTY": "Waffle com Calda de Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 61,
+      "__EMPTY": "Enroladinho de Pão",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 62,
+      "__EMPTY": "Crepinho com Sorvete Caseiro",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 63,
+      "__EMPTY": "Pãozinho Recheado",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 64,
+      "__EMPTY": "Torradinha com Pasta Ricota e Tomate",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 65,
+      "__EMPTY": "Biscoito Polvilho Caseiro",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 66,
+      "__EMPTY": "Suco de Uva",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 67,
+      "__EMPTY": "Suco de Cajá",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 68,
+      "__EMPTY": "Suco de Maracujá",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 69,
+      "__EMPTY": "Suco de Acerola com Cenoura",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 70,
+      "__EMPTY": "Suco de Caju",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 71,
+      "__EMPTY": "Suco de Tangerina",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 72,
+      "__EMPTY": "Suco de Goiaba",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 73,
+      "__EMPTY": "Suco de Graviola",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 74,
+      "__EMPTY": "Suco de Morango com Abacaxi",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 75,
+      "__EMPTY": "Suco Misto",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 76,
+      "__EMPTY": "Suco de Manga com Laranja",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 77,
+      "__EMPTY": "Suco de Acerola",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 78,
+      "__EMPTY": "Suco de Abacaxi com Maçã",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 79,
+      "__EMPTY": "Suco de Pitanga",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 80,
+      "__EMPTY": "Suco de Goiaba com Limão",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 81,
+      "__EMPTY": "Suco de Laranja com Mamão",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 82,
+      "__EMPTY": "Suco de Tangerina com Mamão",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 83,
+      "__EMPTY": "Suco de Morango",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 84,
+      "__EMPTY": "Suco de Manga",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 85,
+      "__EMPTY": "Suco de Abacaxi",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 86,
+      "__EMPTY": "Suco de Acerola com Laranja",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 87,
+      "__EMPTY": "Água de Coco",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 88,
+      "__EMPTY": "Iogurte",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 89,
+      "__EMPTY": "Leite Fermentado",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 90,
+      "__EMPTY": "Torradinha com Geleia",
+      "__EMPTY_1": "Opção Semana",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 91,
+      "__EMPTY": "Torrada com Geleia",
+      "__EMPTY_1": "Opção Semana",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 92,
+      "__EMPTY": "Pão Catita com Requeijão",
+      "__EMPTY_1": "Opção Semana",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 93,
+      "__EMPTY": "Cenoura Ralada",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 94,
+      "__EMPTY": "Brócolis",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 95,
+      "__EMPTY": "Manga",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 96,
+      "__EMPTY": "Ovo de Codorna",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 97,
+      "__EMPTY": "Abacaxi",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 98,
+      "__EMPTY": "Milho",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 99,
+      "__EMPTY": "Ervilhas",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 100,
+      "__EMPTY": "Beterraba Cozida",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 101,
+      "__EMPTY": "Jerimum",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 102,
+      "__EMPTY": "Ovos Cozidos",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 103,
+      "__EMPTY": "Cenoura Cozida",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 104,
+      "__EMPTY": "Abobrinha",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 105,
+      "__EMPTY": "Salada Mista",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 106,
+      "__EMPTY": "Repolho Refogado",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 107,
+      "__EMPTY": "Vinagrete de Manga",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 108,
+      "__EMPTY": "Legumes do Cozido",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 109,
+      "__EMPTY": "Filé de Frango Molho de Queijo",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 110,
+      "__EMPTY": "Picadinho de Carne com Batatas",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 111,
+      "__EMPTY": "Filé de Peixe Agridoce",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 112,
+      "__EMPTY": "Bife ao Molho de Estrogonofe",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 113,
+      "__EMPTY": "Frango Assado a Jardineira",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 114,
+      "__EMPTY": "Carne Moída",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 115,
+      "__EMPTY": "Filé de Frango com Brócolis",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 116,
+      "__EMPTY": "Bife à Cavalo",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 117,
+      "__EMPTY": "Carne de Sol com Queijo",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 118,
+      "__EMPTY": "Coxinha de Frango Assada",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 119,
+      "__EMPTY": "Iscas de Peixe com Molho Iogurte",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 120,
+      "__EMPTY": "Bife Caseiro com Batatas",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 121,
+      "__EMPTY": "Filé de Frango à Parmegiana",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 122,
+      "__EMPTY": "Cozido",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 123,
+      "__EMPTY": "Filezinho de Frango Crocante",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 124,
+      "__EMPTY": "Panqueca de Carne com Queijo",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 125,
+      "__EMPTY": "Filé de Peixe com Molho Maracujá",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 126,
+      "__EMPTY": "Carne Assada",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 127,
+      "__EMPTY": "Frango Guisado com Batatas",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 128,
+      "__EMPTY": "Lasanha",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 129,
+      "__EMPTY": "Filé de Frango com Abacaxi Grelhado",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 130,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê/Batata Palha",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 131,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Espaguete",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 132,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê/Batatas Douradas",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 133,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Omelete de Legumes",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 134,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê/Farofa",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 135,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Macarrão Letrinha",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 136,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê/Macaxeira Palito",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 137,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Pirão",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 138,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Quiche de Legumes",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 139,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê/Penne Molho Queijo",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 140,
+      "__EMPTY": "Arroz/Feijão Preto/Purê/Souflê de Milho",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 141,
+      "__EMPTY": "Sopa de Carne com Macarrão",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 142,
+      "__EMPTY": "Cuscuz com Carne Picadinha",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 143,
+      "__EMPTY": "Inhame com Frango (Ceia)",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 144,
+      "__EMPTY": "Sopa de Feijão",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 145,
+      "__EMPTY": "Macarronada",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 146,
+      "__EMPTY": "Macaxeira com Frango",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 147,
+      "__EMPTY": "Canja",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 148,
+      "__EMPTY": "Batata Doce com Carne",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 149,
+      "__EMPTY": "Tapioca com Carne Desfiada",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 150,
+      "__EMPTY": "Sopa Creme de Legumes (Ceia)",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 151,
+      "__EMPTY": "Inhame com Requeijão",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 152,
+      "__EMPTY": "Polenta com Frango",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 153,
+      "__EMPTY": "Batata Doce com Frango de Molho",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 154,
+      "__EMPTY": "Macaxeira com Carne de Molho",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 155,
+      "__EMPTY": "Sopa de Legumes com Carne",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 156,
+      "__EMPTY": "Cuscuz com Frango",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 157,
+      "__EMPTY": "Inhame com Carne (Ceia)",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 158,
+      "__EMPTY": "Mini Sanduíche de Ricota com Cenoura Ralada",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 159,
+      "__EMPTY": "Pãozinho Integral com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 160,
+      "__EMPTY": "Bolo de Banana e Cacau",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 161,
+      "__EMPTY": "Cookie Comgotas de Chocolate",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim",
+      "__EMPTY_5": "1 xícara de trigo, 1/2 açúcar demerara,1 ovo, 3 colheres de manteiga temperatura ambiente,1/2 xícara chocolate cacau picado"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 162,
+      "__EMPTY": "Biscoitinho Polvilho com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não",
+      "__EMPTY_5": "1 xícara polvilho azedo, 1/2 xícara queijo ralado, 1/4 xícara de leite"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 163,
+      "__EMPTY": "Pãozinho de Cenoura com Requeijão",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 164,
+      "__EMPTY": "Panquequinha de Banana com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 165,
+      "__EMPTY": "Bolinho de Batata Doce com Frango",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 166,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 167,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 168,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 169,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 170,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 171,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 172,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Ceia",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 173,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Opção Semana",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 174,
+      "__EMPTY": "Feriado",
+      "__EMPTY_1": "Acompanhamento Líquido",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 175,
+      "__EMPTY": "Arroz/Feijão Mulatinho/Purê de Batatas/Espaguete",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 176,
+      "__EMPTY": "Bolinho de Grão de Bico Assado",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim",
+      "__EMPTY_5": "1 xícara Grão de bico amassado, 1/2 xícara de trigo, temperos"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 177,
+      "__EMPTY": "Brioche com Requeijão",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 178,
+      "__EMPTY": "Arroz/Feijão Preto/Purê de Batatas/Batata Doce Chips",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 179,
+      "__EMPTY": "Pizza de Pão Sírio",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 180,
+      "__EMPTY": "Arroz/Feijão Preto/Purê de Batatas/Farofa",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 181,
+      "__EMPTY": "Pãozinho de Macaxeira com Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 182,
+      "__EMPTY": "Pãozinho de Ricota com Orégano",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim",
+      "__EMPTY_5": "2 xícaras de farinha de trigo 1 colher (sopa) de fermento biológico seco 1 colher (sopa) de açúcar 1 colher (chá) de sal 2 colheres (sopa) de manteiga 1 ovo 1/2 xícara de leite morno 1/2 xícara de ricota amassada 1 colher (sopa) de ervas finas"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 183,
+      "__EMPTY": "Iscas de Carne Colorida",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 184,
+      "__EMPTY": "Gourjões de Peixe",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Sim"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 185,
+      "__EMPTY": "Legumes Temperados",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 186,
+      "__EMPTY": "Salada de Legumes",
+      "__EMPTY_1": "Entrada",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Não",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 187,
+      "__EMPTY": "Estrogonofe de Carne",
+      "__EMPTY_1": "Prato Principal",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 188,
+      "__EMPTY": "Arroz/Feijão Preto/Purê de Batatas/Macaxeira Frita",
+      "__EMPTY_1": "Acompanhamento",
+      "__EMPTY_2": "Não",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Não"
+    },
+    {
+      "BANCO DE ITENS — Canteen": 189,
+      "__EMPTY": "Salgadinho de Queijo",
+      "__EMPTY_1": "Lanche",
+      "__EMPTY_2": "Sim",
+      "__EMPTY_3": "Sim",
+      "__EMPTY_4": "Sim"
+    }
+  ],
+  "RECEITAS": [
+    {
+      "BANCO DE RECEITAS — Canteen": "Cadastre receitas vinculadas aos itens."
+    },
+    {
+      "BANCO DE RECEITAS — Canteen": "ID",
+      "__EMPTY": "Nome da Receita",
+      "__EMPTY_1": "Ingredientes",
+      "__EMPTY_2": "Modo de Preparo",
+      "__EMPTY_3": "Porções",
+      "__EMPTY_4": "Item Vinculado"
+    },
+    {
+      "BANCO DE RECEITAS — Canteen": 1,
+      "__EMPTY": "Biscoito Crocante de Aveia e Cacau",
+      "__EMPTY_1": "1/4 xíc. água quente, 3-4 col. sopa açúcar mascavo, 1 col. sopa cacau em pó, 2 col. sopa manteiga, 1 1/3 xíc. farinha de aveia, 1 col. chá fermento em pó",
+      "__EMPTY_2": "Misturar água, açúcar, cacau e manteiga. Acrescentar farinha e fermento. Sovar. Abrir com rolo, cortar. Assar 180°C 20-25min.",
+      "__EMPTY_3": 30,
+      "__EMPTY_4": "Biscoito crocante de aveia e chocolate"
+    },
+    {
+      "BANCO DE RECEITAS — Canteen": 2,
+      "__EMPTY": "Bolo Prestígio",
+      "__EMPTY_1": "1 ovo, 1 col. óleo, 1 col. leite desnatado, 2 col. açúcar mascavo, 2 col. farinha aveia, 2 col. polvilho doce, 1 col. cacau, fermento. Cobertura: leite, cacau, amido, açúcar, coco ralado",
+      "__EMPTY_2": "Misturar massa. Assar 180°C ~20min. Cobertura: misturar em panela até engrossar. Cobrir bolo e finalizar com coco.",
+      "__EMPTY_3": 30,
+      "__EMPTY_4": "Bolo Prestígio"
+    },
+    {
+      "BANCO DE RECEITAS — Canteen": 3,
+      "__EMPTY": "Muffins de Banana e Coco",
+      "__EMPTY_1": "250ml leite amêndoa, 6 ovos, 10 col. coco ralado, 20 col. flocos aveia, 10 col. polvilho, 5 col. farelo aveia, fermento, gotas chocolate",
+      "__EMPTY_2": "Misturar tudo (menos fermento). Descansar 20min. Adicionar fermento. Despejar em forma. Assar 180°C.",
+      "__EMPTY_3": 30,
+      "__EMPTY_4": "Muffins de banana e coco"
+    }
+  ],
+  "SUBSTITUIÇÕES": [
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": "Quando o item original tem restrição, qual item usar no lugar."
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": "ID",
+      "__EMPTY": "Item Original",
+      "__EMPTY_1": "Restrição",
+      "__EMPTY_2": "Item Substituto",
+      "__EMPTY_3": "Grupo Destino",
+      "__EMPTY_4": "Observação"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 1,
+      "__EMPTY": "Muffins de Banana e Coco",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Muffins de Banana e Coco sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 2,
+      "__EMPTY": "Macaxeira com Ovos",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Macaxeira com Carne",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 3,
+      "__EMPTY": "Panqueca Americana com Calda de Cacau",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Panqueca sem Ovo com Calda de Cacau",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 4,
+      "__EMPTY": "Bolo de Iogurte Natural",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Bolo Simples sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 5,
+      "__EMPTY": "Biscoito Crocante de Aveia e Chocolate",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Biscoito Aveia sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 6,
+      "__EMPTY": "Bolo Mesclado de Cenoura",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Bolo Mesclado sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 7,
+      "__EMPTY": "Cuscuz com Ovos",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Cuscuz com Requeijão",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 8,
+      "__EMPTY": "Biscoito Caseiro",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Biscoito Caseiro sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 9,
+      "__EMPTY": "Bolo Bacia",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Bolo Bacia sem Ovo",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 10,
+      "__EMPTY": "Brownie de Batata Doce",
+      "__EMPTY_1": "Sem Ovo",
+      "__EMPTY_2": "Batata Doce com Frango",
+      "__EMPTY_3": "SEM OVO"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 11,
+      "__EMPTY": "Tapioca de Queijo e Coco",
+      "__EMPTY_1": "Agnes",
+      "__EMPTY_2": "Tapioca de Queijo",
+      "__EMPTY_3": "AGNES"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 12,
+      "__EMPTY": "Biscoito Crocante de Aveia e Chocolate",
+      "__EMPTY_1": "Agnes",
+      "__EMPTY_2": "Cookie de Cacau",
+      "__EMPTY_3": "AGNES"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 13,
+      "__EMPTY": "Panini",
+      "__EMPTY_1": "Maternal",
+      "__EMPTY_2": "Pãozinho de Batata Doce com Chia",
+      "__EMPTY_3": "MATERNAL"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 14,
+      "__EMPTY": "Bolo de Iogurte Natural",
+      "__EMPTY_1": "Maternal",
+      "__EMPTY_2": "Bolo de Frutas",
+      "__EMPTY_3": "MATERNAL"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 15,
+      "__EMPTY": "Biscoito Crocante de Aveia e Chocolate",
+      "__EMPTY_1": "Maternal",
+      "__EMPTY_2": "Biscoito de Banana",
+      "__EMPTY_3": "MATERNAL"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 16,
+      "__EMPTY": "Esfirra Saudável",
+      "__EMPTY_1": "Maternal",
+      "__EMPTY_2": "Inhame com Carne",
+      "__EMPTY_3": "MATERNAL"
+    },
+    {
+      "MAPA DE SUBSTITUIÇÕES — Canteen": 17,
+      "__EMPTY": "Brownie de Batata Doce",
+      "__EMPTY_1": "Maternal",
+      "__EMPTY_2": "Batata Doce com Frango",
+      "__EMPTY_3": "MATERNAL"
+    }
+  ],
+  "CARDÁPIO": [
+    {
+      "CARDÁPIO — Canteen": "Mês:",
+      "__EMPTY": "ABRIL",
+      "__EMPTY_1": "Ano:",
+      "__EMPTY_2": 2026,
+      "__EMPTY_3": "Nutricionista:",
+      "__EMPTY_4": "Simone Carneiro da Cunha — CRN 1377"
+    },
+    {
+      "CARDÁPIO — Canteen": "Use 📅 Gerar Novo Mês para preencher. Selecione itens nos dropdowns amarelos. Troque o grupo em B4 para visualizar com substituições na aba VISUALIZAR GRUPO."
+    },
+    {
+      "CARDÁPIO — Canteen": "👁 Grupo:",
+      "__EMPTY": "MASTER",
+      "__EMPTY_1": "← Selecione o grupo para visualizar com substituições na aba VISUALIZAR GRUPO"
+    },
+    {
+      "__EMPTY_1": "🍱 GRUPOS 2 e 3 · AGNES · GRUPO 1 · MATERNAL · BABY 9 a 24 - Lanche",
+      "__EMPTY_5": "🍽️ ALMOÇO · CEIA",
+      "__EMPTY_9": "🌇 INTEGRAL - ED INFANTIL · LANCHE INTEGRAL",
+      "__EMPTY_12": "🌙 BABY 6 a 8 · BABY 9 a 24 - Almoço/Ceia",
+      "__EMPTY_14": "📋 INFO"
+    },
+    {
+      "CARDÁPIO — Canteen": "Data",
+      "__EMPTY": "Dia",
+      "__EMPTY_1": "Fruta",
+      "__EMPTY_2": "Lanche Manhã",
+      "__EMPTY_3": "Acompanhamento Líquido",
+      "__EMPTY_4": "Opção Semana",
+      "__EMPTY_5": "Entrada",
+      "__EMPTY_6": "Prato Principal",
+      "__EMPTY_7": "Acompanhamento",
+      "__EMPTY_8": "Acompanhamento Líquido",
+      "__EMPTY_9": "Lanche Tarde",
+      "__EMPTY_10": "Acompanhamento Líquido",
+      "__EMPTY_11": "Opção Tarde",
+      "__EMPTY_12": "Ceia",
+      "__EMPTY_13": "Acompanhamento Líquido",
+      "__EMPTY_14": "Nota",
+      "__EMPTY_15": "Status",
+      "__EMPTY_16": "Validação"
+    },
+    {
+      "CARDÁPIO — Canteen": 46113.33333333333,
+      "__EMPTY": "Quarta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Pãozinho Integral com Queijo",
+      "__EMPTY_3": "Suco de Acerola",
+      "__EMPTY_4": "Torrada com Geleia",
+      "__EMPTY_5": "Salada de Legumes",
+      "__EMPTY_6": "Bife Caseiro com Batatas",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Omelete de Legumes",
+      "__EMPTY_8": "Suco de Maracujá",
+      "__EMPTY_9": "Cuscuz com Ovos",
+      "__EMPTY_10": "Suco de Uva",
+      "__EMPTY_11": "Biscoito Caseiro",
+      "__EMPTY_12": "Batata Doce com Frango de Molho",
+      "__EMPTY_13": "Suco de Acerola com Cenoura",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46114.33333333333,
+      "__EMPTY": "Quinta-feira",
+      "__EMPTY_1": "Feriado",
+      "__EMPTY_2": "Feriado",
+      "__EMPTY_3": "Feriado",
+      "__EMPTY_4": "Feriado",
+      "__EMPTY_5": "Feriado",
+      "__EMPTY_6": "Feriado",
+      "__EMPTY_7": "Feriado",
+      "__EMPTY_8": "Feriado",
+      "__EMPTY_9": "Feriado",
+      "__EMPTY_10": "Feriado",
+      "__EMPTY_11": "Feriado",
+      "__EMPTY_12": "Feriado",
+      "__EMPTY_13": "Feriado",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46115.33333333333,
+      "__EMPTY": "Sexta-feira",
+      "__EMPTY_1": "Feriado",
+      "__EMPTY_2": "Feriado",
+      "__EMPTY_3": "Feriado",
+      "__EMPTY_4": "Feriado",
+      "__EMPTY_5": "Feriado",
+      "__EMPTY_6": "Feriado",
+      "__EMPTY_7": "Feriado",
+      "__EMPTY_8": "Feriado",
+      "__EMPTY_9": "Feriado",
+      "__EMPTY_10": "Feriado",
+      "__EMPTY_11": "Feriado",
+      "__EMPTY_12": "Feriado",
+      "__EMPTY_13": "Feriado",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46118.33333333333,
+      "__EMPTY": "Segunda-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Waffle com Calda de Cacau",
+      "__EMPTY_3": "Suco de Cajá",
+      "__EMPTY_4": "Tapioca",
+      "__EMPTY_5": "Abacaxi",
+      "__EMPTY_6": "Coxinha de Frango Assada",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê de Batatas/Espaguete",
+      "__EMPTY_8": "Suco de Caju",
+      "__EMPTY_9": "Bolo Mesclado de Cenoura",
+      "__EMPTY_10": "Suco de Tangerina com Mamão",
+      "__EMPTY_11": "Mini Broa",
+      "__EMPTY_12": "Cuscuz com Frango",
+      "__EMPTY_13": "Suco de Uva",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46119.33333333333,
+      "__EMPTY": "Terça-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Cuca de Banana",
+      "__EMPTY_3": "Suco de Goiaba",
+      "__EMPTY_4": "Tapioca",
+      "__EMPTY_5": "Salada de Legumes",
+      "__EMPTY_6": "Picadinho de Carne com Batatas",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Quiche de Legumes",
+      "__EMPTY_8": "Suco de Acerola",
+      "__EMPTY_9": "Pão de Queijo",
+      "__EMPTY_10": "Suco de Manga com Laranja",
+      "__EMPTY_11": "Mini Broa",
+      "__EMPTY_12": "Batata Doce com Carne",
+      "__EMPTY_13": "Suco de Abacaxi",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46120.33333333333,
+      "__EMPTY": "Quarta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Pãozinho de Cenoura com Requeijão",
+      "__EMPTY_3": "Suco de Uva",
+      "__EMPTY_4": "Tapioca",
+      "__EMPTY_5": "Manga",
+      "__EMPTY_6": "Filé de Peixe com Molho Maracujá",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Batata Palha",
+      "__EMPTY_8": "Suco de Graviola",
+      "__EMPTY_9": "Bolinho de Grão de Bico Assado",
+      "__EMPTY_10": "Suco de Abacaxi com Maçã",
+      "__EMPTY_11": "Mini Broa",
+      "__EMPTY_12": "Batata Doce com Frango de Molho",
+      "__EMPTY_13": "Suco de Acerola com Cenoura",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46121.33333333333,
+      "__EMPTY": "Quinta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Creme de Legumes com Torrada",
+      "__EMPTY_3": "Suco de Maracujá",
+      "__EMPTY_4": "Tapioca",
+      "__EMPTY_5": "Cenoura Cozida",
+      "__EMPTY_6": "Carne Moída",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Espaguete",
+      "__EMPTY_8": "Suco de Uva",
+      "__EMPTY_9": "Brioche com Requeijão",
+      "__EMPTY_10": "Suco de Acerola",
+      "__EMPTY_11": "Mini Broa",
+      "__EMPTY_12": "Canja",
+      "__EMPTY_13": "Suco de Goiaba",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46122.33333333333,
+      "__EMPTY": "Sexta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Biscoito Caseiro",
+      "__EMPTY_3": "Suco Misto",
+      "__EMPTY_4": "Tapioca",
+      "__EMPTY_5": "Salada de Legumes",
+      "__EMPTY_6": "Carne de Sol com Queijo",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Farofa",
+      "__EMPTY_8": "Suco de Goiaba",
+      "__EMPTY_9": "Inhame com Carne",
+      "__EMPTY_10": "Suco de Cajá",
+      "__EMPTY_11": "Mini Broa",
+      "__EMPTY_12": "Cuscuz com Carne Picadinha",
+      "__EMPTY_13": "Suco de Maracujá",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46125.33333333333,
+      "__EMPTY": "Segunda-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Mini Sanduíche de Ricota com Cenoura Ralada",
+      "__EMPTY_3": "Suco de Tangerina com Mamão",
+      "__EMPTY_4": "Biscoito Caseiro",
+      "__EMPTY_5": "Ovos Cozidos",
+      "__EMPTY_6": "Filé de Frango com Abacaxi Grelhado",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê de Batatas/Batata Doce Chips",
+      "__EMPTY_8": "Suco de Manga",
+      "__EMPTY_9": "Panqueca Americana com Calda de Cacau",
+      "__EMPTY_10": "Suco de Maracujá",
+      "__EMPTY_11": "Bolo Simples",
+      "__EMPTY_12": "Cuscuz com Frango",
+      "__EMPTY_13": "Suco de Uva",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46126.33333333333,
+      "__EMPTY": "Terça-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Bolo Bacia",
+      "__EMPTY_3": "Suco de Graviola",
+      "__EMPTY_4": "Biscoito Caseiro",
+      "__EMPTY_5": "Brócolis",
+      "__EMPTY_6": "Bife à Cavalo",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê de Batatas/Espaguete",
+      "__EMPTY_8": "Suco de Tangerina",
+      "__EMPTY_9": "Pão Francês com Queijo",
+      "__EMPTY_10": "Suco de Uva",
+      "__EMPTY_11": "Bolo Simples",
+      "__EMPTY_12": "Batata Doce com Carne",
+      "__EMPTY_13": "Suco de Abacaxi",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46127.33333333333,
+      "__EMPTY": "Quarta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Pão de Queijo",
+      "__EMPTY_3": "Água de Coco",
+      "__EMPTY_4": "Biscoito Caseiro",
+      "__EMPTY_5": "Manga",
+      "__EMPTY_6": "Iscas de Peixe com Molho Iogurte",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê de Batatas/Farofa",
+      "__EMPTY_8": "Suco de Acerola",
+      "__EMPTY_9": "Biscoito Crocante de Aveia e Chocolate",
+      "__EMPTY_10": "Suco de Goiaba",
+      "__EMPTY_11": "Bolo Simples",
+      "__EMPTY_12": "Batata Doce com Frango de Molho",
+      "__EMPTY_13": "Suco de Acerola com Cenoura",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46128.33333333333,
+      "__EMPTY": "Quinta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Cuscuz com Ovos",
+      "__EMPTY_3": "Suco de Acerola com Cenoura",
+      "__EMPTY_4": "Biscoito Caseiro",
+      "__EMPTY_5": "Beterraba Cozida",
+      "__EMPTY_6": "Coxinha de Frango Assada",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Batata Palha",
+      "__EMPTY_8": "Suco de Cajá",
+      "__EMPTY_9": "Bolo Prestígio",
+      "__EMPTY_10": "Suco de Graviola",
+      "__EMPTY_11": "Bolo Simples",
+      "__EMPTY_12": "Canja",
+      "__EMPTY_13": "Suco de Goiaba",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46129.33333333333,
+      "__EMPTY": "Sexta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Salgadinho de Queijo",
+      "__EMPTY_3": "Suco de Caju",
+      "__EMPTY_4": "Biscoito Caseiro",
+      "__EMPTY_5": "Legumes do Cozido",
+      "__EMPTY_6": "Cozido",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Pirão",
+      "__EMPTY_8": "Suco de Goiaba",
+      "__EMPTY_9": "Pizza de Pão Sírio",
+      "__EMPTY_10": "Suco de Acerola com Laranja",
+      "__EMPTY_11": "Bolo Simples",
+      "__EMPTY_12": "Cuscuz com Carne Picadinha",
+      "__EMPTY_13": "Suco de Maracujá",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46132.33333333333,
+      "__EMPTY": "Segunda-feira",
+      "__EMPTY_1": "Feriado",
+      "__EMPTY_2": "Feriado",
+      "__EMPTY_3": "Feriado",
+      "__EMPTY_4": "Feriado",
+      "__EMPTY_5": "Feriado",
+      "__EMPTY_6": "Feriado",
+      "__EMPTY_7": "Feriado",
+      "__EMPTY_8": "Feriado",
+      "__EMPTY_9": "Feriado",
+      "__EMPTY_10": "Feriado",
+      "__EMPTY_11": "Feriado",
+      "__EMPTY_12": "Cuscuz com Frango",
+      "__EMPTY_13": "Suco de Uva",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46133.33333333333,
+      "__EMPTY": "Terça-feira",
+      "__EMPTY_1": "Feriado",
+      "__EMPTY_2": "Feriado",
+      "__EMPTY_3": "Feriado",
+      "__EMPTY_4": "Feriado",
+      "__EMPTY_5": "Feriado",
+      "__EMPTY_6": "Feriado",
+      "__EMPTY_7": "Feriado",
+      "__EMPTY_8": "Feriado",
+      "__EMPTY_9": "Feriado",
+      "__EMPTY_10": "Feriado",
+      "__EMPTY_11": "Feriado",
+      "__EMPTY_12": "Batata Doce com Carne",
+      "__EMPTY_13": "Suco de Abacaxi",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46134.33333333333,
+      "__EMPTY": "Quarta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Pão Sedinha com Queijo",
+      "__EMPTY_3": "Suco de Abacaxi",
+      "__EMPTY_4": "Bolo Simples",
+      "__EMPTY_5": "Milho",
+      "__EMPTY_6": "Estrogonofe de Carne",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Batatas Douradas",
+      "__EMPTY_8": "Suco de Maracujá",
+      "__EMPTY_9": "Bolo de Banana e Cacau",
+      "__EMPTY_10": "Suco de Tangerina",
+      "__EMPTY_11": "Pão Catita com Requeijão",
+      "__EMPTY_12": "Batata Doce com Frango de Molho",
+      "__EMPTY_13": "Suco de Acerola com Cenoura",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46135.33333333333,
+      "__EMPTY": "Quinta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Batata Doce com Frango",
+      "__EMPTY_3": "Suco de Cajá",
+      "__EMPTY_4": "Bolo Simples",
+      "__EMPTY_5": "Repolho Refogado",
+      "__EMPTY_6": "Coxinha de Frango Assada",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê de Batatas/Macaxeira Frita",
+      "__EMPTY_8": "Suco de Abacaxi",
+      "__EMPTY_9": "Brioche com Queijo",
+      "__EMPTY_10": "Suco de Graviola",
+      "__EMPTY_11": "Pão Catita com Requeijão",
+      "__EMPTY_12": "Canja",
+      "__EMPTY_13": "Suco de Goiaba",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46136.33333333333,
+      "__EMPTY": "Sexta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Mini Pizza",
+      "__EMPTY_3": "Suco de Maracujá",
+      "__EMPTY_4": "Bolo Simples",
+      "__EMPTY_5": "Ovo de Codorna",
+      "__EMPTY_6": "Picadinho de Carne com Batatas",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Farofa",
+      "__EMPTY_8": "Suco de Uva",
+      "__EMPTY_9": "Crepinho com Sorvete Caseiro",
+      "__EMPTY_10": "Suco de Caju",
+      "__EMPTY_11": "Pão Catita com Requeijão",
+      "__EMPTY_12": "Cuscuz com Carne Picadinha",
+      "__EMPTY_13": "Suco de Maracujá",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46139.33333333333,
+      "__EMPTY": "Segunda-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Brioche com Requeijão",
+      "__EMPTY_3": "Suco de Goiaba",
+      "__EMPTY_4": "Cuscuz com Ovos",
+      "__EMPTY_5": "Salada de Legumes",
+      "__EMPTY_6": "Carne Moída",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Espaguete",
+      "__EMPTY_8": "Suco de Tangerina",
+      "__EMPTY_9": "Mini Broa",
+      "__EMPTY_10": "Suco de Cajá",
+      "__EMPTY_11": "Pão Catita com Requeijão",
+      "__EMPTY_12": "Feriado",
+      "__EMPTY_13": "Feriado",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46140.33333333333,
+      "__EMPTY": "Terça-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Bolo de Laranja",
+      "__EMPTY_3": "Suco de Uva",
+      "__EMPTY_4": "Cuscuz com Ovos",
+      "__EMPTY_5": "Manga",
+      "__EMPTY_6": "Filé de Frango com Brócolis",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Macaxeira Palito",
+      "__EMPTY_8": "Suco de Pitanga",
+      "__EMPTY_9": "Bolo de Iogurte Natural",
+      "__EMPTY_10": "Suco de Manga com Laranja",
+      "__EMPTY_11": "Tapioca de Queijo",
+      "__EMPTY_12": "Batata Doce com Carne",
+      "__EMPTY_13": "Suco de Abacaxi",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46141.33333333333,
+      "__EMPTY": "Quarta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Panquequinha de Banana com Queijo",
+      "__EMPTY_3": "Suco de Acerola",
+      "__EMPTY_4": "Cuscuz com Ovos",
+      "__EMPTY_5": "Ervilhas",
+      "__EMPTY_6": "Iscas de Carne Colorida",
+      "__EMPTY_7": "Arroz/Feijão Preto/Purê/Omelete de Legumes",
+      "__EMPTY_8": "Suco de Caju",
+      "__EMPTY_9": "Pãozinho de Ricota com Orégano",
+      "__EMPTY_10": "Suco de Abacaxi com Maçã",
+      "__EMPTY_11": "Tapioca de Queijo",
+      "__EMPTY_12": "Batata Doce com Frango de Molho",
+      "__EMPTY_13": "Suco de Acerola com Cenoura",
+      "__EMPTY_16": "✔"
+    },
+    {
+      "CARDÁPIO — Canteen": 46142.33333333333,
+      "__EMPTY": "Quinta-feira",
+      "__EMPTY_1": "Seleta de Frutas",
+      "__EMPTY_2": "Tapioca",
+      "__EMPTY_3": "Suco de Tangerina",
+      "__EMPTY_4": "Cuscuz com Ovos",
+      "__EMPTY_5": "Abacaxi",
+      "__EMPTY_6": "Gourjões de Peixe",
+      "__EMPTY_7": "Arroz/Feijão Mulatinho/Purê/Batata Palha",
+      "__EMPTY_8": "Suco de Acerola",
+      "__EMPTY_9": "Coxinha de Forno",
+      "__EMPTY_10": "Suco de Maracujá",
+      "__EMPTY_11": "Tapioca de Queijo",
+      "__EMPTY_12": "Canja",
+      "__EMPTY_13": "Suco de Goiaba",
+      "__EMPTY_16": "✔"
+    }
+  ],
+  "LISTA COMPRAS": [
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "🥖 PADARIA / CONFEITARIA"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Item",
+      "__EMPTY": "Qtd (vezes)",
+      "__EMPTY_1": "Dias",
+      "__EMPTY_2": "Categoria",
+      "__EMPTY_3": "Receita vinculada",
+      "__EMPTY_4": "Obs"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Biscoito Caseiro",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Lanche"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Pãozinho Integral com Queijo",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Lanche"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Torrada com Geleia",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Opção Semana"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "🧃 POLPAS / SUCOS / BEBIDAS"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Item",
+      "__EMPTY": "Qtd (vezes)",
+      "__EMPTY_1": "Dias",
+      "__EMPTY_2": "Categoria",
+      "__EMPTY_3": "Receita vinculada",
+      "__EMPTY_4": "Obs"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Feriado",
+      "__EMPTY": 26,
+      "__EMPTY_1": "Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Quinta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta, Sexta",
+      "__EMPTY_2": "Bebida"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Suco de Acerola",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Suco"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Suco de Acerola com Cenoura",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Suco"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Suco de Maracujá",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Suco"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Suco de Uva",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Suco"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "🍎 FRUTAS"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Item",
+      "__EMPTY": "Qtd (vezes)",
+      "__EMPTY_1": "Dias",
+      "__EMPTY_2": "Categoria",
+      "__EMPTY_3": "Receita vinculada",
+      "__EMPTY_4": "Obs"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Seleta de Frutas",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Fruta"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "📦 OUTROS ITENS"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Item",
+      "__EMPTY": "Qtd (vezes)",
+      "__EMPTY_1": "Dias",
+      "__EMPTY_2": "Categoria",
+      "__EMPTY_3": "Receita vinculada",
+      "__EMPTY_4": "Obs"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Arroz/Feijão Preto/Purê/Omelete de Legumes",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Acompanhamento"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Batata Doce com Frango de Molho",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Ceia"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Bife Caseiro com Batatas",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Prato Principal"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Cenoura Ralada",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Entrada"
+    },
+    {
+      "LISTA DE COMPRAS — ABRIL 2026 — Semana 1": "Cuscuz com Ovos",
+      "__EMPTY": 1,
+      "__EMPTY_1": "Quarta",
+      "__EMPTY_2": "Lanche"
+    }
+  ]
+}

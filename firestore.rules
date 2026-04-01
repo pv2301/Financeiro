@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: items
+    // Document ID: auto-generated or item ID
+    // Fields:
+    //   - id: string (required)
+    //   - nome: string (required, minLen: 1, maxLen: 100)
+    //   - categoria: string (required)
+    //   - contemOvo: boolean
+    //   - contemLactose: boolean
+    //   - contemGluten: boolean
+    //   - receitaVinculadaId: string (optional)
+    //   - corFundo: string (optional)
+    //   - negrito: boolean (optional)
+    //
+    // Collection: recipes
+    // Document ID: auto-generated or recipe ID
+    // Fields:
+    //   - id: string (required)
+    //   - nome: string (required, minLen: 1, maxLen: 100)
+    //   - ingredientes: string (required)
+    //   - modoPreparo: string (required)
+    //   - porcoes: number (required)
+    //   - itemVinculadoId: string (optional)
+    //   - fotoUrl: string (optional)
+    //
+    // Collection: substitutions
+    // Document ID: auto-generated
+    // Fields:
+    //   - id: string (required)
+    //   - itemOriginalId: string (required)
+    //   - restricao: string (required)
+    //   - itemSubstitutoId: string (required)
+    //   - grupoDestino: string (required)
+    //   - observacao: string (optional)
+    //
+    // Collection: menu
+    // Document ID: auto-generated or date string
+    // Fields:
+    //   - id: string (required)
+    //   - data: string (required, ISO format)
+    //   - diaSemana: string (required)
+    //   - isFeriado: boolean (optional)
+    //   - [dynamic fields based on group columns]: string (item IDs)
+    //
+    // Collection: groups
+    // Document ID: auto-generated or group ID
+    // Fields:
+    //   - id: string (required)
+    //   - nomeCurto: string (required)
+    //   - nomeCompleto: string (required)
+    //   - cor: string (required)
+    //   - colunas: list (required) - Array of {label: string, categoria: string}
+    //
+    // Collection: config
+    // Document ID: 'global'
+    // Fields:
+    //   - logoUrl: string (optional)
+    //   - categories: list (optional)
+    //   - restrictions: list (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "paulo.vlima@prf.gov.br" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection for RBAC
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && (request.auth.uid == userId && request.resource.data.role == 'user') || isAdmin();
+      allow update: if isAuthenticated() && (request.auth.uid == userId && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    // Application data
+    match /items/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /recipes/{recipeId} {
+      allow read, write: if true;
+    }
+
+    match /substitutions/{subId} {
+      allow read, write: if true;
+    }
+
+    match /menu/{dayId} {
+      allow read, write: if true;
+    }
+
+    match /groups/{groupId} {
+      allow read, write: if true;
+    }
+
+    match /config/{configId} {
+      allow read, write: if true;
+    }
+  }
+}
