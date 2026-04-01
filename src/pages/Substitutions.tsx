@@ -111,20 +111,13 @@ export default function Substitutions() {
   );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-6 w-full">
+      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Substituições</h1>
           <p className="text-slate-500 font-medium">Gerencie trocas automáticas por restrição.</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => window.print()}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest no-print"
-          >
-            <Printer size={20} />
-            Imprimir
-          </button>
           <button
             onClick={() => setIsRestrictionModalOpen(true)}
             className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-black text-sm uppercase tracking-widest no-print"
@@ -132,18 +125,25 @@ export default function Substitutions() {
             <ShieldAlert size={20} />
             Restrições
           </button>
-          <button 
+          <button
             onClick={() => { setEditingSub({}); setIsModalOpen(true); }}
             className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
           >
             <Plus size={20} />
             Nova Substituição
           </button>
+          <button
+            onClick={() => window.print()}
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest no-print"
+          >
+            <Printer size={20} />
+            Imprimir
+          </button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm mb-8 flex flex-col md:flex-row gap-4">
+      <div className="print:hidden bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm mb-8 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
@@ -157,7 +157,7 @@ export default function Substitutions() {
       </div>
 
       {/* Substitutions Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="print:hidden grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredSubs.map((sub) => (
           <div key={sub.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-brand-blue/5 transition-all group">
             <div className="flex items-center justify-between mb-6">
@@ -204,7 +204,7 @@ export default function Substitutions() {
       </div>
 
       {filteredSubs.length === 0 && (
-        <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
+        <div className="print:hidden text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
             <RefreshCw size={40} />
           </div>

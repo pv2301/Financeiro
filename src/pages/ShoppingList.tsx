@@ -117,7 +117,7 @@ export default function ShoppingList() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8 print:p-0">
+    <div className="p-6 w-full space-y-8 print:p-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Lista de Compras</h1>
@@ -171,7 +171,7 @@ export default function ShoppingList() {
       </div>
 
       {/* List Content */}
-      <div className="space-y-8 pb-20">
+      <div className="print:hidden space-y-8 pb-20">
         {Object.keys(shoppingItems).length > 0 ? (
           Object.entries(shoppingItems).map(([category, items]) => (
             <div key={category} className="space-y-4 break-inside-avoid">

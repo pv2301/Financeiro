@@ -105,7 +105,7 @@ const Dashboard = () => {
   const fetchNutritionalTip = async () => {
     setIsLoadingTip(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '' });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: "Gere uma dica nutricional curta (máximo 150 caracteres) e inspiradora para alimentação infantil (bebês e crianças pequenas). Foque em introdução alimentar, variedade de cores ou texturas. Responda apenas com a dica.",
@@ -124,7 +124,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-6 w-full space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight">Bem-vindo ao Cardápio Baby</h1>

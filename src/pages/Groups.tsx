@@ -214,7 +214,7 @@ export default function Groups() {
   const mesAno = format(currentDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 w-full">
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-brand-lime text-white px-6 py-3 rounded-2xl shadow-lg font-black text-sm uppercase tracking-widest flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">
           <CheckCircle2 size={18} /> {toast}
@@ -247,8 +247,7 @@ export default function Groups() {
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:'10px'}}>
                 <thead>
                   <tr style={{backgroundColor:'#404040',color:'white'}}>
-                    <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Data</th>
-                    <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Dia</th>
+                    <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Data / Dia</th>
                     {group.colunas.map(col => (
                       <th key={col.categoria} style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>{col.categoria}</th>
                     ))}
@@ -258,10 +257,10 @@ export default function Groups() {
                   {groupMonthMenu.filter(d => !isWeekend(new Date(d.data))).map((day, idx) => (
                     <tr key={day.id} style={{backgroundColor: day.isFeriado ? '#fff3e0' : idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>
                       <td style={{padding:'5px 8px',border:'1px solid #eee',whiteSpace:'nowrap',fontWeight: day.isFeriado ? 'bold' : 'normal'}}>
-                        {format(new Date(day.data), 'dd/MM/yyyy')}
-                      </td>
-                      <td style={{padding:'5px 8px',border:'1px solid #eee',whiteSpace:'nowrap',textTransform:'capitalize',fontWeight: day.isFeriado ? 'bold' : 'normal'}}>
-                        {day.diaSemana.split('-')[0].charAt(0).toUpperCase() + day.diaSemana.split('-')[0].slice(1)}
+                        {format(new Date(day.data), 'dd/MM')}{' '}
+                        <span style={{color:'#888',fontSize:'9px',textTransform:'capitalize'}}>
+                          {format(new Date(day.data), 'EEE', { locale: ptBR })}
+                        </span>
                       </td>
                       {group.colunas.map(col => {
                         const fieldId = getFieldIdFromColumn(col.categoria);
@@ -275,11 +274,17 @@ export default function Groups() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={group.colunas.length + 1} style={{paddingTop:'6px',borderTop:'1px solid #ccc',fontSize:'9px',color:'#666'}}>
+                      <div style={{display:'flex',justifyContent:'space-between'}}>
+                        <span>{nutricionista.nome}{nutricionista.crn ? ` — Nutricionista — CRN ${nutricionista.crn}` : ''}</span>
+                        <span>Canteen</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:'10px',fontSize:'9px',color:'#666',borderTop:'1px solid #ccc',paddingTop:'6px'}}>
-                <span>{nutricionista.nome}{nutricionista.crn ? ` — Nutricionista — CRN ${nutricionista.crn}` : ''}</span>
-                <span>Canteen</span>
-              </div>
             </div>
           );
         })}
@@ -316,18 +321,18 @@ export default function Groups() {
             Limpar Mês
           </button>
           <button
-            onClick={() => setIsPrintModalOpen(true)}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
-          >
-            <Download size={20} />
-            Imprimir
-          </button>
-          <button 
             onClick={generateMonth}
             className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
           >
             <Plus size={20} />
             Gerar Mês
+          </button>
+          <button
+            onClick={() => setIsPrintModalOpen(true)}
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+          >
+            <Download size={20} />
+            Imprimir
           </button>
         </div>
       </div>

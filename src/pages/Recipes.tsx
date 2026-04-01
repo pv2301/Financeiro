@@ -83,20 +83,13 @@ export default function Recipes() {
   ).sort((a, b) => a.nome.localeCompare(b.nome));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-6 w-full">
+      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Banco de Receitas</h1>
           <p className="text-slate-500 font-medium">Instruções de preparo vinculadas aos itens do cardápio.</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => window.print()}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest no-print"
-          >
-            <Printer size={20} />
-            Imprimir
-          </button>
           <button
             onClick={() => { setEditingRecipe({ porcoes: 1 }); setIsModalOpen(true); }}
             className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest no-print"
@@ -104,11 +97,18 @@ export default function Recipes() {
             <Plus size={20} />
             Nova Receita
           </button>
+          <button
+            onClick={() => window.print()}
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest no-print"
+          >
+            <Printer size={20} />
+            Imprimir
+          </button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm mb-8">
+      <div className="print:hidden bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm mb-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
@@ -122,7 +122,7 @@ export default function Recipes() {
       </div>
 
       {/* Recipes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="print:hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredRecipes.map((recipe) => (
           <div key={recipe.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden group hover:border-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/5 transition-all flex flex-col">
             <div className="h-48 bg-slate-100 relative overflow-hidden">
@@ -180,7 +180,7 @@ export default function Recipes() {
       </div>
 
       {filteredRecipes.length === 0 && (
-        <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
+        <div className="print:hidden text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
             <ChefHat size={40} />
           </div>
