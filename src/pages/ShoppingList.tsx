@@ -1,33 +1,34 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  ShoppingCart, 
-  Calendar, 
-  Download, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  ShoppingCart,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
-  Filter,
   Printer,
-  X,
-  Plus
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { storage } from '../services/storage';
-import { MenuDay, Item, Recipe, GroupConfig } from '../types';
+import { MenuDay, Item, Recipe } from '../types';
 import { cn } from '../lib/utils';
 
 export default function ShoppingList() {
+  const [periodMode, setPeriodMode] = useState<'semanal' | 'mensal' | 'personalizado'>('semanal');
   const [startDate, setStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [endDate, setEndDate] = useState(endOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [selectedGroupId, setSelectedGroupId] = useState<string | 'Todos'>('Todos');
-  
+  const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [customEnd, setCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+
   const [menuDays, setMenuDays] = useState<MenuDay[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [groups, setGroups] = useState<GroupConfig[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
   const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
+
+  const effectiveStart = periodMode === 'personalizado' && customStart ? parseISO(customStart) : startDate;
+  const effectiveEnd = periodMode === 'personalizado' && customEnd ? parseISO(customEnd) : endDate;
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('print') === '1') {
@@ -37,32 +38,50 @@ export default function ShoppingList() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [menuData, itemsData, recipesData, groupsData, logoData, nutData] = await Promise.all([
+      const [menuData, itemsData, recipesData, logoData, nutData] = await Promise.all([
         storage.getMenu(),
         storage.getItems(),
         storage.getRecipes(),
-        storage.getConfig(),
         storage.getLogo(),
         storage.getNutricionista()
       ]);
       setMenuDays(menuData);
       setItems(itemsData);
       setRecipes(recipesData);
-      setGroups(groupsData);
       setLogo(logoData);
       setNutricionista(nutData);
     };
     loadData();
   }, []);
 
+  const handlePrevPeriod = () => {
+    if (periodMode === 'semanal') {
+      setStartDate(subWeeks(startDate, 1));
+      setEndDate(subWeeks(endDate, 1));
+    } else if (periodMode === 'mensal') {
+      const prev = subMonths(startDate, 1);
+      setStartDate(startOfMonth(prev));
+      setEndDate(endOfMonth(prev));
+    }
+  };
+
+  const handleNextPeriod = () => {
+    if (periodMode === 'semanal') {
+      setStartDate(addWeeks(startDate, 1));
+      setEndDate(addWeeks(endDate, 1));
+    } else if (periodMode === 'mensal') {
+      const next = addMonths(startDate, 1);
+      setStartDate(startOfMonth(next));
+      setEndDate(endOfMonth(next));
+    }
+  };
+
   const shoppingItems = useMemo(() => {
     const collectedItems = new Map<string, { nome: string, categoria: string, count: number, days: string[], ingredients: string[] }>();
 
     const filteredDays = menuDays.filter(day => {
       const dayDate = parseISO(day.data);
-      const isInRange = isWithinInterval(dayDate, { start: startDate, end: endDate });
-      const matchesGroup = selectedGroupId === 'Todos' || day.id.includes(selectedGroupId);
-      return isInRange && matchesGroup && !day.isFeriado;
+      return isWithinInterval(dayDate, { start: effectiveStart, end: effectiveEnd }) && !day.isFeriado;
     });
 
     filteredDays.forEach(day => {
@@ -100,116 +119,201 @@ export default function ShoppingList() {
     });
 
     return grouped;
-  }, [menuDays, items, recipes, startDate, endDate, selectedGroupId]);
+  }, [menuDays, items, recipes, effectiveStart, effectiveEnd]);
 
-  const handlePrevWeek = () => {
-    setStartDate(subWeeks(startDate, 1));
-    setEndDate(subWeeks(endDate, 1));
+  const allCategories = Object.keys(shoppingItems).sort();
+  const displayedEntries = selectedCategory === 'Todas'
+    ? Object.entries(shoppingItems).sort(([a], [b]) => a.localeCompare(b))
+    : Object.entries(shoppingItems).filter(([cat]) => cat === selectedCategory);
+
+  const totalItems = Object.values(shoppingItems).reduce((sum: number, arr) => sum + (arr as any[]).length, 0);
+  const checkedCount = checkedItems.size;
+
+  const toggleItem = (id: string) => {
+    const next = new Set(checkedItems);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setCheckedItems(next);
   };
 
-  const handleNextWeek = () => {
-    setStartDate(addWeeks(startDate, 1));
-    setEndDate(addWeeks(endDate, 1));
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const periodLabel = periodMode === 'mensal'
+    ? format(startDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase()
+    : `${format(effectiveStart, 'dd/MM')} — ${format(effectiveEnd, 'dd/MM')}`;
 
   return (
-    <div className="p-6 w-full space-y-8 print:p-0">
+    <div className="p-6 w-full space-y-6 print:p-0">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Lista de Compras</h1>
           <p className="text-slate-500 font-medium">Itens necessários para o período selecionado.</p>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={handlePrint}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
-          >
-            <Printer size={20} />
-            Imprimir
-          </button>
-        </div>
+        <button
+          onClick={() => window.print()}
+          className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+        >
+          <Printer size={20} />
+          Imprimir
+        </button>
       </div>
 
       {/* Controls */}
-      <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-6 no-print">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <button onClick={handlePrevWeek} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <ChevronLeft size={24} className="text-brand-blue" />
-            </button>
-            <div className="text-center min-w-[250px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Período Selecionado</p>
-              <p className="text-lg font-black text-brand-blue uppercase">
-                {format(startDate, "dd/MM")} a {format(endDate, "dd/MM")}
-              </p>
-            </div>
-            <button onClick={handleNextWeek} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <ChevronRight size={24} className="text-brand-blue" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtrar por Grupo</label>
-              <select 
-                value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full md:w-64 px-5 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
+      <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm no-print space-y-4">
+        {/* Period mode + navigation */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shrink-0">
+            {(['semanal', 'mensal', 'personalizado'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => {
+                  setPeriodMode(mode);
+                  if (mode === 'mensal') {
+                    setStartDate(startOfMonth(new Date()));
+                    setEndDate(endOfMonth(new Date()));
+                  } else if (mode === 'semanal') {
+                    setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
+                    setEndDate(endOfWeek(new Date(), { weekStartsOn: 1 }));
+                  }
+                }}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                  periodMode === mode ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
               >
-                <option value="Todos">Todos os Grupos</option>
-                {groups.map(g => (
-                  <option key={g.id} value={g.id}>{g.nomeCompleto}</option>
-                ))}
-              </select>
-            </div>
+                {mode === 'personalizado' ? 'Período' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
           </div>
-        </div>
-      </div>
 
-      {/* List Content */}
-      <div className="print:hidden space-y-8 pb-20">
-        {Object.keys(shoppingItems).length > 0 ? (
-          Object.entries(shoppingItems).map(([category, items]) => (
-            <div key={category} className="space-y-4 break-inside-avoid">
-              <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
-                <div className="w-8 h-px bg-slate-200" />
-                {category}
-                <div className="flex-1 h-px bg-slate-200" />
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(items as any[]).map((item) => (
-                  <div key={item.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:border-brand-blue/20 transition-all group">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-lg font-black text-brand-blue leading-tight group-hover:text-brand-orange transition-colors">
-                        {item.nome}
-                      </h3>
-                      <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-lg uppercase">
-                        {item.count}x no cardápio
-                      </span>
-                    </div>
-                    
-                    {item.ingredients.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-slate-50 space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ingredientes da Receita:</p>
-                        <ul className="grid grid-cols-1 gap-1">
-                          {item.ingredients.map((ing: string, idx: number) => (
-                            <li key={idx} className="text-sm text-slate-600 flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-brand-lime/40" />
-                              {ing}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ))}
+          {periodMode !== 'personalizado' ? (
+            <div className="flex items-center gap-3 flex-1">
+              <button onClick={handlePrevPeriod} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+                <ChevronLeft size={20} className="text-brand-blue" />
+              </button>
+              <span className="text-sm font-black text-brand-blue uppercase tracking-wide min-w-[220px] text-center">
+                {periodLabel}
+              </span>
+              <button onClick={handleNextPeriod} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+                <ChevronRight size={20} className="text-brand-blue" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 flex-1 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">De</label>
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={e => setCustomStart(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm"
+                />
+              </div>
+              <span className="text-slate-300 font-bold">—</span>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Até</label>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={e => setCustomEnd(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm"
+                />
               </div>
             </div>
-          ))
+          )}
+        </div>
+
+        {/* Category filter */}
+        {allCategories.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Categoria:</span>
+            <button
+              onClick={() => setSelectedCategory('Todas')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                selectedCategory === 'Todas' ? "bg-brand-blue text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              )}
+            >
+              Todas
+            </button>
+            {allCategories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                  selectedCategory === cat ? "bg-brand-blue text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Summary bar */}
+      {totalItems > 0 && (
+        <div className="print:hidden flex items-center gap-3">
+          <span className="text-sm font-bold text-slate-500">{totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
+          {checkedCount > 0 && (
+            <>
+              <span className="text-slate-300">•</span>
+              <span className="text-sm font-bold text-brand-lime">{checkedCount} verificado{checkedCount !== 1 ? 's' : ''}</span>
+              <button
+                onClick={() => setCheckedItems(new Set())}
+                className="text-[10px] font-black text-slate-400 uppercase hover:text-brand-orange transition-colors ml-auto"
+              >
+                Limpar
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Spreadsheet list */}
+      <div className="print:hidden pb-20">
+        {displayedEntries.length > 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {displayedEntries.map(([category, catItems]) => (
+              <div key={category}>
+                <div className="flex items-center gap-3 px-5 py-3 bg-slate-50 border-b border-slate-100">
+                  <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">{category}</span>
+                  <span className="text-[9px] font-bold text-slate-400">{catItems.length} {catItems.length === 1 ? 'item' : 'itens'}</span>
+                </div>
+                {(catItems as any[]).map((item) => {
+                  const isChecked = checkedItems.has(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => toggleItem(item.id)}
+                      className={cn(
+                        "flex items-center gap-4 px-5 py-3 cursor-pointer transition-all border-b border-slate-50 last:border-0 hover:bg-slate-50/50 group",
+                        isChecked && "opacity-50"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                        isChecked ? "bg-brand-lime border-brand-lime" : "border-slate-300 group-hover:border-brand-blue"
+                      )}>
+                        {isChecked && <div className="w-2 h-1.5 rounded-sm bg-white" />}
+                      </div>
+                      <span className={cn(
+                        "flex-1 text-sm font-bold text-slate-800",
+                        isChecked && "line-through text-slate-400"
+                      )}>
+                        {item.nome}
+                      </span>
+                      <span className="hidden md:block text-[10px] text-slate-400 font-medium truncate max-w-[240px]">
+                        {item.days?.join(', ')}
+                      </span>
+                      <span className="text-sm font-black text-brand-blue tabular-nums shrink-0 ml-2">
+                        {item.count}×
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
@@ -227,7 +331,7 @@ export default function ShoppingList() {
           <div style={{color:'white'}}>
             <div style={{fontSize:'9px',fontWeight:'bold',textTransform:'uppercase',opacity:0.8}}>Canteen</div>
             <div style={{fontSize:'18px',fontWeight:'900',textTransform:'uppercase',lineHeight:'1.1'}}>Lista de Compras</div>
-            <div style={{fontSize:'11px',opacity:0.9}}>{format(startDate,'dd/MM')} a {format(endDate,'dd/MM/yyyy')}</div>
+            <div style={{fontSize:'11px',opacity:0.9}}>{format(effectiveStart,'dd/MM')} a {format(effectiveEnd,'dd/MM/yyyy')}</div>
           </div>
           {logo && <img src={logo} alt="logo" style={{maxHeight:'48px',objectFit:'contain'}} />}
           <div style={{color:'white',textAlign:'right'}}>
@@ -239,13 +343,13 @@ export default function ShoppingList() {
           <thead>
             <tr style={{backgroundColor:'#404040',color:'white'}}>
               <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>Item</th>
-              <th style={{padding:'6px 8px',textAlign:'center',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Qtd (dias)</th>
+              <th style={{padding:'6px 8px',textAlign:'center',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Qtd</th>
               <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>Categoria</th>
               <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>Dias</th>
             </tr>
           </thead>
           <tbody>
-            {Object.entries(shoppingItems).map(([category, catItems]) => (
+            {Object.entries(shoppingItems).sort(([a],[b])=>a.localeCompare(b)).map(([category, catItems]) => (
               <React.Fragment key={category}>
                 <tr style={{backgroundColor:'#e8e8e8'}}>
                   <td colSpan={4} style={{padding:'5px 8px',fontWeight:'bold',fontSize:'11px',border:'1px solid #ccc'}}>{category}</td>

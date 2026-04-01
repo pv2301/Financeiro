@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, Edit2, Trash2, Egg, Milk, Wheat, X, Save, Copy, Settings, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Egg, Milk, Wheat, X, Save, Copy, Settings, CheckCircle2, SortAsc, Tag, Clock } from 'lucide-react';
 import { storage } from '../services/storage';
 import { Item, Category } from '../types';
 import { cn } from '../lib/utils';
 
+type SortMode = 'category' | 'alpha' | 'recent';
+
 export default function Items() {
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  
+
   useEffect(() => {
     const loadData = async () => {
       const [itemsData, categoriesData] = await Promise.all([
@@ -19,37 +21,61 @@ export default function Items() {
     };
     loadData();
   }, []);
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | 'Todas'>('Todas');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
+  const [sortMode, setSortMode] = useState<SortMode>('category');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isInheritModalOpen, setIsInheritModalOpen] = useState(false);
+  const [inheritTargetCategory, setInheritTargetCategory] = useState('');
+  const [inheritSourceCategory, setInheritSourceCategory] = useState('');
+  const [inheritSelected, setInheritSelected] = useState<Set<string>>(new Set());
   const [editingItem, setEditingItem] = useState<Partial<Item> | null>(null);
   const [newCategory, setNewCategory] = useState('');
-  const [inheritFromCategory, setInheritFromCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState<{old: string, new: string} | null>(null);
+  const [cloningCategory, setCloningCategory] = useState<{source: string, newName: string} | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
+    const base = items.filter((item: Item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'Todas' || item.categoria === selectedCategory;
       return matchesSearch && matchesCategory;
-    }).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [items, searchTerm, selectedCategory]);
+    });
+    if (sortMode === 'alpha') return [...base].sort((a, b) => a.nome.localeCompare(b.nome));
+    if (sortMode === 'recent') {
+      return [...base].sort((a, b) => {
+        const tsA = parseInt(a.id.split('-')[1] || '0');
+        const tsB = parseInt(b.id.split('-')[1] || '0');
+        return tsB - tsA;
+      });
+    }
+    // category: group by category, each group alphabetical
+    return [...base].sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
+  }, [items, searchTerm, selectedCategory, sortMode]);
+
+  const groupedItems = useMemo(() => {
+    if (sortMode !== 'category') return null;
+    const map: Record<string, Item[]> = {};
+    filteredItems.forEach((item: Item) => {
+      if (!map[item.categoria]) map[item.categoria] = [];
+      map[item.categoria].push(item);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredItems, sortMode]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem?.nome || !editingItem?.categoria) return;
-
     let updatedItems: Item[];
     if (editingItem.id) {
       updatedItems = items.map(it => it.id === editingItem.id ? editingItem as Item : it);
     } else {
-      const newItem: Item = {
-        ...editingItem as Item,
-        id: `item-${Date.now()}`,
-      };
+      const newItem: Item = { ...editingItem as Item, id: `item-${Date.now()}` };
       updatedItems = [...items, newItem];
     }
-
     setItems(updatedItems);
     storage.saveItems(updatedItems);
     setIsModalOpen(false);
@@ -65,33 +91,16 @@ export default function Items() {
   };
 
   const handleDuplicate = (item: Item) => {
-    const newItem: Item = {
-      ...item,
-      id: `item-${Date.now()}`,
-      nome: `${item.nome} (Cópia)`,
-    };
+    const newItem: Item = { ...item, id: `item-${Date.now()}`, nome: `${item.nome} (Cópia)` };
     const updatedItems = [...items, newItem];
     setItems(updatedItems);
     storage.saveItems(updatedItems);
   };
 
   const openModal = (item?: Item) => {
-    setEditingItem(item || {
-      nome: '',
-      categoria: categories[0] || '',
-      contemOvo: false,
-      contemLactose: false,
-      contemGluten: false,
-      negrito: false,
-      corFundo: '#ffffff'
-    });
+    setEditingItem(item || { nome: '', categoria: categories[0] || '', contemOvo: false, contemLactose: false, contemGluten: false, negrito: false, corFundo: '#ffffff' });
     setIsModalOpen(true);
   };
-
-  const [editingCategory, setEditingCategory] = useState<{old: string, new: string} | null>(null);
-  const [cloningCategory, setCloningCategory] = useState<{source: string, newName: string} | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const handleAddCategory = async () => {
     const name = newCategory.trim();
@@ -99,34 +108,14 @@ export default function Items() {
     const updated = [...categories, name];
     setCategories(updated);
     await storage.saveCategories(updated);
-    if (inheritFromCategory) {
-      const sourceItems = items.filter(i => i.categoria === inheritFromCategory);
-      const copied = sourceItems.map(i => ({
-        ...i,
-        id: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        categoria: name
-      }));
-      if (copied.length > 0) {
-        const updatedItems = [...items, ...copied];
-        setItems(updatedItems);
-        await storage.saveItems(updatedItems);
-        showToast(`Categoria criada com ${copied.length} itens herdados!`);
-      } else {
-        showToast('Categoria adicionada!');
-      }
-    } else {
-      showToast('Categoria adicionada!');
-    }
     setNewCategory('');
-    setInheritFromCategory('');
+    showToast('Categoria adicionada!');
   };
 
   const handleEditCategory = () => {
     if (!editingCategory || !editingCategory.new || categories.includes(editingCategory.new)) return;
-    
     const updatedCategories = categories.map(c => c === editingCategory.old ? editingCategory.new : c);
     const updatedItems = items.map(it => it.categoria === editingCategory.old ? { ...it, categoria: editingCategory.new } : it);
-    
     setCategories(updatedCategories);
     setItems(updatedItems);
     storage.saveCategories(updatedCategories);
@@ -160,6 +149,65 @@ export default function Items() {
     }
   };
 
+  // Inherit items modal
+  const inheritSourceItems = useMemo(() => {
+    if (!inheritSourceCategory) return [];
+    return items.filter((i: Item) => i.categoria === inheritSourceCategory).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
+  }, [inheritSourceCategory, items]);
+
+  const handleOpenInherit = (targetCategory: string) => {
+    setInheritTargetCategory(targetCategory);
+    setInheritSourceCategory('');
+    setInheritSelected(new Set());
+    setIsInheritModalOpen(true);
+  };
+
+  const handleInheritConfirm = async () => {
+    if (!inheritSourceCategory || inheritSelected.size === 0) return;
+    const copied: Item[] = Array.from(inheritSelected).map(id => {
+      const src = items.find((i: Item) => i.id === id)!;
+      return { ...src, id: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, categoria: inheritTargetCategory };
+    });
+    const updatedItems = [...items, ...copied];
+    setItems(updatedItems);
+    await storage.saveItems(updatedItems);
+    setIsInheritModalOpen(false);
+    showToast(`${copied.length} itens herdados para "${inheritTargetCategory}"!`);
+  };
+
+  const ItemRow = ({ item, index }: { item: Item; index: number }) => (
+    <div className={cn(
+      "flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-brand-blue/5 group transition-colors",
+      index % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+    )}>
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.corFundo && item.corFundo !== '#ffffff' ? item.corFundo : '#e2e8f0' }} />
+      <span className={cn("flex-1 text-sm text-slate-800 truncate", item.negrito ? "font-black" : "font-medium")}>
+        {item.nome}
+      </span>
+      {sortMode !== 'category' && (
+        <span className="hidden md:inline text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
+          {item.categoria}
+        </span>
+      )}
+      <div className="flex items-center gap-1 shrink-0">
+        {item.contemOvo && <span className="text-[8px] font-black text-brand-orange bg-brand-orange/10 px-1.5 py-0.5 rounded uppercase">OVO</span>}
+        {item.contemLactose && <span className="text-[8px] font-black text-brand-blue bg-brand-blue/10 px-1.5 py-0.5 rounded uppercase">LAC</span>}
+        {item.contemGluten && <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase">GLU</span>}
+      </div>
+      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button onClick={() => handleDuplicate(item)} className="p-1.5 text-slate-300 hover:text-brand-lime hover:bg-brand-lime/5 rounded-lg transition-colors">
+          <Copy size={13} />
+        </button>
+        <button onClick={() => openModal(item)} className="p-1.5 text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+          <Edit2 size={13} />
+        </button>
+        <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-6 w-full">
       {toast && (
@@ -167,63 +215,91 @@ export default function Items() {
           <CheckCircle2 size={18} /> {toast}
         </div>
       )}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Banco de Itens</h1>
           <p className="text-slate-500 font-medium">Gerencie os alimentos disponíveis para o cardápio.</p>
         </div>
         <div className="flex gap-2">
-          <button 
+          <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm font-black text-xs uppercase tracking-widest"
           >
-            <Settings size={20} />
+            <Settings size={16} />
             Categorias
           </button>
-          <button 
+          <button
             onClick={() => openModal()}
-            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
+            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-xs uppercase tracking-widest"
           >
-            <Plus size={20} />
+            <Plus size={16} />
             Novo Item
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm mb-6 flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Pesquisar item..." 
-            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-medium"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Search — large, prominent */}
+      <div className="relative mb-4">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <input
+          type="text"
+          placeholder="Pesquisar item..."
+          className="w-full pl-14 pr-5 py-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-base focus:ring-2 focus:ring-brand-blue/20 transition-all font-medium text-slate-900"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        {searchTerm && (
+          <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Sort + Category filter bar */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-5">
+        {/* Sort pills */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {([
+            { key: 'category', icon: Tag, label: 'Categoria' },
+            { key: 'alpha', icon: SortAsc, label: 'A–Z' },
+            { key: 'recent', icon: Clock, label: 'Recentes' },
+          ] as { key: SortMode, icon: any, label: string }[]).map(({ key, icon: Icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setSortMode(key)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                sortMode === key ? "bg-brand-blue text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              )}
+            >
+              <Icon size={12} />
+              {label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
-          <Filter size={18} className="text-brand-blue shrink-0 ml-2" />
-          <button 
+
+        <div className="w-px h-5 bg-slate-200 hidden md:block shrink-0" />
+
+        {/* Category filter pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 flex-1">
+          <button
             onClick={() => setSelectedCategory('Todas')}
             className={cn(
-              "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
-              selectedCategory === 'Todas' 
-                ? "bg-brand-blue text-white shadow-md shadow-brand-blue/20" 
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+              selectedCategory === 'Todas' ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             )}
           >
             Todas
           </button>
           {categories.map(cat => (
-            <button 
+            <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               className={cn(
-                "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                selectedCategory === cat 
-                  ? "bg-brand-blue text-white shadow-md shadow-brand-blue/20" 
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                selectedCategory === cat ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
               )}
             >
               {cat}
@@ -232,69 +308,39 @@ export default function Items() {
         </div>
       </div>
 
-      {/* Items Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map(item => (
-          <div 
-            key={item.id} 
-            className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
-            style={item.corFundo && item.corFundo !== '#ffffff' ? { borderLeft: `8px solid ${item.corFundo}` } : { borderLeft: '8px solid #e2e8f0' }}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-blue bg-brand-blue/5 px-3 py-1 rounded-full">
-                {item.categoria}
-              </span>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => handleDuplicate(item)}
-                  title="Duplicar"
-                  className="p-2 text-brand-lime hover:bg-brand-lime/5 rounded-xl transition-colors"
-                >
-                  <Copy size={16} />
-                </button>
-                <button 
-                  onClick={() => openModal(item)}
-                  title="Editar"
-                  className="p-2 text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-colors"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button 
-                  onClick={() => handleDelete(item.id)}
-                  title="Excluir"
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
+      {/* Item count */}
+      {filteredItems.length > 0 && (
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+          {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'itens'}
+        </p>
+      )}
+
+      {/* Items list */}
+      {filteredItems.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+          <Search size={32} className="text-slate-200 mx-auto mb-3" />
+          <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Nenhum item encontrado</h3>
+          <p className="text-slate-500 font-medium text-sm">Tente ajustar sua busca ou filtros.</p>
+        </div>
+      ) : groupedItems ? (
+        <div className="space-y-3">
+          {groupedItems.map(([category, catItems]) => (
+            <div key={category} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">{category}</span>
+                <span className="text-[9px] font-bold text-slate-400">{catItems.length}</span>
               </div>
+              {catItems.map((item: Item, i: number) => <ItemRow key={item.id} item={item} index={i} />)}
             </div>
-            
-            <h3 className={cn("text-slate-900 text-lg mb-4 leading-tight", item.negrito ? "font-black" : "font-bold")}>
-              {item.nome}
-            </h3>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {filteredItems.map((item: Item, i: number) => <ItemRow key={item.id} item={item} index={i} />)}
+        </div>
+      )}
 
-            <div className="flex flex-wrap gap-2">
-              {item.contemOvo && (
-                <div className="flex items-center gap-1.5 text-[10px] font-black text-brand-orange bg-brand-orange/10 px-3 py-1 rounded-lg uppercase tracking-widest">
-                  <Egg size={12} /> OVO
-                </div>
-              )}
-              {item.contemLactose && (
-                <div className="flex items-center gap-1.5 text-[10px] font-black text-brand-blue bg-brand-blue/10 px-3 py-1 rounded-lg uppercase tracking-widest">
-                  <Milk size={12} /> LAC
-                </div>
-              )}
-              {item.contemGluten && (
-                <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 px-3 py-1 rounded-lg uppercase tracking-widest">
-                  <Wheat size={12} /> GLU
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Modal */}
+      {/* Item Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden">
@@ -306,24 +352,20 @@ export default function Items() {
                 <X size={24} className="text-slate-400" />
               </button>
             </div>
-            
             <form onSubmit={handleSave} className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Nome do Alimento</label>
-                <input 
-                  autoFocus
-                  required
-                  type="text" 
+                <input
+                  autoFocus required type="text"
                   className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
                   value={editingItem?.nome}
                   onChange={e => setEditingItem({...editingItem, nome: e.target.value})}
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Categoria</label>
-                  <select 
+                  <select
                     required
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
                     value={editingItem?.categoria}
@@ -334,17 +376,14 @@ export default function Items() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Cor de Destaque</label>
-                  <div className="flex items-center gap-3">
-                    <input 
-                      type="color" 
-                      className="w-full h-[56px] rounded-2xl bg-slate-50 border-none cursor-pointer p-1"
-                      value={editingItem?.corFundo}
-                      onChange={e => setEditingItem({...editingItem, corFundo: e.target.value})}
-                    />
-                  </div>
+                  <input
+                    type="color"
+                    className="w-full h-[56px] rounded-2xl bg-slate-50 border-none cursor-pointer p-1"
+                    value={editingItem?.corFundo}
+                    onChange={e => setEditingItem({...editingItem, corFundo: e.target.value})}
+                  />
                 </div>
               </div>
-
               <div className="space-y-4 pt-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Restrições e Estilo</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -355,8 +394,7 @@ export default function Items() {
                     { key: 'negrito', label: 'Texto em Negrito', icon: Plus },
                   ].map(opt => (
                     <button
-                      key={opt.key}
-                      type="button"
+                      key={opt.key} type="button"
                       onClick={() => setEditingItem({...editingItem, [opt.key]: !editingItem?.[opt.key as keyof typeof editingItem]})}
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all font-bold text-sm",
@@ -371,19 +409,11 @@ export default function Items() {
                   ))}
                 </div>
               </div>
-
               <div className="pt-4 flex gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all"
-                >
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all">
                   Cancelar
                 </button>
-                <button 
-                  type="submit"
-                  className="flex-[2] bg-brand-lime hover:bg-brand-lime/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-brand-lime/20 flex items-center justify-center gap-2"
-                >
+                <button type="submit" className="flex-[2] bg-brand-lime hover:bg-brand-lime/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-brand-lime/20 flex items-center justify-center gap-2">
                   <Save size={20} />
                   Salvar Item
                 </button>
@@ -403,94 +433,79 @@ export default function Items() {
                 <X size={24} className="text-slate-400" />
               </button>
             </div>
-            
             <div className="p-8 space-y-6">
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Nova categoria..."
-                    className="flex-1 px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleAddCategory()}
-                  />
-                  <button
-                    onClick={handleAddCategory}
-                    className="bg-brand-blue text-white p-4 rounded-2xl hover:bg-brand-blue/90 transition-all"
-                  >
-                    <Plus size={24} />
-                  </button>
-                </div>
-                <select
-                  value={inheritFromCategory}
-                  onChange={e => setInheritFromCategory(e.target.value)}
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-700 text-sm appearance-none"
-                >
-                  <option value="">Herdar itens de (opcional)...</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              {/* Add new category */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nova categoria..."
+                  className="flex-1 px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <button onClick={handleAddCategory} className="bg-brand-blue text-white p-4 rounded-2xl hover:bg-brand-blue/90 transition-all">
+                  <Plus size={24} />
+                </button>
               </div>
 
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                 {categories.map(cat => (
-                  <div key={cat} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group">
+                  <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl group">
                     {editingCategory?.old === cat ? (
                       <div className="flex-1 flex gap-2">
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900"
                           value={editingCategory.new}
                           onChange={e => setEditingCategory({...editingCategory, new: e.target.value})}
                           onKeyPress={e => e.key === 'Enter' && handleEditCategory()}
                         />
-                        <button onClick={handleEditCategory} className="p-2 text-brand-lime hover:bg-brand-lime/5 rounded-xl">
-                          <Save size={18} />
-                        </button>
-                        <button onClick={() => setEditingCategory(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl">
-                          <X size={18} />
-                        </button>
+                        <button onClick={handleEditCategory} className="p-2 text-brand-lime hover:bg-brand-lime/5 rounded-xl"><Save size={18} /></button>
+                        <button onClick={() => setEditingCategory(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl"><X size={18} /></button>
                       </div>
                     ) : cloningCategory?.source === cat ? (
                       <div className="flex-1 flex gap-2">
                         <input
-                          autoFocus
-                          type="text"
+                          autoFocus type="text"
                           placeholder="Nome da nova categoria..."
                           className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 text-sm"
                           value={cloningCategory.newName}
                           onChange={e => setCloningCategory({...cloningCategory, newName: e.target.value})}
                           onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleCloneCategory()}
                         />
-                        <button onClick={handleCloneCategory} className="p-2 text-brand-lime hover:bg-brand-lime/5 rounded-xl" title="Confirmar">
-                          <Save size={18} />
-                        </button>
-                        <button onClick={() => setCloningCategory(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl">
-                          <X size={18} />
-                        </button>
+                        <button onClick={handleCloneCategory} className="p-2 text-brand-lime hover:bg-brand-lime/5 rounded-xl"><Save size={18} /></button>
+                        <button onClick={() => setCloningCategory(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl"><X size={18} /></button>
                       </div>
                     ) : (
                       <>
-                        <span className="font-bold text-slate-700">{cat}</span>
+                        <span className="font-bold text-slate-700 text-sm flex-1">{cat}</span>
                         <div className="flex gap-1">
                           <button
-                            onClick={() => setCloningCategory({ source: cat, newName: `${cat} (Cópia)` })}
-                            className="p-2 text-slate-300 hover:text-brand-lime hover:bg-brand-lime/5 rounded-xl transition-all"
-                            title="Clonar categoria com todos os itens"
+                            onClick={() => handleOpenInherit(cat)}
+                            className="p-1.5 text-slate-300 hover:text-brand-orange hover:bg-brand-orange/5 rounded-xl transition-all"
+                            title="Herdar itens de outra categoria"
                           >
-                            <Copy size={18} />
+                            <Plus size={15} />
+                          </button>
+                          <button
+                            onClick={() => setCloningCategory({ source: cat, newName: `${cat} (Cópia)` })}
+                            className="p-1.5 text-slate-300 hover:text-brand-lime hover:bg-brand-lime/5 rounded-xl transition-all"
+                            title="Clonar categoria"
+                          >
+                            <Copy size={15} />
                           </button>
                           <button
                             onClick={() => setEditingCategory({ old: cat, new: cat })}
-                            className="p-2 text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all"
+                            className="p-1.5 text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all"
                           >
-                            <Edit2 size={18} />
+                            <Edit2 size={15} />
                           </button>
                           <button
                             onClick={() => handleDeleteCategory(cat)}
-                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </>
@@ -503,13 +518,96 @@ export default function Items() {
         </div>
       )}
 
-      {filteredItems.length === 0 && (
-        <div className="text-center py-20">
-          <div className="bg-slate-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Search size={40} className="text-slate-300" />
+      {/* Inherit Items Modal */}
+      {isInheritModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h2 className="text-lg font-black text-brand-blue uppercase tracking-tight">Herdar Itens</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Para: <span className="font-black text-brand-orange">{inheritTargetCategory}</span></p>
+              </div>
+              <button onClick={() => setIsInheritModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Copiar de</label>
+                <select
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
+                  value={inheritSourceCategory}
+                  onChange={e => { setInheritSourceCategory(e.target.value); setInheritSelected(new Set()); }}
+                >
+                  <option value="">— Selecione uma categoria —</option>
+                  {categories.filter(c => c !== inheritTargetCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {inheritSourceCategory && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Itens ({inheritSelected.size}/{inheritSourceItems.length} selecionados)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (inheritSelected.size === inheritSourceItems.length) setInheritSelected(new Set());
+                        else setInheritSelected(new Set(inheritSourceItems.map(i => i.id)));
+                      }}
+                      className="text-[10px] font-black text-brand-blue uppercase tracking-widest hover:underline"
+                    >
+                      {inheritSelected.size === inheritSourceItems.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                    </button>
+                  </div>
+                  <div className="max-h-[280px] overflow-y-auto space-y-1 bg-slate-50 rounded-2xl p-2">
+                    {inheritSourceItems.map(item => (
+                      <label key={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white cursor-pointer transition-colors group">
+                        <div className={cn(
+                          "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                          inheritSelected.has(item.id) ? "bg-brand-blue border-brand-blue" : "border-slate-300 group-hover:border-brand-blue"
+                        )}>
+                          {inheritSelected.has(item.id) && <div className="w-2 h-1.5 rounded-sm bg-white" />}
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={inheritSelected.has(item.id)}
+                          onChange={() => {
+                            const next = new Set(inheritSelected);
+                            if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                            setInheritSelected(next);
+                          }}
+                        />
+                        <span className="text-sm font-medium text-slate-700">{item.nome}</span>
+                        <div className="flex gap-1 ml-auto">
+                          {item.contemOvo && <span className="text-[8px] font-black text-brand-orange bg-brand-orange/10 px-1.5 py-0.5 rounded">OVO</span>}
+                          {item.contemLactose && <span className="text-[8px] font-black text-brand-blue bg-brand-blue/10 px-1.5 py-0.5 rounded">LAC</span>}
+                          {item.contemGluten && <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">GLU</span>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsInheritModalOpen(false)} className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={inheritSelected.size === 0}
+                  onClick={handleInheritConfirm}
+                  className="flex-[2] bg-brand-lime hover:bg-brand-lime/90 disabled:opacity-40 text-white py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={18} />
+                  Herdar {inheritSelected.size > 0 ? `${inheritSelected.size} ` : ''}Itens
+                </button>
+              </div>
+            </div>
           </div>
-          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Nenhum item encontrado</h3>
-          <p className="text-slate-500 font-medium">Tente ajustar sua busca ou filtros.</p>
         </div>
       )}
     </div>

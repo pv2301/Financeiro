@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
+import {
   Calendar as CalendarIcon,
   Plus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CheckCircle2,
   MoreHorizontal,
   Download,
@@ -36,6 +37,7 @@ export default function Groups() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printGroups, setPrintGroups] = useState<Set<string>>(new Set());
+  const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -298,13 +300,45 @@ export default function Groups() {
           <p className="text-slate-500 font-medium">Visão individualizada por grupo.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select 
-            className="bg-white border border-slate-200 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none mr-2"
-            value={selectedGroup?.id || ''}
-            onChange={(e) => setSelectedGroup(groups.find(g => g.id === e.target.value) || null)}
-          >
-            {groups.map(g => <option key={g.id} value={g.id}>{g.nomeCompleto}</option>)}
-          </select>
+          {/* Custom group selector */}
+          <div className="relative">
+            {isGroupDropdownOpen && (
+              <div className="fixed inset-0 z-10" onClick={() => setIsGroupDropdownOpen(false)} />
+            )}
+            <button
+              onClick={() => setIsGroupDropdownOpen((o: boolean) => !o)}
+              className="bg-white border border-slate-200 px-5 py-3 rounded-2xl flex items-center gap-3 transition-all shadow-sm hover:bg-slate-50 min-w-[220px] relative z-20"
+            >
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: selectedGroup?.cor || '#94a3b8' }} />
+              <span className="flex-1 text-left font-black text-sm text-brand-blue uppercase tracking-widest truncate">
+                {selectedGroup?.nomeCompleto || 'Selecionar grupo'}
+              </span>
+              <ChevronDown size={16} className={cn("text-slate-400 transition-transform shrink-0", isGroupDropdownOpen && "rotate-180")} />
+            </button>
+            {isGroupDropdownOpen && (
+              <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 overflow-hidden min-w-[260px] py-1">
+                {groups.map((g: GroupConfig) => (
+                  <button
+                    key={g.id}
+                    onClick={() => { setSelectedGroup(g); setIsGroupDropdownOpen(false); }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50",
+                      selectedGroup?.id === g.id ? "bg-brand-blue/5" : ""
+                    )}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.cor }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm text-brand-blue uppercase tracking-widest truncate">{g.nomeCompleto}</p>
+                      {g.nomeCurto !== g.nomeCompleto && (
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{g.nomeCurto}</p>
+                      )}
+                    </div>
+                    {selectedGroup?.id === g.id && <CheckCircle2 size={14} className="text-brand-blue shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button 
             onClick={copyPreviousMonth}
@@ -372,13 +406,15 @@ export default function Groups() {
               <div className="flex flex-row">
                 {/* Date Side */}
                 <div className={cn(
-                  "w-20 py-1 px-3 flex flex-col justify-center items-center border-r transition-colors shrink-0",
+                  "py-2 px-4 flex items-center gap-3 border-r transition-colors shrink-0 min-w-[160px]",
                   day.isFeriado ? "bg-brand-orange/10 border-brand-orange/20" : "bg-slate-50/50 border-slate-100 group-hover:bg-brand-blue/5"
                 )}>
-                  <span className="text-base font-black text-slate-900">{format(new Date(day.data), 'dd')}</span>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{day.diaSemana.split('-')[0]}</span>
+                  <span className="text-base font-black text-brand-blue tabular-nums whitespace-nowrap">{format(new Date(day.data), 'dd/MM')}</span>
+                  <span className="text-sm font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    {(() => { const s = format(new Date(day.data), 'EEEE', { locale: ptBR }).split('-')[0].trim(); return `- ${s.charAt(0).toUpperCase()}${s.slice(1)}`; })()}
+                  </span>
                   {day.isFeriado && (
-                    <span className="px-2 py-0.5 rounded-full bg-brand-orange text-white text-[8px] font-black uppercase">FER</span>
+                    <span className="ml-2 px-2 py-0.5 rounded-full bg-brand-orange text-white text-[8px] font-black uppercase">FER</span>
                   )}
                 </div>
 
@@ -639,7 +675,7 @@ function CompactMealSlot({ label, itemName }: { label: string, itemName: string 
     <div className="flex items-baseline gap-1.5 min-w-[120px]">
       <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{label}:</span>
       {itemName
-        ? <span className="text-xs font-bold text-slate-800 truncate">{itemName}</span>
+        ? <span className="text-xs font-black text-slate-800 truncate">{itemName}</span>
         : <span className="text-xs text-slate-300 italic">—</span>
       }
     </div>

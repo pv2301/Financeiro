@@ -32,6 +32,7 @@ export default function Menu() {
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingProgress, setGeneratingProgress] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [snapshots, setSnapshots] = useState<MenuSnapshot[]>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -128,53 +129,86 @@ export default function Menu() {
 
   const generateWithAI = async () => {
     if (!window.confirm(`Gerar cardápio com IA para ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}? Os dias não preenchidos serão completados.`)) return;
+    const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+    if (!apiKey) {
+      showToast('Configure a chave Gemini API em Configurações para usar esta função.');
+      return;
+    }
     setIsGenerating(true);
+    setGeneratingProgress('Iniciando...');
+    let updated = [...menuDays];
     try {
       const workdays = daysInMonth.filter(d => !isWeekend(d));
-      const itemsByCategory: Record<string, { id: string; nome: string }[]> = {};
-      items.forEach(it => {
-        if (!itemsByCategory[it.categoria]) itemsByCategory[it.categoria] = [];
-        itemsByCategory[it.categoria].push({ id: it.id, nome: it.nome });
-      });
-      const recentHistory = snapshots.slice(0, 3).map(s => s.label).join(', ') || 'nenhum';
-      const prompt = `Você é nutricionista especializado em alimentação infantil.
-Gere um cardápio mensal para ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}.
-Grupos: ${JSON.stringify(groups.map(g => ({ id: g.id, nome: g.nomeCurto, colunas: g.colunas.map(c => c.categoria), restricao: g.restricao || null })))}
-Itens por categoria: ${JSON.stringify(itemsByCategory)}
-Dias úteis: ${workdays.map(d => format(d, 'yyyy-MM-dd')).join(', ')}
-Meses com histórico (evite repetições excessivas): ${recentHistory}
+      const ai = new GoogleGenAI({ apiKey });
 
-Responda SOMENTE com JSON válido neste formato exato (sem markdown, sem explicações):
-{"assignments":[{"date":"YYYY-MM-DD","groupId":"...","fields":{"fieldNameId":"itemId"}}]}
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
+        setGeneratingProgress(`Grupo ${gi + 1}/${groups.length}: ${group.nomeCurto}`);
 
-Onde fieldNameId é o nome da categoria normalizado + "Id" (ex: "Prato Principal" → "pratoprincipalId", "Café da Manhã" → "cafedamanhaId").
-Use apenas IDs de itens da lista fornecida. Gere para todos os grupos em todos os dias úteis.`;
+        // Apenas categorias usadas por este grupo, máx 25 itens por categoria
+        const usedCats = new Set(group.colunas.map((c: { categoria: string }) => c.categoria));
+        const itemsByCategory: Record<string, { id: string; nome: string }[]> = {};
+        items.forEach((it: Item) => {
+          if (!usedCats.has(it.categoria)) return;
+          if (!itemsByCategory[it.categoria]) itemsByCategory[it.categoria] = [];
+          if (itemsByCategory[it.categoria].length < 25)
+            itemsByCategory[it.categoria].push({ id: it.id, nome: it.nome });
+        });
 
-      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '' });
-      const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
-      const text = response.text || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Resposta inválida da IA');
-      const { assignments } = JSON.parse(jsonMatch[0]);
-      let updated = [...menuDays];
-      (assignments as any[]).forEach(a => {
-        const idx = updated.findIndex(d => isSameDay(new Date(d.data), new Date(a.date)) && d.id.includes(a.groupId));
-        if (idx >= 0) {
-          updated[idx] = { ...updated[idx], ...a.fields };
-        } else {
-          updated.push({ id: `day-${new Date(a.date).getTime()}-${a.groupId}`, data: new Date(a.date).toISOString(), diaSemana: format(new Date(a.date), 'EEEE', { locale: ptBR }), ...a.fields });
-        }
-      });
-      setMenuDays(updated);
-      await storage.saveMenu(updated);
+        // fieldId exato (mesmo algoritmo do getFieldIdFromColumn)
+        const colFields = group.colunas.map((c: MenuColumn) => ({
+          categoria: c.categoria,
+          fieldId: c.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
+        }));
+
+        const prompt = `Nutricionista infantil. Gere cardápio para o grupo "${group.nomeCompleto}"${group.restricao ? ` (restrição: ${group.restricao})` : ''} em ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}.
+Colunas: ${JSON.stringify(colFields)}
+Itens disponíveis: ${JSON.stringify(itemsByCategory)}
+Dias úteis: ${workdays.map(d => format(d, 'yyyy-MM-dd')).join(',')}
+
+Responda SOMENTE JSON (sem markdown):
+{"assignments":[{"date":"YYYY-MM-DD","groupId":"${group.id}","fields":{"fieldId":"itemId"}}]}
+
+Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os itens ao longo do mês.`;
+
+        const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+        const text = response.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error(`Resposta inválida da IA para grupo ${group.nomeCurto}`);
+
+        const { assignments } = JSON.parse(jsonMatch[0]);
+        (assignments as any[]).forEach(a => {
+          const idx = updated.findIndex(d => isSameDay(new Date(d.data), new Date(a.date)) && d.id.includes(a.groupId));
+          if (idx >= 0) {
+            updated[idx] = { ...updated[idx], ...a.fields };
+          } else {
+            updated.push({ id: `day-${new Date(a.date).getTime()}-${a.groupId}`, data: new Date(a.date).toISOString(), diaSemana: format(new Date(a.date), 'EEEE', { locale: ptBR }), ...a.fields });
+          }
+        });
+
+        // Salva progressivamente após cada grupo
+        setMenuDays([...updated]);
+        await storage.saveMenu(updated);
+
+        // Pausa 1s entre chamadas (evita rate limit: 15 RPM free tier)
+        if (gi < groups.length - 1) await new Promise(r => setTimeout(r, 1000));
+      }
+
       const snap: MenuSnapshot = { id: Date.now().toString(), label: format(currentDate, 'MMMM yyyy', { locale: ptBR }), monthYear: format(currentDate, 'yyyy-MM'), menuDays: updated.filter(d => isSameMonth(new Date(d.data), currentDate)), createdAt: new Date().toISOString() };
       await storage.addMenuSnapshot(snap);
       setSnapshots(prev => [snap, ...prev]);
       showToast('Cardápio gerado com IA!');
-    } catch {
-      showToast('Erro ao gerar com IA. Tente novamente.');
+    } catch (e: any) {
+      console.error('Erro IA:', e);
+      const msg = e?.message?.includes('API_KEY') || e?.message?.includes('API key')
+        ? 'Chave Gemini API inválida. Verifique em Configurações.'
+        : e?.message?.includes('quota') || e?.message?.includes('429')
+        ? 'Cota da API excedida. Aguarde 1 minuto e tente novamente.'
+        : `Erro ao gerar: ${e?.message || 'verifique o console (F12)'}`;
+      showToast(msg);
     } finally {
       setIsGenerating(false);
+      setGeneratingProgress(null);
     }
   };
 
@@ -231,7 +265,7 @@ Use apenas IDs de itens da lista fornecida. Gere para todos os grupos em todos o
             className="bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest disabled:opacity-60"
           >
             <Sparkles size={20} />
-            {isGenerating ? 'Gerando...' : 'Gerar com IA'}
+            {isGenerating ? (generatingProgress || 'Gerando...') : 'Gerar com IA'}
           </button>
           <button
             onClick={() => setIsHistoryOpen(true)}
@@ -288,12 +322,14 @@ Use apenas IDs de itens da lista fornecida. Gere para todos os grupos em todos o
                 </tr>
               </thead>
               <tbody>
-                {daysInMonth.map(day => (
-                  <tr key={day.toISOString()} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2 px-4 border-r border-slate-200 sticky left-0 bg-white z-10 min-w-[130px]">
+                {daysInMonth.map((day, idx) => (
+                  <tr key={day.toISOString()} className={cn("border-b border-slate-100 transition-colors", idx % 2 === 0 ? "bg-white hover:bg-slate-50" : "bg-slate-50/40 hover:bg-slate-100/60")}>
+                    <td className={cn("py-2 px-4 border-r border-slate-200 sticky left-0 z-10 min-w-[160px]", idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")}>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-black text-brand-blue whitespace-nowrap">{format(day, 'dd/MM')}</span>
-                        <span className="text-[10px] font-medium text-slate-400 capitalize truncate">{format(day, 'EEE', { locale: ptBR })}</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                          - {(() => { const s = format(day, 'EEEE', { locale: ptBR }).split('-')[0].trim(); return s.charAt(0).toUpperCase() + s.slice(1); })()}
+                        </span>
                       </div>
                     </td>
                     {groups.map(group => {
@@ -327,7 +363,7 @@ Use apenas IDs de itens da lista fornecida. Gere para todos os grupos em todos o
                                     <div className="w-1 h-1 rounded-full bg-brand-lime mt-1.5 shrink-0" />
                                     <div>
                                       <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{col.categoria}</p>
-                                      <p className="text-[10px] font-bold text-slate-700">{getItemName(itemId)}</p>
+                                      <p className="text-[10px] font-black text-slate-800">{getItemName(itemId)}</p>
                                     </div>
                                   </div>
                                 );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Save,
   Plus,
@@ -13,7 +13,8 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  Edit2
+  Edit2,
+  Sparkles
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { storage as firebaseStorage } from '../firebase';
@@ -34,6 +35,9 @@ export default function Config() {
   const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
   const [isEditingNutricionista, setIsEditingNutricionista] = useState(false);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [geminiKey, setGeminiKey] = useState('');
+  const [isAICardOpen, setIsAICardOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -49,6 +53,7 @@ export default function Config() {
       setLogo(logoData);
       setCategories(categoriesData);
       setNutricionista(nutData);
+      setGeminiKey(localStorage.getItem('gemini_api_key') || '');
     };
     loadData();
   }, []);
@@ -339,94 +344,123 @@ export default function Config() {
         </div>
       )}
 
-      {/* Logo Upload Section */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-8 border-b border-slate-100 bg-slate-50/30">
+      {/* Logo + Nutricionista side by side */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden mb-8 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        {/* Logo */}
+        <div className="flex-1 p-8 flex flex-col gap-5">
           <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
             <ImageIcon size={16} className="text-brand-blue" />
             Logo do Sistema
           </h3>
-        </div>
-        <div className="p-8 flex flex-col md:flex-row items-center gap-8">
-          <div className="w-48 h-24 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
-            {logo ? (
-              <img src={logo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
-            ) : (
-              <ImageIcon size={32} className="text-slate-200" />
-            )}
-          </div>
-          <div className="flex-1 space-y-4">
-            <p className="text-sm text-slate-500 font-medium">
-              Escolha uma imagem para ser exibida no topo do menu lateral. 
-              Recomendamos imagens horizontais com fundo transparente.
-            </p>
-            <div className="flex items-center gap-4">
-              <label className="cursor-pointer bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-brand-blue/20">
-                <Upload size={16} />
+          <div className="flex items-center gap-6">
+            <div className="w-32 h-16 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+              {logo ? (
+                <img src={logo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
+              ) : (
+                <ImageIcon size={24} className="text-slate-200" />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="cursor-pointer bg-brand-blue hover:bg-brand-blue/90 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-brand-blue/20 w-fit">
+                <Upload size={14} />
                 Fazer Upload
                 <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
               </label>
               {logo && (
-                <button 
-                  onClick={() => setLogo(null)}
-                  className="text-[10px] font-black text-brand-orange uppercase tracking-widest hover:underline"
-                >
+                <button onClick={() => setLogo(null)} className="text-[10px] font-black text-brand-orange uppercase tracking-widest hover:underline w-fit">
                   Remover Logo
                 </button>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Nutritionist Section */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-8 border-b border-slate-100 bg-slate-50/30">
+        {/* Nutricionista */}
+        <div className="flex-1 p-8 flex flex-col gap-5">
           <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
             <Users size={16} className="text-brand-blue" />
             Dados da Nutricionista
           </h3>
-        </div>
-        <div className="p-8 flex items-center justify-between gap-6">
-          {isEditingNutricionista ? (
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome Completo</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Simone Carneiro da Cunha"
-                  className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
-                  value={nutricionista.nome}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNutricionista({...nutricionista, nome: e.target.value})}
-                />
+          <div className="flex items-start gap-4">
+            {isEditingNutricionista ? (
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Simone Carneiro da Cunha"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm"
+                    value={nutricionista.nome}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNutricionista({...nutricionista, nome: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">CRN</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 1377"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm"
+                    value={nutricionista.crn}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNutricionista({...nutricionista, crn: e.target.value})}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">CRN</label>
-                <input
-                  type="text"
-                  placeholder="Ex: 1377"
-                  className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
-                  value={nutricionista.crn}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNutricionista({...nutricionista, crn: e.target.value})}
-                />
+            ) : (
+              <div className="flex-1">
+                <p className="text-xl font-black text-slate-900">
+                  {nutricionista.nome || <span className="text-slate-300 italic font-medium text-base">Não informado</span>}
+                </p>
+                {nutricionista.crn && <p className="text-sm font-bold text-brand-orange mt-0.5">CRN {nutricionista.crn}</p>}
               </div>
-            </div>
-          ) : (
-            <div className="flex-1">
-              <p className="text-xl font-black text-slate-900">
-                {nutricionista.nome || <span className="text-slate-300 italic font-medium">Não informado</span>}
-              </p>
-              {nutricionista.crn && <p className="text-sm font-bold text-slate-500 mt-1">CRN {nutricionista.crn}</p>}
-            </div>
-          )}
-          <button
-            onClick={() => setIsEditingNutricionista(!isEditingNutricionista)}
-            className="p-3 text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all shrink-0"
-            title={isEditingNutricionista ? 'Concluir' : 'Editar'}
-          >
-            {isEditingNutricionista ? <CheckCircle2 size={20} /> : <Edit2 size={20} />}
-          </button>
+            )}
+            <button
+              onClick={() => setIsEditingNutricionista(!isEditingNutricionista)}
+              className="p-2.5 text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all shrink-0"
+              title={isEditingNutricionista ? 'Concluir' : 'Editar'}
+            >
+              {isEditingNutricionista ? <CheckCircle2 size={18} /> : <Edit2 size={18} />}
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Gemini API Key */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden mb-8">
+        <button
+          onClick={() => setIsAICardOpen((o: boolean) => !o)}
+          className="w-full flex items-center gap-4 p-6 hover:bg-slate-50/60 transition-colors text-left"
+        >
+          <div className="p-3 bg-brand-blue/5 rounded-2xl text-brand-blue shrink-0"><Sparkles size={20} /></div>
+          <div className="flex-1">
+            <p className="text-sm font-black text-brand-blue uppercase tracking-tight">Inteligência Artificial</p>
+            <p className="text-[10px] text-slate-400 font-medium">
+              {geminiKey ? 'Chave configurada' : 'Chave não configurada — clique para configurar'}
+            </p>
+          </div>
+          {isAICardOpen ? <ChevronUp size={18} className="text-slate-400 shrink-0" /> : <ChevronDown size={18} className="text-slate-400 shrink-0" />}
+        </button>
+        {isAICardOpen && (
+          <div className="px-8 pb-8 border-t border-slate-100">
+            <div className="flex gap-3 mt-6">
+              <input
+                type="password"
+                placeholder="AIza..."
+                className="flex-1 px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-mono text-sm text-slate-700"
+                value={geminiKey}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGeminiKey(e.target.value)}
+              />
+              <button
+                onClick={() => { localStorage.setItem('gemini_api_key', geminiKey); showToast('Chave salva!'); }}
+                className="bg-brand-blue text-white px-6 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-blue/90 transition-all"
+              >
+                Salvar
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-3">
+              Obtenha sua chave em <span className="font-black text-brand-blue">aistudio.google.com</span>. A chave é salva apenas no seu navegador.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-8 pb-20">
@@ -456,7 +490,11 @@ export default function Config() {
                       <tr
                         key={config.id}
                         className="border-b border-slate-100 hover:bg-brand-blue/5 transition-colors cursor-pointer"
-                        onClick={() => setExpandedGroupId(expandedGroupId === config.id ? null : config.id)}
+                        onClick={() => {
+                          const next = expandedGroupId === config.id ? null : config.id;
+                          setExpandedGroupId(next);
+                          if (next) setTimeout(() => groupRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                        }}
                       >
                         <td className="p-4 text-sm font-black text-brand-blue uppercase">
                           <div className="flex items-center gap-2">
@@ -482,7 +520,7 @@ export default function Config() {
         </div>
 
         {configs.map((config) => expandedGroupId === config.id ? (
-          <div key={config.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden group hover:border-brand-blue/30 transition-all">
+          <div key={config.id} ref={(el: HTMLDivElement | null) => { groupRefs.current[config.id] = el; }} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden group hover:border-brand-blue/30 transition-all">
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center gap-6 bg-slate-50/30">
               <div 
                 className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0" 
@@ -507,7 +545,7 @@ export default function Config() {
                     className="text-[10px] font-black text-brand-orange bg-transparent border-none focus:ring-0 p-0 uppercase tracking-widest w-40"
                     placeholder="EX: AGNES"
                   />
-                  <span className="text-[9px] text-slate-400 italic font-medium">(Usado em abas e tabelas)</span>
+                  <span className="text-[9px] text-slate-400 italic font-medium">(Usado nas abas)</span>
                 </div>
               </div>
               <button 

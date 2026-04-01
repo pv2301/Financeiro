@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -43,6 +43,7 @@ export default function Substitutions() {
     };
     loadData();
   }, []);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRestrictionModalOpen, setIsRestrictionModalOpen] = useState(false);
   const [editingSub, setEditingSub] = useState<Partial<Substitution> | null>(null);
@@ -62,10 +63,10 @@ export default function Substitutions() {
       observacao: editingSub.observacao
     };
 
-    const updated = editingSub.id 
+    const updated = editingSub.id
       ? substitutions.map(s => s.id === editingSub.id ? newSub : s)
       : [...substitutions, newSub];
-    
+
     setSubstitutions(updated);
     storage.saveSubstitutions(updated);
     setIsModalOpen(false);
@@ -75,12 +76,7 @@ export default function Substitutions() {
   const handleAddRestriction = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRestriction.trim()) return;
-
-    const restriction: Restriction = {
-      id: `res-${Date.now()}`,
-      nome: newRestriction.trim()
-    };
-
+    const restriction: Restriction = { id: `res-${Date.now()}`, nome: newRestriction.trim() };
     const updated = [...restrictions, restriction];
     setRestrictions(updated);
     storage.saveRestrictions(updated);
@@ -105,113 +101,131 @@ export default function Substitutions() {
 
   const getItemName = (id: string) => items.find(it => it.id === id)?.nome || 'Item não encontrado';
 
-  const filteredSubs = substitutions.filter(sub => 
+  const filteredSubs = substitutions.filter(sub =>
     getItemName(sub.itemOriginalId).toLowerCase().includes(searchTerm.toLowerCase()) ||
     getItemName(sub.itemSubstitutoId).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Group by restriction, sorted alphabetically
+  const grouped = useMemo(() => {
+    const map: Record<string, Substitution[]> = {};
+    filteredSubs.forEach((sub: Substitution) => {
+      const key = sub.restricao || 'Geral';
+      if (!map[key]) map[key] = [];
+      map[key].push(sub);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredSubs]);
+
   return (
     <div className="p-6 w-full">
-      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      {/* Header */}
+      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-brand-blue uppercase tracking-tight">Substituições</h1>
           <p className="text-slate-500 font-medium">Gerencie trocas automáticas por restrição.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={() => setIsRestrictionModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-black text-sm uppercase tracking-widest no-print"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all font-black text-xs uppercase tracking-widest"
           >
-            <ShieldAlert size={20} />
+            <ShieldAlert size={16} />
             Restrições
           </button>
           <button
             onClick={() => { setEditingSub({}); setIsModalOpen(true); }}
-            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
+            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-xs uppercase tracking-widest"
           >
-            <Plus size={20} />
+            <Plus size={16} />
             Nova Substituição
           </button>
           <button
             onClick={() => window.print()}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest no-print"
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm font-black text-xs uppercase tracking-widest"
           >
-            <Printer size={20} />
+            <Printer size={16} />
             Imprimir
           </button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="print:hidden bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm mb-8 flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            type="text" 
+      <div className="print:hidden mb-5">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
             placeholder="Buscar por item..."
-            className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
+            className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Substitutions Grid */}
-      <div className="print:hidden grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredSubs.map((sub) => (
-          <div key={sub.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-brand-blue/5 transition-all group">
-            <div className="flex items-center justify-between mb-6">
-              <div className="px-4 py-1.5 rounded-full bg-brand-blue/10 text-brand-blue text-[10px] font-black uppercase tracking-widest">
-                {sub.restricao}
+      {/* Grouped compact list */}
+      <div className="print:hidden">
+        {grouped.length > 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {grouped.map(([restricao, subs], groupIdx) => (
+              <div key={restricao}>
+                {/* Group header */}
+                <div className="flex items-center gap-3 px-5 py-3 bg-slate-50 border-b border-slate-100">
+                  <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">{restricao}</span>
+                  <span className="text-[9px] font-bold text-slate-400">{subs.length} regra{subs.length !== 1 ? 's' : ''}</span>
+                </div>
+                {/* Rows */}
+                {subs.map((sub, idx) => (
+                  <div
+                    key={sub.id}
+                    className={cn(
+                      "flex items-center gap-3 px-5 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 group transition-colors",
+                      groupIdx === grouped.length - 1 && idx === subs.length - 1 && "last:border-b-0"
+                    )}
+                  >
+                    <span className="flex-1 text-sm font-bold text-slate-800 truncate">{getItemName(sub.itemOriginalId)}</span>
+                    <ArrowRight size={14} className="text-brand-lime shrink-0" />
+                    <span className="flex-1 text-sm font-bold text-slate-800 truncate">{getItemName(sub.itemSubstitutoId)}</span>
+                    {sub.grupoDestino && sub.grupoDestino !== 'Todos' && (
+                      <span className="hidden md:inline text-[9px] font-black text-brand-blue bg-brand-blue/8 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
+                        {sub.grupoDestino}
+                      </span>
+                    )}
+                    {sub.observacao && (
+                      <span className="hidden lg:block text-xs text-slate-400 italic truncate max-w-[180px] shrink-0">
+                        {sub.observacao}
+                      </span>
+                    )}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => { setEditingSub(sub); setIsModalOpen(true); }}
+                        className="p-1.5 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-all"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(sub.id)}
+                        className="p-1.5 text-slate-400 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => { setEditingSub(sub); setIsModalOpen(true); }}
-                  className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all"
-                >
-                  <Edit2 size={18} />
-                </button>
-                <button 
-                  onClick={() => handleDelete(sub.id)}
-                  className="p-2 text-slate-400 hover:text-brand-orange hover:bg-brand-orange/5 rounded-xl transition-all"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex-1 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Original</p>
-                <p className="text-sm font-black text-slate-900">{getItemName(sub.itemOriginalId)}</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-brand-lime/10 text-brand-lime flex items-center justify-center shrink-0">
-                <ArrowRight size={20} />
-              </div>
-              <div className="flex-1 p-4 rounded-2xl bg-brand-lime/5 border border-brand-lime/10">
-                <p className="text-[8px] font-black text-brand-lime uppercase tracking-widest mb-1">Substituto</p>
-                <p className="text-sm font-black text-slate-900">{getItemName(sub.itemSubstitutoId)}</p>
-              </div>
-            </div>
-
-            {sub.observacao && (
-              <div className="p-4 rounded-2xl bg-slate-50 text-xs text-slate-500 font-medium italic">
-                "{sub.observacao}"
-              </div>
-            )}
+            ))}
           </div>
-        ))}
+        ) : (
+          <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
+              <RefreshCw size={32} />
+            </div>
+            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Nenhuma substituição</h3>
+            <p className="text-slate-500 text-sm">Cadastre regras de troca automática para restrições.</p>
+          </div>
+        )}
       </div>
-
-      {filteredSubs.length === 0 && (
-        <div className="print:hidden text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
-          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200">
-            <RefreshCw size={40} />
-          </div>
-          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Nenhuma substituição</h3>
-          <p className="text-slate-500">Cadastre regras de troca automática para restrições.</p>
-        </div>
-      )}
 
       {/* Substitution Modal */}
       {isModalOpen && (
@@ -230,12 +244,12 @@ export default function Substitutions() {
                 <X size={24} className="text-slate-400" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSave} className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Item Original</label>
-                  <select 
+                  <select
                     required
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
                     value={editingSub?.itemOriginalId || ''}
@@ -247,7 +261,7 @@ export default function Substitutions() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Item Substituto</label>
-                  <select 
+                  <select
                     required
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
                     value={editingSub?.itemSubstitutoId || ''}
@@ -263,7 +277,7 @@ export default function Substitutions() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Restrição</label>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setIsRestrictionModalOpen(true)}
                       className="text-[8px] font-black uppercase tracking-widest text-brand-blue hover:underline"
@@ -271,7 +285,7 @@ export default function Substitutions() {
                       + Nova
                     </button>
                   </div>
-                  <select 
+                  <select
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
                     value={editingSub?.restricao || 'Geral'}
                     onChange={(e) => setEditingSub({...editingSub, restricao: e.target.value})}
@@ -281,7 +295,7 @@ export default function Substitutions() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Grupo Destino</label>
-                  <select 
+                  <select
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
                     value={editingSub?.grupoDestino || 'Todos'}
                     onChange={(e) => setEditingSub({...editingSub, grupoDestino: e.target.value})}
@@ -294,7 +308,7 @@ export default function Substitutions() {
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Observação (Opcional)</label>
-                <textarea 
+                <textarea
                   className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 min-h-[100px]"
                   value={editingSub?.observacao || ''}
                   onChange={(e) => setEditingSub({...editingSub, observacao: e.target.value})}
@@ -303,14 +317,14 @@ export default function Substitutions() {
               </div>
 
               <div className="flex gap-4 pt-4">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="flex-[2] bg-brand-lime hover:bg-brand-lime/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-brand-lime/20 flex items-center justify-center gap-2"
                 >
@@ -380,20 +394,17 @@ export default function Substitutions() {
                 <X size={24} className="text-slate-400" />
               </button>
             </div>
-            
+
             <div className="p-8 space-y-6">
               <form onSubmit={handleAddRestriction} className="flex gap-2">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Nova restrição..."
                   className="flex-1 px-5 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900"
                   value={newRestriction}
                   onChange={(e) => setNewRestriction(e.target.value)}
                 />
-                <button 
-                  type="submit"
-                  className="bg-brand-blue text-white p-3 rounded-xl hover:bg-brand-blue/90 transition-all"
-                >
+                <button type="submit" className="bg-brand-blue text-white p-3 rounded-xl hover:bg-brand-blue/90 transition-all">
                   <Plus size={20} />
                 </button>
               </form>
@@ -402,7 +413,7 @@ export default function Substitutions() {
                 {restrictions.map(r => (
                   <div key={r.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group">
                     <span className="font-bold text-slate-700">{r.nome}</span>
-                    <button 
+                    <button
                       onClick={() => handleDeleteRestriction(r.id)}
                       className="p-2 text-slate-400 hover:text-brand-orange opacity-0 group-hover:opacity-100 transition-all"
                     >
@@ -412,7 +423,7 @@ export default function Substitutions() {
                 ))}
               </div>
 
-              <button 
+              <button
                 onClick={() => setIsRestrictionModalOpen(false)}
                 className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all"
               >
