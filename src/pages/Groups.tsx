@@ -21,7 +21,7 @@ import {
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { GoogleGenAI } from '@google/genai';
-import { storage } from '../services/storage';
+import { storage, resolveMainCategory } from '../services/storage';
 import { MenuDay, Item, Category, GroupConfig, MenuColumn, MenuSnapshot, CategorySubcategories } from '../types';
 import { cn } from '../lib/utils';
 
@@ -132,7 +132,8 @@ const handleSaveDay = (e: React.FormEvent) => {
   };
 
   const getItemsByCategory = (category: Category) => {
-    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(category)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
+    const resolvedCategory = resolveMainCategory(category, categorySubcategories);
+    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(resolvedCategory)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
   };
 
   const getFieldIdFromColumn = (col: string) => {
@@ -219,7 +220,31 @@ const handleSaveDay = (e: React.FormEvent) => {
     );
   };
 
-  const generateAIPreview = async () => {
+  const getAIQuotaMessage = (): string => {
+    const lastQuotaErrorTime = localStorage.getItem('gemini_last_quota_error');
+    if (!lastQuotaErrorTime) {
+      return '❌ Cota da API excedida. Aguarde ~1 minuto para tentar novamente.';
+    }
+
+    const lastError = parseInt(lastQuotaErrorTime, 10);
+    const now = Date.now();
+    const elapsedSeconds = Math.floor((now - lastError) / 1000);
+    const waitSeconds = Math.max(0, 60 - elapsedSeconds); // Reset por minuto
+
+    if (waitSeconds === 0) {
+      localStorage.removeItem('gemini_last_quota_error');
+      return '✅ Cota reposta! Você pode tentar novamente.';
+    }
+
+    const minutesText = waitSeconds > 30 ? Math.ceil(waitSeconds / 60) : waitSeconds;
+    const unit = waitSeconds > 30 ? 'min' : 's';
+    
+    return `⏳ Cota temporariamente excedida. Tente novamente em ${minutesText}${unit}. (Último uso: ${elapsedSeconds}s atrás)`;
+  };
+
+  const recordAIQuotaError = () => {
+    localStorage.setItem('gemini_last_quota_error', Date.now().toString());
+  };
     if (!selectedGroup) return;
     const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
     if (!apiKey) {
@@ -230,66 +255,106 @@ const handleSaveDay = (e: React.FormEvent) => {
     setAiStep('generating');
     try {
       const workdays = daysInMonth.filter(d => !isWeekend(d));
+      if (workdays.length === 0) {
+        showToast('Nenhum dia útil neste mês.');
+        setAiStep('directives');
+        return;
+      }
+
       const ai = new GoogleGenAI({ apiKey });
 
-      const usedCats = new Set(selectedGroup.colunas.map((c: MenuColumn) => c.categoria));
-      const itemsByCategory: Record<string, { id: string; nome: string }[]> = {};
-      items.forEach((it: Item) => {
-        const cats = it.categorias?.length ? it.categorias : [it.categoria];
-        cats.forEach((cat: string) => {
-          if (!usedCats.has(cat)) return;
-          if (!itemsByCategory[cat]) itemsByCategory[cat] = [];
-          if (itemsByCategory[cat].length < 25)
-            itemsByCategory[cat].push({ id: it.id, nome: it.nome });
-        });
-      });
-
-      const colFields = selectedGroup.colunas.map((c: MenuColumn) => ({
-        categoria: c.categoria,
-        fieldId: c.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
+      // Otimização 1: Pegar apenas itens relevantes para as COLUNAS do grupo
+      const colunasInfo = selectedGroup.colunas.map(col => ({
+        displayName: col.subcategoria || col.categoria,
+        categoria: col.categoria,
+        fieldId: col.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
       }));
 
-      const prompt = `Você é uma nutricionista infantil experiente. Gere um cardápio mensal para o grupo "${selectedGroup.nomeCompleto}"${selectedGroup.restricao ? ` (restrição: ${selectedGroup.restricao})` : ''} referente a ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}.
+      // Otimização 2: REDUZIR itens para apenas os relevantes (6 por coluna)
+      const itemsByColuna: Record<string, string[]> = {};
+      colunasInfo.forEach(col => {
+        const colItems = items
+          .filter(it => {
+            const cats = it.categorias?.length ? it.categorias : [it.categoria];
+            return cats.includes(col.categoria);
+          })
+          .slice(0, 6)  // APENAS 6
+          .map(it => it.nome);
+        itemsByColuna[col.displayName] = colItems;
+      });
 
-Diretrizes do nutricionista:
-${aiDirectives.trim() || 'Varie os itens ao longo do mês, equilibrando nutrientes. Não repita o mesmo item na mesma semana.'}
+      // Otimização 3: PROMPT MINIMALISTA para retornar sequências cíclicas
+      const prompt = `Você é nutricionista. Crie uma SEQUÊNCIA CÍCLICA de itens para ${selectedGroup.nomeCompleto}${selectedGroup.restricao ? ` (${selectedGroup.restricao})` : ''}.
 
-Colunas do cardápio: ${JSON.stringify(colFields)}
-Itens disponíveis por categoria: ${JSON.stringify(itemsByCategory)}
-Dias úteis: ${workdays.map(d => format(d, 'yyyy-MM-dd')).join(',')}
+Directives: ${aiDirectives.trim() || 'Varie. Não repita na mesma semana.'}
 
-Responda SOMENTE com JSON (sem markdown):
+Colunas e itens:
+${colunasInfo.map(col => `${col.displayName}: ${itemsByColuna[col.displayName].join(', ')}`).join('\n')}
+
+Retorne APENAS JSON (sem markdown):
 {
-  "assignments": [{"date":"YYYY-MM-DD","groupId":"${selectedGroup.id}","fields":{"fieldId":"itemId"}}],
-  "suggestions": ["sugestão de novo item ou categoria 1", "sugestão 2"]
+  "sequences": {
+    "Coluna1": ["item1", "item2", "item3"],
+    "Coluna2": ["item1", "item2", "item3"]
+  }
 }
 
 Regras:
-- Use os fieldId EXATOS das colunas
-- Use apenas IDs de itens fornecidos nos itens disponíveis
-- O campo "suggestions" é opcional — inclua apenas se identificar gaps relevantes no banco de itens
-- Varie os itens respeitando as diretrizes fornecidas`;
+- Cada sequência será alternada ciclicamente para cada dia útil
+- Use apenas nomes de itens da lista fornecida
+- Minimo 3 itens por sequência`;
 
-      const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+      const response = await ai.models.generateContent({ 
+        model: 'gemini-2.0-flash', 
+        contents: prompt 
+      });
+      
       const text = response.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Resposta da IA não continha JSON válido. Tente novamente.');
+      if (!jsonMatch) throw new Error('Resposta inválida. Tente novamente.');
 
       const parsed = JSON.parse(jsonMatch[0]);
-      const assignments: any[] = parsed.assignments || [];
+      const sequences = parsed.sequences || {};
 
-      // Apply directly — no preview step
+      // ===============================================
+      // EXECUTOR: Aplica sequências de forma cíclica
+      // ===============================================
+      const itemNameToId: Record<string, string> = {};
+      items.forEach(it => {
+        itemNameToId[it.nome.toLowerCase()] = it.id;
+      });
+
       const updated = [...menuDays];
-      assignments.forEach((a: any) => {
-        const idx = updated.findIndex(d => isSameDay(new Date(d.data), new Date(a.date)) && d.id.includes(a.groupId));
+      workdays.forEach((date, dayIdx) => {
+        const assignments: any = {};
+
+        // Para cada coluna, pega o item da sequência usando índice cíclico
+        colunasInfo.forEach(col => {
+          const sequence = sequences[col.displayName] || [];
+          if (sequence.length === 0) return;
+
+          const itemName = sequence[dayIdx % sequence.length];
+          const itemId = itemNameToId[itemName.toLowerCase()];
+          
+          if (itemId) {
+            assignments[col.fieldId] = itemId;
+          }
+        });
+
+        if (Object.keys(assignments).length === 0) return;
+
+        // Salva ou atualiza o dia
+        const idx = updated.findIndex(d => 
+          isSameDay(new Date(d.data), date) && d.id.includes(selectedGroup.id)
+        );
         if (idx >= 0) {
-          updated[idx] = { ...updated[idx], ...a.fields };
+          updated[idx] = { ...updated[idx], ...assignments };
         } else {
           updated.push({
-            id: `day-${new Date(a.date).getTime()}-${a.groupId}`,
-            data: new Date(a.date).toISOString(),
-            diaSemana: format(new Date(a.date), 'EEEE', { locale: ptBR }),
-            ...a.fields
+            id: `day-${date.getTime()}-${selectedGroup.id}`,
+            data: date.toISOString(),
+            diaSemana: format(date, 'EEEE', { locale: ptBR }),
+            ...assignments
           });
         }
       });
@@ -298,26 +363,22 @@ Regras:
       await storage.saveMenu(updated);
       setIsAIModalOpen(false);
       setAiStep('directives');
-      showToast(`IA gerou cardápio para ${assignments.length} dias!`);
+      showToast(`✅ Padrão aplicado para ${workdays.length} dias úteis!`);
 
-      const snap: MenuSnapshot = {
-        id: Date.now().toString(),
-        label: `${selectedGroup.nomeCurto} — ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}`,
-        monthYear: format(currentDate, 'yyyy-MM'),
-        menuDays: updated.filter(d => isSameMonth(new Date(d.data), currentDate)),
-        createdAt: new Date().toISOString()
-      };
-      try {
-        await storage.addMenuSnapshot(snap);
-        setSnapshots((prev: MenuSnapshot[]) => [snap, ...prev]);
-      } catch { /* snapshot save failed silently */ }
     } catch (e: any) {
       console.error('Erro IA:', e);
+      
+      const isQuotaError = e?.message?.includes('quota') || e?.message?.includes('429') || e?.message?.includes('RESOURCE_EXHAUSTED');
+      
+      if (isQuotaError) {
+        recordAIQuotaError();
+      }
+
       const msg = e?.message?.includes('API_KEY') || e?.message?.includes('API key')
-        ? 'Chave Gemini API inválida. Verifique em Configurações.'
-        : e?.message?.includes('quota') || e?.message?.includes('429')
-        ? 'Cota da API excedida. Aguarde 1 minuto e tente novamente.'
-        : `Erro ao gerar com IA: ${e?.message || 'verifique o console (F12)'}`;
+        ? '❌ Chave Gemini API inválida. Verifique em Configurações.'
+        : isQuotaError
+        ? getAIQuotaMessage()
+        : `❌ Erro: ${e?.message || 'verifique o console (F12)'}`;
       showToast(msg);
       setAiStep('directives');
     }
@@ -344,42 +405,41 @@ Regras:
           const isLast = groupIdx === arr.length - 1;
           return (
             <div key={group.id} style={isLast ? {} : {pageBreakAfter: 'always'}}>
-              <div style={{backgroundColor:'#f27205',padding:'10px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-                <div style={{color:'white'}}>
-                  <div style={{fontSize:'9px',fontWeight:'bold',textTransform:'uppercase',opacity:0.8}}>Canteen</div>
-                  <div style={{fontSize:'18px',fontWeight:'900',textTransform:'uppercase',lineHeight:'1.1'}}>{group.nomeCompleto}</div>
-                  <div style={{fontSize:'11px',textTransform:'uppercase',opacity:0.9}}>{mesAno}</div>
+              <div style={{backgroundColor:'#f27205',padding:'6px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px',gap:'12px'}}>
+                <div style={{color:'white',minWidth:'0'}}>
+                  <div style={{fontSize:'8px',fontWeight:'bold',textTransform:'uppercase',opacity:0.85,lineHeight:'1'}}>Canteen</div>
+                  <div style={{fontSize:'15px',fontWeight:'900',textTransform:'uppercase',lineHeight:'1.1'}}>{group.nomeCompleto}</div>
+                  <div style={{fontSize:'10px',textTransform:'uppercase',opacity:0.9,lineHeight:'1'}}>{mesAno}</div>
                 </div>
-                {logo && <img src={logo} alt="logo" style={{maxHeight:'48px',objectFit:'contain'}} />}
-                <div style={{color:'white',textAlign:'right'}}>
-                  <div style={{fontWeight:'bold'}}>{nutricionista.nome}</div>
-                  {nutricionista.crn && <div style={{fontSize:'10px'}}>CRN {nutricionista.crn}</div>}
+                {logo && <img src={logo} alt="logo" style={{maxHeight:'48px',objectFit:'contain',flexShrink:0}} />}
+                <div style={{color:'white',textAlign:'right',fontSize:'9px',flexShrink:0}}>
+                  <div style={{fontWeight:'bold',lineHeight:'1.2'}}>{nutricionista.nome}</div>
+                  {nutricionista.crn && <div style={{fontSize:'8px',lineHeight:'1'}}>CRN {nutricionista.crn}</div>}
                 </div>
               </div>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'10px'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'10px',lineHeight:'1.3'}}>
                 <thead>
                   <tr style={{backgroundColor:'#404040',color:'white'}}>
-                    <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Data / Dia</th>
+                    <th style={{padding:'4px 6px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap',fontWeight:'bold',fontSize:'10px',minWidth:'60px'}}>Data</th>
                     {group.colunas.map(col => (
-                      <th key={col.categoria} style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>{col.subcategoria || col.categoria}</th>
+                      <th key={col.categoria} style={{padding:'4px 3px',textAlign:'left',border:'1px solid #ccc',fontWeight:'bold',fontSize:'9px'}}>{col.subcategoria || col.categoria}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {groupMonthMenu.filter(d => !isWeekend(new Date(d.data))).map((day, idx) => (
-                    <tr key={day.id} style={{backgroundColor: day.isFeriado ? '#fff3e0' : idx % 2 === 0 ? '#fff' : '#f9f9f9'}}>
-                      <td style={{padding:'5px 8px',border:'1px solid #eee',whiteSpace:'nowrap',fontWeight: day.isFeriado ? 'bold' : 'normal'}}>
-                        {format(new Date(day.data), 'dd/MM')}{' '}
-                        <span style={{color:'#888',fontSize:'9px',textTransform:'capitalize'}}>
-                          {format(new Date(day.data), 'EEE', { locale: ptBR })}
-                        </span>
+                    <tr key={day.id} style={{backgroundColor: day.isFeriado ? '#fff3e0' : idx % 2 === 0 ? '#fff' : '#f9f9f9',height:'18px'}}>
+                      <td style={{padding:'2px 6px',border:'1px solid #eee',whiteSpace:'nowrap',fontWeight: day.isFeriado ? 'bold' : 'normal',fontSize:'10px',lineHeight:'1.1',minWidth:'60px'}}>
+                        <span style={{fontWeight:'bold'}}>{format(new Date(day.data), 'dd/MM')}</span>
+                        {' '}
+                        <span style={{color:'#888',fontSize:'8px',textTransform:'capitalize'}}>{format(new Date(day.data), 'EEE', { locale: ptBR })}</span>
                       </td>
                       {group.colunas.map(col => {
                         const fieldId = getFieldIdFromColumn(col.categoria);
                         const itemId = day[fieldId as keyof MenuDay] as string;
                         return (
-                          <td key={col.categoria} style={{padding:'5px 8px',border:'1px solid #eee',fontWeight: day.isFeriado ? 'bold' : 'normal',color: day.isFeriado ? '#f27205' : 'inherit'}}>
-                            {day.isFeriado ? 'Feriado' : (getItemName(itemId) || '')}
+                          <td key={col.categoria} style={{padding:'2px 3px',border:'1px solid #eee',fontWeight: day.isFeriado ? 'bold' : 'normal',color: day.isFeriado ? '#f27205' : 'inherit',fontSize:'9.5px',lineHeight:'1.2'}}>
+                            {day.isFeriado ? '🏖️' : (getItemName(itemId) || '')}
                           </td>
                         );
                       })}
@@ -388,8 +448,8 @@ Regras:
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={group.colunas.length + 1} style={{paddingTop:'6px',borderTop:'1px solid #ccc',fontSize:'9px',color:'#666'}}>
-                      <div style={{display:'flex',justifyContent:'space-between'}}>
+                    <td colSpan={group.colunas.length + 1} style={{paddingTop:'3px',paddingBottom:'2px',borderTop:'1px solid #ccc',fontSize:'8px',color:'#666'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',lineHeight:'1.2'}}>
                         <span>{nutricionista.nome}{nutricionista.crn ? ` — Nutricionista — CRN ${nutricionista.crn}` : ''}</span>
                         <span>Canteen</span>
                       </div>
@@ -761,10 +821,33 @@ Exemplos:
                   <div className="bg-brand-blue/5 rounded-2xl p-4 flex gap-3">
                     <Sparkles size={16} className="text-brand-blue shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest mb-1">Como funciona</p>
-                      <p className="text-xs text-slate-500 leading-relaxed">A IA analisa o banco de itens cadastrados, as categorias e restrições do grupo, e gera um cardápio variado seguindo suas diretrizes. Você verá uma prévia antes de aplicar — e receberá sugestões de novos itens se a IA identificar lacunas.</p>
+                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest mb-1">✨ Novo Modo: Padrão + Executor</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        A IA cria <strong>sequências cíclicas</strong> para cada coluna. Um executor interno aplica automaticamente ao mês inteiro!
+                        <br />
+                        <br />
+                        <strong>Exemplo:</strong> Fruta = [Maçã, Pera, Banana] → Dia 1: Maçã, Dia 2: Pera, Dia 3: Banana, Dia 4: Maçã...
+                        <br />
+                        <br />
+                        <strong>Benefícios:</strong> -80% tokens | Mais rápido | Sem erros de alternância
+                      </p>
                     </div>
                   </div>
+                  {(() => {
+                    const lastQuotaErrorTime = localStorage.getItem('gemini_last_quota_error');
+                    if (!lastQuotaErrorTime) return null;
+                    const elapsedSeconds = Math.floor((Date.now() - parseInt(lastQuotaErrorTime, 10)) / 1000);
+                    const waitSeconds = Math.max(0, 60 - elapsedSeconds);
+                    if (waitSeconds === 0) return null;
+                    return (
+                      <div className="bg-brand-orange/10 border border-brand-orange/30 rounded-2xl p-3 flex gap-2">
+                        <div className="text-brand-orange mt-0.5">⏳</div>
+                        <p className="text-xs text-brand-orange leading-relaxed">
+                          <strong>Cota em repouso:</strong> Tente novamente em {waitSeconds > 30 ? Math.ceil(waitSeconds / 60) + ' min' : waitSeconds + 's'} (último uso: {elapsedSeconds}s atrás)
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4">
                   <button onClick={() => setIsAIModalOpen(false)} className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-200 transition-all">
@@ -772,7 +855,7 @@ Exemplos:
                   </button>
                   <button onClick={generateAIPreview} className="flex-[2] bg-brand-blue hover:bg-brand-blue/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-blue/20">
                     <Sparkles size={18} />
-                    Gerar Prévia
+                    Gerar Padrão do Mês
                   </button>
                 </div>
               </>
@@ -785,8 +868,8 @@ Exemplos:
                   <Sparkles size={36} className="animate-pulse" />
                 </div>
                 <div className="text-center space-y-2">
-                  <p className="font-black text-xl text-brand-blue uppercase tracking-tight">Gerando Cardápio...</p>
-                  <p className="text-sm text-slate-400">A IA está analisando o banco de dados e suas diretrizes</p>
+                  <p className="font-black text-xl text-brand-blue uppercase tracking-tight">Gerando Padrões...</p>
+                  <p className="text-sm text-slate-400">IA criando sequências cíclicas. Executor aplicando ao mês...</p>
                 </div>
               </div>
             )}

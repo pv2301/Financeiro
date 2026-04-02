@@ -77,6 +77,30 @@ async function setConfigValue<T>(id: string, value: T): Promise<void> {
   }
 }
 
+/**
+ * Resolve uma categoria ou subcategoria para sua categoria principal
+ * @param categoryOrSubcategory - Categoria ou subcategoria
+ * @param categorySubcategories - Mapeamento de categorias para subcategorias
+ * @returns A categoria principal
+ * 
+ * Exemplo:
+ * categorySubcategories = { "Lanche": ["Lanche Manhã", "Lanche Tarde"] }
+ * resolveMainCategory("Lanche Manhã", categorySubcategories) → "Lanche"
+ * resolveMainCategory("Lanche", categorySubcategories) → "Lanche"
+ */
+export function resolveMainCategory(
+  categoryOrSubcategory: string,
+  categorySubcategories: CategorySubcategories
+): string {
+  // Se não for subcategoria, retorna a própria categoria
+  for (const [mainCategory, subcategories] of Object.entries(categorySubcategories)) {
+    if (subcategories.includes(categoryOrSubcategory)) {
+      return mainCategory;
+    }
+  }
+  return categoryOrSubcategory;
+}
+
 export const storage = {
   getItems: () => getAllFromCollection<Item>(COLLECTIONS.ITEMS),
   saveItems: (items: Item[]) => saveAllToCollection(COLLECTIONS.ITEMS, items),

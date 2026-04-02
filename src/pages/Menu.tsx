@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { storage } from '../services/storage';
+import { storage, resolveMainCategory } from '../services/storage';
 import { MenuDay, Item, Category, GroupConfig, CategorySubcategories } from '../types';
 import { cn } from '../lib/utils';
 
@@ -84,7 +84,8 @@ export default function Menu() {
   };
 
   const getItemsByCategory = (category: Category) => {
-    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(category)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
+    const resolvedCategory = resolveMainCategory(category, categorySubcategories);
+    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(resolvedCategory)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
   };
 
   const getFieldIdFromColumn = (col: string) => {

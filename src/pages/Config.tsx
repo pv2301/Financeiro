@@ -591,7 +591,7 @@ export default function Config() {
                         {Array.from({length: maxCols}, (_, idx) => (
                           <td key={idx} className="p-4 border-l border-slate-100">
                             {config.colunas[idx]
-                              ? <p className="text-[10px] font-black text-slate-700 uppercase">{config.colunas[idx].categoria}</p>
+                              ? <p className="text-[10px] font-black text-slate-700 uppercase">{config.colunas[idx].subcategoria || config.colunas[idx].categoria}</p>
                               : <span className="text-[10px] text-slate-300 italic">-</span>
                             }
                           </td>
@@ -709,18 +709,24 @@ export default function Config() {
                           ))}
                         </select>
                         {(categorySubcategories[col.categoria]?.length ?? 0) > 0 && (
-                          <div className="space-y-1 mt-1">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome de Exibição</label>
-                            <select
-                              value={col.subcategoria || ''}
-                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateColumn(config.id, idx, { subcategoria: e.target.value || undefined })}
-                              className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm appearance-none"
-                            >
-                              <option value="">Padrão ({col.categoria})</option>
-                              {categorySubcategories[col.categoria].map((sub: string) => (
-                                <option key={sub} value={sub}>{sub}</option>
-                              ))}
-                            </select>
+                          <div className="space-y-2 mt-3 flex items-start gap-3">
+                            {/* Seta em L */}
+                            <svg width="20" height="40" viewBox="0 0 20 40" className="flex-shrink-0 mt-1">
+                              <path d="M 4 0 L 4 30 L 16 30" stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinecap="round" />
+                            </svg>
+                            <div className="flex-1 space-y-1">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome de Exibição</label>
+                              <select
+                                value={col.subcategoria || ''}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateColumn(config.id, idx, { subcategoria: e.target.value || undefined })}
+                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 text-sm appearance-none"
+                              >
+                                <option value="">Padrão ({col.categoria})</option>
+                                {categorySubcategories[col.categoria].map((sub: string) => (
+                                  <option key={sub} value={sub}>{sub}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         )}
                       </div>
