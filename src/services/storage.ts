@@ -10,7 +10,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Item, Recipe, Substitution, MenuDay, GroupConfig, Restriction, MenuSnapshot } from '../types';
+import { Item, Recipe, Substitution, MenuDay, GroupConfig, Restriction, MenuSnapshot, CategorySubcategories } from '../types';
 
 const COLLECTIONS = {
   ITEMS: 'items',
@@ -98,6 +98,9 @@ export const storage = {
 
   getCategories: () => getConfigValue<string[]>('categories', []),
   saveCategories: (categories: string[]) => setConfigValue('categories', categories),
+
+  getCategorySubcategories: () => getConfigValue<CategorySubcategories>('categorySubcategories', {}),
+  saveCategorySubcategories: (data: CategorySubcategories) => setConfigValue('categorySubcategories', data),
 
   getLogo: () => getConfigValue<string | null>('logo', null),
   saveLogo: (logo: string | null) => setConfigValue('logo', logo),

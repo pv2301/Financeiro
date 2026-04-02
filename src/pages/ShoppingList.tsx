@@ -279,7 +279,7 @@ export default function ShoppingList() {
                   <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">{category}</span>
                   <span className="text-[9px] font-bold text-slate-400">{catItems.length} {catItems.length === 1 ? 'item' : 'itens'}</span>
                 </div>
-                {(catItems as any[]).map((item) => {
+                {(catItems as any[]).map((item, idx) => {
                   const isChecked = checkedItems.has(item.id);
                   return (
                     <div
@@ -287,6 +287,7 @@ export default function ShoppingList() {
                       onClick={() => toggleItem(item.id)}
                       className={cn(
                         "flex items-center gap-4 px-5 py-3 cursor-pointer transition-all border-b border-slate-50 last:border-0 hover:bg-slate-50/50 group",
+                        idx % 2 === 0 ? "bg-white" : "bg-slate-100",
                         isChecked && "opacity-50"
                       )}
                     >

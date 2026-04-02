@@ -8,7 +8,8 @@ export interface Restriction {
 export interface Item {
   id: string;
   nome: string;
-  categoria: Category;
+  categoria: Category;       // primary category (backward compat)
+  categorias?: Category[];   // all categories (when item belongs to multiple)
   contemOvo: boolean;
   contemLactose: boolean;
   contemGluten: boolean;
@@ -46,7 +47,11 @@ export interface MenuDay {
 
 export interface MenuColumn {
   categoria: string;
+  subcategoria?: string; // display name override; items still sourced from `categoria`
 }
+
+export type CategorySubcategories = Record<string, string[]>;
+// ex: { "Lanche": ["Lanche Manhã", "Lanche Tarde"] }
 
 export interface GroupConfig {
   id: string;

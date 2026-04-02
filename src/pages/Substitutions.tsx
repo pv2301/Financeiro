@@ -23,6 +23,10 @@ export default function Substitutions() {
   const [groups, setGroups] = useState<GroupConfig[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
   const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmModal({ title, message, onConfirm });
 
   useEffect(() => {
     const loadData = async () => {
@@ -84,19 +88,19 @@ export default function Substitutions() {
   };
 
   const handleDeleteRestriction = (id: string) => {
-    if (confirm('Deseja remover esta restrição?')) {
-      const updated = restrictions.filter(r => r.id !== id);
+    showConfirm('Remover Restrição', 'Deseja remover esta restrição?', () => {
+      const updated = restrictions.filter((r: { id: string }) => r.id !== id);
       setRestrictions(updated);
       storage.saveRestrictions(updated);
-    }
+    });
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Deseja remover esta substituição?')) {
-      const updated = substitutions.filter(s => s.id !== id);
+    showConfirm('Remover Substituição', 'Deseja remover esta substituição?', () => {
+      const updated = substitutions.filter((s: { id: string }) => s.id !== id);
       setSubstitutions(updated);
       storage.saveSubstitutions(updated);
-    }
+    });
   };
 
   const getItemName = (id: string) => items.find(it => it.id === id)?.nome || 'Item não encontrado';
@@ -181,6 +185,7 @@ export default function Substitutions() {
                     key={sub.id}
                     className={cn(
                       "flex items-center gap-3 px-5 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 group transition-colors",
+                      idx % 2 === 0 ? "bg-white" : "bg-slate-100",
                       groupIdx === grouped.length - 1 && idx === subs.length - 1 && "last:border-b-0"
                     )}
                   >
@@ -429,6 +434,27 @@ export default function Substitutions() {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-brand-lime text-white px-6 py-3 rounded-2xl shadow-lg font-black text-sm uppercase tracking-widest flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">
+          <CheckCircle2 size={18} /> {toast}
+        </div>
+      )}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-black text-brand-blue uppercase tracking-tight">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="px-8 pb-8 flex gap-3">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Cancelar</button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className="flex-[2] py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-white bg-brand-orange hover:bg-brand-orange/90 shadow-lg shadow-brand-orange/20 transition-all">Confirmar</button>
             </div>
           </div>
         </div>

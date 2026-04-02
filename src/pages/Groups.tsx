@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
-  Plus,
+
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -14,12 +14,15 @@ import {
   Trash2,
   Copy,
   Repeat,
-  Users
+  Users,
+  Sparkles,
+  History
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { GoogleGenAI } from '@google/genai';
 import { storage } from '../services/storage';
-import { MenuDay, Item, Category, GroupConfig, MenuColumn } from '../types';
+import { MenuDay, Item, Category, GroupConfig, MenuColumn, MenuSnapshot, CategorySubcategories } from '../types';
 import { cn } from '../lib/utils';
 
 export default function Groups() {
@@ -38,6 +41,15 @@ export default function Groups() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printGroups, setPrintGroups] = useState<Set<string>>(new Set());
   const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<MenuSnapshot[]>([]);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [aiDirectives, setAiDirectives] = useState('');
+  const [aiStep, setAiStep] = useState<'directives' | 'generating' | 'preview'>('directives');
+  const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; variant?: 'destructive' | 'primary' } | null>(null);
+  const showConfirm = (title: string, message: React.ReactNode, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
+    setConfirmModal({ title, message, onConfirm, variant });
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,8 +59,12 @@ export default function Groups() {
         storage.getConfig(),
         storage.getSubstitutions(),
         storage.getLogo(),
-        storage.getNutricionista()
+        storage.getNutricionista(),
       ]);
+      let snapshotsData: MenuSnapshot[] = [];
+      try { snapshotsData = await storage.getMenuSnapshots(); } catch (_) { /* permission denied — ignore */ }
+      let subcatsData: CategorySubcategories = {};
+      try { subcatsData = await storage.getCategorySubcategories(); } catch (_) { /* ignore */ }
       setMenuDays(menuData);
       setItems(itemsData);
       setGroups(groupsData);
@@ -56,6 +72,8 @@ export default function Groups() {
       setSubstitutions(subsData);
       setLogo(logoData);
       setNutricionista(nutData);
+      setSnapshots(snapshotsData);
+      setCategorySubcategories(subcatsData);
       if (groupsData.length > 0) {
         setSelectedGroup(groupsData[0]);
       }
@@ -84,27 +102,7 @@ export default function Groups() {
   const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
   const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
 
-  const generateMonth = () => {
-    if (!selectedGroup) return;
-    const newDays: MenuDay[] = daysInMonth
-      .filter(date => !isWeekend(date))
-      .map(date => {
-        const existing = menuDays.find(d => isSameDay(new Date(d.data), date) && d.id.includes(selectedGroup.id));
-        if (existing) return existing;
-        return {
-          id: `day-${date.getTime()}-${selectedGroup.id}`,
-          data: date.toISOString(),
-          diaSemana: format(date, 'EEEE', { locale: ptBR }),
-        };
-      });
-
-    const updatedMenu = [...menuDays.filter(d => !newDays.some(nd => nd.id === d.id)), ...newDays];
-    setMenuDays(updatedMenu);
-    storage.saveMenu(updatedMenu);
-    showToast('Mês gerado com sucesso!');
-  };
-
-  const handleSaveDay = (e: React.FormEvent) => {
+const handleSaveDay = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDay) return;
 
@@ -134,7 +132,7 @@ export default function Groups() {
   };
 
   const getItemsByCategory = (category: Category) => {
-    return items.filter(it => it.categoria === category).sort((a, b) => a.nome.localeCompare(b.nome));
+    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(category)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
   };
 
   const getFieldIdFromColumn = (col: string) => {
@@ -164,12 +162,16 @@ export default function Groups() {
 
   const clearMonth = () => {
     if (!selectedGroup) return;
-    if (window.confirm(`Tem certeza que deseja limpar todo o cardápio deste mês para o grupo ${selectedGroup.nomeCompleto}?`)) {
-      const updatedMenu = menuDays.filter(d => !(isSameMonth(new Date(d.data), currentDate) && d.id.includes(selectedGroup.id)));
-      setMenuDays(updatedMenu);
-      storage.saveMenu(updatedMenu);
-      showToast('Mês limpo!');
-    }
+    showConfirm(
+      'Limpar Mês',
+      `Tem certeza que deseja limpar todo o cardápio deste mês para o grupo ${selectedGroup.nomeCompleto}?`,
+      () => {
+        const updatedMenu = menuDays.filter((d: MenuDay) => !(isSameMonth(new Date(d.data), currentDate) && d.id.includes(selectedGroup!.id)));
+        setMenuDays(updatedMenu);
+        storage.saveMenu(updatedMenu);
+        showToast('Mês limpo!');
+      }
+    );
   };
 
   const copyPreviousMonth = () => {
@@ -178,38 +180,146 @@ export default function Groups() {
     const prevMonthMenu = menuDays.filter(d => isSameMonth(new Date(d.data), prevMonth) && d.id.includes(selectedGroup.id));
     
     if (prevMonthMenu.length === 0) {
-      alert(`Não há cardápio no mês anterior para o grupo ${selectedGroup.nomeCompleto} para copiar.`);
+      showToast(`Não há cardápio no mês anterior para o grupo ${selectedGroup.nomeCompleto}.`);
       return;
     }
 
-    if (window.confirm(`Deseja copiar o cardápio do mês anterior para este mês para o grupo ${selectedGroup.nomeCompleto}? Isso substituirá os dias já planejados.`)) {
-      const newDays = daysInMonth
-        .filter(date => !isWeekend(date))
-        .map(date => {
-          const dayNum = format(date, 'd');
-          const sourceDay = prevMonthMenu.find(d => format(new Date(d.data), 'd') === dayNum);
-          
-          const copiedFields: any = {};
-          if (sourceDay) {
-            selectedGroup.colunas.forEach(col => {
-              const fieldId = getFieldIdFromColumn(col.categoria);
-              copiedFields[fieldId] = sourceDay[fieldId];
-            });
-            copiedFields.isFeriado = sourceDay.isFeriado;
-          }
+    const prevLabel = format(prevMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
+    const currLabel = format(currentDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
+    showConfirm(
+      'Copiar Mês Anterior',
+      <span>Copiar o cardápio de <strong>{prevLabel}</strong> para <strong>{currLabel}</strong> ({selectedGroup.nomeCompleto})? Os dias já planejados serão substituídos.</span>,
+      () => {
+        const newDays = daysInMonth
+          .filter(date => !isWeekend(date))
+          .map(date => {
+            const dayNum = format(date, 'd');
+            const sourceDay = prevMonthMenu.find((d: MenuDay) => format(new Date(d.data), 'd') === dayNum);
+            const copiedFields: any = {};
+            if (sourceDay) {
+              selectedGroup!.colunas.forEach((col: MenuColumn) => {
+                const fieldId = getFieldIdFromColumn(col.categoria);
+                copiedFields[fieldId] = (sourceDay as any)[fieldId];
+              });
+              copiedFields.isFeriado = sourceDay.isFeriado;
+            }
+            return {
+              id: `day-${date.getTime()}-${selectedGroup!.id}`,
+              data: date.toISOString(),
+              diaSemana: format(date, 'EEEE', { locale: ptBR }),
+              ...copiedFields
+            };
+          });
+        const updatedMenu = [...menuDays.filter((d: MenuDay) => !(isSameMonth(new Date(d.data), currentDate) && d.id.includes(selectedGroup!.id))), ...newDays];
+        setMenuDays(updatedMenu);
+        storage.saveMenu(updatedMenu);
+        showToast('Mês anterior copiado!');
+      },
+      'primary'
+    );
+  };
 
-          return {
-            id: `day-${date.getTime()}-${selectedGroup.id}`,
-            data: date.toISOString(),
-            diaSemana: format(date, 'EEEE', { locale: ptBR }),
-            ...copiedFields
-          };
+  const generateAIPreview = async () => {
+    if (!selectedGroup) return;
+    const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+    if (!apiKey) {
+      showToast('Configure a chave Gemini API em Configurações.');
+      setIsAIModalOpen(false);
+      return;
+    }
+    setAiStep('generating');
+    try {
+      const workdays = daysInMonth.filter(d => !isWeekend(d));
+      const ai = new GoogleGenAI({ apiKey });
+
+      const usedCats = new Set(selectedGroup.colunas.map((c: MenuColumn) => c.categoria));
+      const itemsByCategory: Record<string, { id: string; nome: string }[]> = {};
+      items.forEach((it: Item) => {
+        const cats = it.categorias?.length ? it.categorias : [it.categoria];
+        cats.forEach((cat: string) => {
+          if (!usedCats.has(cat)) return;
+          if (!itemsByCategory[cat]) itemsByCategory[cat] = [];
+          if (itemsByCategory[cat].length < 25)
+            itemsByCategory[cat].push({ id: it.id, nome: it.nome });
         });
+      });
 
-      const updatedMenu = [...menuDays.filter(d => !(isSameMonth(new Date(d.data), currentDate) && d.id.includes(selectedGroup.id))), ...newDays];
-      setMenuDays(updatedMenu);
-      storage.saveMenu(updatedMenu);
-      showToast('Mês anterior copiado!');
+      const colFields = selectedGroup.colunas.map((c: MenuColumn) => ({
+        categoria: c.categoria,
+        fieldId: c.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
+      }));
+
+      const prompt = `Você é uma nutricionista infantil experiente. Gere um cardápio mensal para o grupo "${selectedGroup.nomeCompleto}"${selectedGroup.restricao ? ` (restrição: ${selectedGroup.restricao})` : ''} referente a ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}.
+
+Diretrizes do nutricionista:
+${aiDirectives.trim() || 'Varie os itens ao longo do mês, equilibrando nutrientes. Não repita o mesmo item na mesma semana.'}
+
+Colunas do cardápio: ${JSON.stringify(colFields)}
+Itens disponíveis por categoria: ${JSON.stringify(itemsByCategory)}
+Dias úteis: ${workdays.map(d => format(d, 'yyyy-MM-dd')).join(',')}
+
+Responda SOMENTE com JSON (sem markdown):
+{
+  "assignments": [{"date":"YYYY-MM-DD","groupId":"${selectedGroup.id}","fields":{"fieldId":"itemId"}}],
+  "suggestions": ["sugestão de novo item ou categoria 1", "sugestão 2"]
+}
+
+Regras:
+- Use os fieldId EXATOS das colunas
+- Use apenas IDs de itens fornecidos nos itens disponíveis
+- O campo "suggestions" é opcional — inclua apenas se identificar gaps relevantes no banco de itens
+- Varie os itens respeitando as diretrizes fornecidas`;
+
+      const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+      const text = response.text || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Resposta da IA não continha JSON válido. Tente novamente.');
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      const assignments: any[] = parsed.assignments || [];
+
+      // Apply directly — no preview step
+      const updated = [...menuDays];
+      assignments.forEach((a: any) => {
+        const idx = updated.findIndex(d => isSameDay(new Date(d.data), new Date(a.date)) && d.id.includes(a.groupId));
+        if (idx >= 0) {
+          updated[idx] = { ...updated[idx], ...a.fields };
+        } else {
+          updated.push({
+            id: `day-${new Date(a.date).getTime()}-${a.groupId}`,
+            data: new Date(a.date).toISOString(),
+            diaSemana: format(new Date(a.date), 'EEEE', { locale: ptBR }),
+            ...a.fields
+          });
+        }
+      });
+
+      setMenuDays(updated);
+      await storage.saveMenu(updated);
+      setIsAIModalOpen(false);
+      setAiStep('directives');
+      showToast(`IA gerou cardápio para ${assignments.length} dias!`);
+
+      const snap: MenuSnapshot = {
+        id: Date.now().toString(),
+        label: `${selectedGroup.nomeCurto} — ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}`,
+        monthYear: format(currentDate, 'yyyy-MM'),
+        menuDays: updated.filter(d => isSameMonth(new Date(d.data), currentDate)),
+        createdAt: new Date().toISOString()
+      };
+      try {
+        await storage.addMenuSnapshot(snap);
+        setSnapshots((prev: MenuSnapshot[]) => [snap, ...prev]);
+      } catch { /* snapshot save failed silently */ }
+    } catch (e: any) {
+      console.error('Erro IA:', e);
+      const msg = e?.message?.includes('API_KEY') || e?.message?.includes('API key')
+        ? 'Chave Gemini API inválida. Verifique em Configurações.'
+        : e?.message?.includes('quota') || e?.message?.includes('429')
+        ? 'Cota da API excedida. Aguarde 1 minuto e tente novamente.'
+        : `Erro ao gerar com IA: ${e?.message || 'verifique o console (F12)'}`;
+      showToast(msg);
+      setAiStep('directives');
     }
   };
 
@@ -251,7 +361,7 @@ export default function Groups() {
                   <tr style={{backgroundColor:'#404040',color:'white'}}>
                     <th style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc',whiteSpace:'nowrap'}}>Data / Dia</th>
                     {group.colunas.map(col => (
-                      <th key={col.categoria} style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>{col.categoria}</th>
+                      <th key={col.categoria} style={{padding:'6px 8px',textAlign:'left',border:'1px solid #ccc'}}>{col.subcategoria || col.categoria}</th>
                     ))}
                   </tr>
                 </thead>
@@ -316,7 +426,7 @@ export default function Groups() {
               <ChevronDown size={16} className={cn("text-slate-400 transition-transform shrink-0", isGroupDropdownOpen && "rotate-180")} />
             </button>
             {isGroupDropdownOpen && (
-              <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 overflow-hidden min-w-[260px] py-1">
+              <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 overflow-hidden min-w-[260px] py-1">
                 {groups.map((g: GroupConfig) => (
                   <button
                     key={g.id}
@@ -345,7 +455,7 @@ export default function Groups() {
             className="bg-white hover:bg-slate-50 text-brand-lime border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
             <Copy size={20} />
-            Copiar Anterior
+            Copiar Mês Anterior
           </button>
           <button 
             onClick={clearMonth}
@@ -354,19 +464,26 @@ export default function Groups() {
             <Trash2 size={20} />
             Limpar Mês
           </button>
-          <button
-            onClick={generateMonth}
-            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
-          >
-            <Plus size={20} />
-            Gerar Mês
-          </button>
+
           <button
             onClick={() => setIsPrintModalOpen(true)}
             className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
             <Download size={20} />
             Imprimir
+          </button>
+          <button
+            onClick={() => setIsHistoryOpen(true)}
+            className="bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 px-4 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+          >
+            <History size={20} />
+          </button>
+          <button
+            onClick={() => { setAiStep('directives'); setAiDirectives(''); setIsAIModalOpen(true); }}
+            className="bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-blue/20 font-black text-sm uppercase tracking-widest"
+          >
+            <Sparkles size={20} />
+            Gerar com IA
           </button>
         </div>
       </div>
@@ -390,7 +507,10 @@ export default function Groups() {
       </div>
 
       <div className="space-y-1">
-        {currentMonthMenu.map((day) => {
+        {!selectedGroup && (
+          <div className="text-center py-16 text-slate-400 font-bold text-sm">Nenhum grupo configurado. Acesse Configurações para criar grupos.</div>
+        )}
+        {selectedGroup && currentMonthMenu.map((day: MenuDay) => {
           const isWknd = isWeekend(new Date(day.data));
 
           return (
@@ -432,7 +552,7 @@ export default function Groups() {
                         const itemName = getItemName(day[fieldId as keyof MenuDay] as string);
                         return (
                           <React.Fragment key={col.categoria}>
-                            <CompactMealSlot label={col.categoria} itemName={itemName} />
+                            <CompactMealSlot label={col.subcategoria || col.categoria} itemName={itemName} />
                           </React.Fragment>
                         );
                       })}
@@ -557,7 +677,7 @@ export default function Groups() {
                     return (
                       <div key={col.categoria} className="space-y-2">
                         <CategorySelect
-                          label={col.categoria}
+                          label={col.subcategoria || col.categoria}
                           value={editingDay[fieldId as keyof MenuDay] as string}
                           options={getItemsByCategory(col.categoria)}
                           onChange={id => setEditingDay({...editingDay, [fieldId]: id})}
@@ -598,6 +718,163 @@ export default function Groups() {
           </div>
         </div>
       )}
+      {/* AI Generation Modal */}
+      {isAIModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-brand-blue/5 rounded-2xl text-brand-blue"><Sparkles size={24} /></div>
+                <div>
+                  <h2 className="text-xl font-black text-brand-blue uppercase tracking-tight">Gerar com IA</h2>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{selectedGroup?.nomeCompleto} — {format(currentDate, 'MMMM yyyy', { locale: ptBR })}</p>
+                </div>
+              </div>
+              {aiStep !== 'generating' && (
+                <button onClick={() => setIsAIModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                  <X size={24} className="text-slate-400" />
+                </button>
+              )}
+            </div>
+
+            {/* Step 1: Directives */}
+            {aiStep === 'directives' && (
+              <>
+                <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Diretrizes para a IA</label>
+                    <textarea
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-slate-900 resize-none text-sm leading-relaxed"
+                      rows={7}
+                      placeholder={`Descreva suas diretrizes para o cardápio deste grupo...
+
+Exemplos:
+• Manter a categoria Fruta como Seleção da Estação
+• Variar proteínas ao longo da semana (não repetir na mesma semana)
+• Priorizar carboidratos integrais às sextas-feiras
+• Este grupo prefere feijão-preto a lentilha`}
+                      value={aiDirectives}
+                      onChange={e => setAiDirectives(e.target.value)}
+                    />
+                  </div>
+                  <div className="bg-brand-blue/5 rounded-2xl p-4 flex gap-3">
+                    <Sparkles size={16} className="text-brand-blue shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest mb-1">Como funciona</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">A IA analisa o banco de itens cadastrados, as categorias e restrições do grupo, e gera um cardápio variado seguindo suas diretrizes. Você verá uma prévia antes de aplicar — e receberá sugestões de novos itens se a IA identificar lacunas.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4">
+                  <button onClick={() => setIsAIModalOpen(false)} className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-200 transition-all">
+                    Cancelar
+                  </button>
+                  <button onClick={generateAIPreview} className="flex-[2] bg-brand-blue hover:bg-brand-blue/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-blue/20">
+                    <Sparkles size={18} />
+                    Gerar Prévia
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Generating */}
+            {aiStep === 'generating' && (
+              <div className="flex-1 flex flex-col items-center justify-center py-24 gap-6">
+                <div className="w-20 h-20 rounded-3xl bg-brand-blue/10 flex items-center justify-center text-brand-blue">
+                  <Sparkles size={36} className="animate-pulse" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="font-black text-xl text-brand-blue uppercase tracking-tight">Gerando Cardápio...</p>
+                  <p className="text-sm text-slate-400">A IA está analisando o banco de dados e suas diretrizes</p>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-brand-blue/5 rounded-xl text-brand-blue"><History size={18} /></div>
+                <h2 className="text-lg font-black text-brand-blue uppercase tracking-tight">Histórico IA</h2>
+              </div>
+              <button onClick={() => setIsHistoryOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                <X size={20} className="text-slate-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {snapshots.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-sm font-bold">Nenhum histórico ainda.</div>
+              ) : (
+                snapshots.map((snap: MenuSnapshot) => (
+                  <div key={snap.id} className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div>
+                      <p className="font-black text-sm text-brand-blue uppercase tracking-widest">{snap.label}</p>
+                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">{new Date(snap.createdAt).toLocaleString('pt-BR')}</p>
+                    </div>
+                    <button
+                      onClick={() => showConfirm(
+                        'Restaurar Snapshot',
+                        `Restaurar "${snap.label}"? Os dias desse mês serão substituídos pela versão salva.`,
+                        async () => {
+                          const otherDays = menuDays.filter((d: MenuDay) => !snap.menuDays.some((sd: MenuDay) => sd.id === d.id));
+                          const restored = [...otherDays, ...snap.menuDays];
+                          setMenuDays(restored);
+                          await storage.saveMenu(restored);
+                          setIsHistoryOpen(false);
+                          showToast('Snapshot restaurado!');
+                        },
+                        'primary'
+                      )}
+                      className="px-4 py-2 bg-brand-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-blue/90 transition-colors shrink-0"
+                    >
+                      Restaurar
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-black text-brand-blue uppercase tracking-tight">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="px-8 pb-8 flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className={cn(
+                  "flex-[2] py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-white transition-all",
+                  confirmModal.variant === 'destructive'
+                    ? "bg-brand-orange hover:bg-brand-orange/90 shadow-lg shadow-brand-orange/20"
+                    : "bg-brand-blue hover:bg-brand-blue/90 shadow-lg shadow-brand-blue/20"
+                )}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>{/* end print:hidden */}
     </div>
   );
@@ -673,10 +950,10 @@ function CategorySelect({ label, value, options, onChange }: { label: string, va
 function CompactMealSlot({ label, itemName }: { label: string, itemName: string | null | undefined }) {
   return (
     <div className="flex items-baseline gap-1.5 min-w-[120px]">
-      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{label}:</span>
+      <span className="text-sm font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{label}:</span>
       {itemName
-        ? <span className="text-xs font-black text-slate-800 truncate">{itemName}</span>
-        : <span className="text-xs text-slate-300 italic">—</span>
+        ? <span className="text-sm font-black text-slate-800 truncate">{itemName}</span>
+        : <span className="text-sm text-slate-300 italic">—</span>
       }
     </div>
   );

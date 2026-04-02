@@ -45,6 +45,8 @@ export default function Recipes() {
   const [editingRecipe, setEditingRecipe] = useState<Partial<Recipe> | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmModal({ title, message, onConfirm });
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,11 +73,11 @@ export default function Recipes() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Deseja remover esta receita?')) {
-      const updated = recipes.filter(r => r.id !== id);
+    showConfirm('Remover Receita', 'Deseja remover esta receita?', () => {
+      const updated = recipes.filter((r: Recipe) => r.id !== id);
       setRecipes(updated);
       storage.saveRecipes(updated);
-    }
+    });
   };
 
   const filteredRecipes = recipes.filter(r => 
@@ -257,6 +259,15 @@ export default function Recipes() {
                         />
                       </div>
                       <div className="flex items-center gap-4">
+                        <a
+                          href={`https://www.google.com/search?q=${encodeURIComponent(editingRecipe.nome || '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all font-bold text-xs"
+                        >
+                          <Search size={16} />
+                          Buscar na web
+                        </a>
                         <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl cursor-pointer transition-all font-bold text-xs">
                           <Plus size={16} />
                           Fazer Upload
@@ -452,6 +463,22 @@ export default function Recipes() {
           <span>Canteen</span>
         </div>
       </div>
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-black text-brand-blue uppercase tracking-tight">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="px-8 pb-8 flex gap-3">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Cancelar</button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className="flex-[2] py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-white bg-brand-orange hover:bg-brand-orange/90 shadow-lg shadow-brand-orange/20 transition-all">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

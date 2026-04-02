@@ -37,11 +37,14 @@ export default function Items() {
   const [cloningCategory, setCloningCategory] = useState<{source: string, newName: string} | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmModal({ title, message, onConfirm });
 
   const filteredItems = useMemo(() => {
     const base = items.filter((item: Item) => {
       const matchesSearch = item.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'Todas' || item.categoria === selectedCategory;
+      const allCats = item.categorias?.length ? item.categorias : [item.categoria];
+      const matchesCategory = selectedCategory === 'Todas' || allCats.includes(selectedCategory);
       return matchesSearch && matchesCategory;
     });
     if (sortMode === 'alpha') return [...base].sort((a, b) => a.nome.localeCompare(b.nome));
@@ -60,21 +63,31 @@ export default function Items() {
     if (sortMode !== 'category') return null;
     const map: Record<string, Item[]> = {};
     filteredItems.forEach((item: Item) => {
-      if (!map[item.categoria]) map[item.categoria] = [];
-      map[item.categoria].push(item);
+      const cats = item.categorias?.length ? item.categorias : [item.categoria];
+      cats.forEach((cat: string) => {
+        if (!map[cat]) map[cat] = [];
+        map[cat].push(item);
+      });
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredItems, sortMode]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem?.nome || !editingItem?.categoria) return;
+    const cats = (editingItem as any)?.categorias as string[] | undefined;
+    if (!editingItem?.nome || (!editingItem?.categoria && !cats?.length)) return;
+    // keep categoria in sync with first selected category
+    const primaryCat = cats?.length ? cats[0] : editingItem.categoria;
+    const itemToSave: Item = {
+      ...(editingItem as Item),
+      categoria: primaryCat,
+      categorias: cats?.length ? cats : [primaryCat],
+    };
     let updatedItems: Item[];
     if (editingItem.id) {
-      updatedItems = items.map(it => it.id === editingItem.id ? editingItem as Item : it);
+      updatedItems = items.map((it: Item) => it.id === editingItem.id ? itemToSave : it);
     } else {
-      const newItem: Item = { ...editingItem as Item, id: `item-${Date.now()}` };
-      updatedItems = [...items, newItem];
+      updatedItems = [...items, { ...itemToSave, id: `item-${Date.now()}` }];
     }
     setItems(updatedItems);
     storage.saveItems(updatedItems);
@@ -84,10 +97,11 @@ export default function Items() {
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('Deseja realmente excluir este item?')) return;
-    const updatedItems = items.filter(it => it.id !== id);
-    setItems(updatedItems);
-    storage.saveItems(updatedItems);
+    showConfirm('Excluir Item', 'Deseja realmente excluir este item?', () => {
+      const updatedItems = items.filter(it => it.id !== id);
+      setItems(updatedItems);
+      storage.saveItems(updatedItems);
+    });
   };
 
   const handleDuplicate = (item: Item) => {
@@ -98,7 +112,9 @@ export default function Items() {
   };
 
   const openModal = (item?: Item) => {
-    setEditingItem(item || { nome: '', categoria: categories[0] || '', contemOvo: false, contemLactose: false, contemGluten: false, negrito: false, corFundo: '#ffffff' });
+    const base = item || { nome: '', categoria: categories[0] || '', contemOvo: false, contemLactose: false, contemGluten: false, negrito: false, corFundo: '#ffffff' };
+    const baseWithCats = { ...base, categorias: (base as Item).categorias?.length ? (base as Item).categorias : [(base as Item).categoria].filter(Boolean) };
+    setEditingItem(baseWithCats);
     setIsModalOpen(true);
   };
 
@@ -114,8 +130,12 @@ export default function Items() {
 
   const handleEditCategory = () => {
     if (!editingCategory || !editingCategory.new || categories.includes(editingCategory.new)) return;
-    const updatedCategories = categories.map(c => c === editingCategory.old ? editingCategory.new : c);
-    const updatedItems = items.map(it => it.categoria === editingCategory.old ? { ...it, categoria: editingCategory.new } : it);
+    const updatedCategories = categories.map((c: string) => c === editingCategory.old ? editingCategory.new : c);
+    const updatedItems = items.map((it: Item) => {
+      const cats = it.categorias?.length ? it.categorias : [it.categoria];
+      const newCats = cats.map((c: string) => c === editingCategory.old ? editingCategory.new : c);
+      return { ...it, categoria: newCats[0], categorias: newCats };
+    });
     setCategories(updatedCategories);
     setItems(updatedItems);
     storage.saveCategories(updatedCategories);
@@ -126,11 +146,11 @@ export default function Items() {
   const handleCloneCategory = () => {
     if (!cloningCategory || !cloningCategory.newName.trim()) return;
     const newName = cloningCategory.newName.trim();
-    if (categories.includes(newName)) { alert(`Categoria "${newName}" já existe.`); return; }
+    if (categories.includes(newName)) { showToast(`Categoria "${newName}" já existe.`); return; }
     const updatedCategories = [...categories, newName];
     const newItems: Item[] = items
-      .filter((it: Item) => it.categoria === cloningCategory.source)
-      .map((it: Item) => ({ ...it, id: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, categoria: newName }));
+      .filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(cloningCategory.source))
+      .map((it: Item) => ({ ...it, id: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`, categoria: newName, categorias: [newName] }));
     const updatedItems = [...items, ...newItems];
     setCategories(updatedCategories);
     setItems(updatedItems);
@@ -141,18 +161,22 @@ export default function Items() {
   };
 
   const handleDeleteCategory = (cat: string) => {
-    if (confirm(`Deseja excluir a categoria "${cat}"? Itens nesta categoria não serão excluídos, mas ficarão sem categoria válida.`)) {
-      const updated = categories.filter(c => c !== cat);
-      setCategories(updated);
-      storage.saveCategories(updated);
-      if (selectedCategory === cat) setSelectedCategory('Todas');
-    }
+    showConfirm(
+      'Excluir Categoria',
+      `Deseja excluir a categoria "${cat}"? Itens nesta categoria não serão excluídos.`,
+      () => {
+        const updated = categories.filter((c: string) => c !== cat);
+        setCategories(updated);
+        storage.saveCategories(updated);
+        if (selectedCategory === cat) setSelectedCategory('Todas');
+      }
+    );
   };
 
   // Inherit items modal
   const inheritSourceItems = useMemo(() => {
     if (!inheritSourceCategory) return [];
-    return items.filter((i: Item) => i.categoria === inheritSourceCategory).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
+    return items.filter((i: Item) => (i.categorias?.length ? i.categorias : [i.categoria]).includes(inheritSourceCategory)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
   }, [inheritSourceCategory, items]);
 
   const handleOpenInherit = (targetCategory: string) => {
@@ -178,7 +202,7 @@ export default function Items() {
   const ItemRow = ({ item, index }: { item: Item; index: number }) => (
     <div className={cn(
       "flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-brand-blue/5 group transition-colors",
-      index % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+      index % 2 === 0 ? "bg-white" : "bg-slate-100"
     )}>
       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.corFundo && item.corFundo !== '#ffffff' ? item.corFundo : '#e2e8f0' }} />
       <span className={cn("flex-1 text-sm text-slate-800 truncate", item.negrito ? "font-black" : "font-medium")}>
@@ -187,6 +211,11 @@ export default function Items() {
       {sortMode !== 'category' && (
         <span className="hidden md:inline text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
           {item.categoria}
+        </span>
+      )}
+      {(item.categorias?.length ?? 0) > 1 && (
+        <span className="hidden md:inline text-[9px] font-black text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
+          +{item.categorias!.length - 1}
         </span>
       )}
       <div className="flex items-center gap-1 shrink-0">
@@ -362,27 +391,39 @@ export default function Items() {
                   onChange={e => setEditingItem({...editingItem, nome: e.target.value})}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Categoria</label>
-                  <select
-                    required
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-brand-blue/20 font-bold text-slate-900 appearance-none"
-                    value={editingItem?.categoria}
-                    onChange={e => setEditingItem({...editingItem, categoria: e.target.value})}
-                  >
-                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">
+                  Categorias <span className="text-brand-blue normal-case font-bold">({((editingItem as any)?.categorias as string[] | undefined)?.length ?? 0} selecionada{((editingItem as any)?.categorias as string[] | undefined)?.length === 1 ? '' : 's'})</span>
+                </label>
+                <div className="max-h-40 overflow-y-auto rounded-2xl bg-slate-50 p-3 space-y-1">
+                  {categories.map((cat: string) => {
+                    const selected: string[] = (editingItem as any)?.categorias ?? [];
+                    const isOn = selected.includes(cat);
+                    return (
+                      <label key={cat} className={cn("flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors", isOn ? "bg-brand-blue/10" : "hover:bg-slate-100")}>
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 accent-brand-blue"
+                          checked={isOn}
+                          onChange={() => {
+                            const next = isOn ? selected.filter(c => c !== cat) : [...selected, cat];
+                            setEditingItem({...editingItem, categorias: next, categoria: next[0] ?? ''} as any);
+                          }}
+                        />
+                        <span className={cn("text-sm font-bold", isOn ? "text-brand-blue" : "text-slate-700")}>{cat}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Cor de Destaque</label>
-                  <input
-                    type="color"
-                    className="w-full h-[56px] rounded-2xl bg-slate-50 border-none cursor-pointer p-1"
-                    value={editingItem?.corFundo}
-                    onChange={e => setEditingItem({...editingItem, corFundo: e.target.value})}
-                  />
-                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Cor de Destaque</label>
+                <input
+                  type="color"
+                  className="w-full h-[48px] rounded-2xl bg-slate-50 border-none cursor-pointer p-1"
+                  value={editingItem?.corFundo}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingItem({...editingItem, corFundo: e.target.value})}
+                />
               </div>
               <div className="space-y-4 pt-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Restrições e Estilo</label>
@@ -606,6 +647,22 @@ export default function Items() {
                   Herdar {inheritSelected.size > 0 ? `${inheritSelected.size} ` : ''}Itens
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-black text-brand-blue uppercase tracking-tight">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="px-8 pb-8 flex gap-3">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Cancelar</button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className="flex-[2] py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-white bg-brand-orange hover:bg-brand-orange/90 shadow-lg shadow-brand-orange/20 transition-all">Confirmar</button>
             </div>
           </div>
         </div>

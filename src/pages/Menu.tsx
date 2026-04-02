@@ -8,15 +8,12 @@ import {
   Palmtree,
   Trash2,
   CheckCircle2,
-  Copy,
-  Sparkles,
-  History
+  Copy
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, isWeekend } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { GoogleGenAI } from '@google/genai';
 import { storage } from '../services/storage';
-import { MenuDay, Item, Category, GroupConfig, MenuSnapshot } from '../types';
+import { MenuDay, Item, Category, GroupConfig, CategorySubcategories } from '../types';
 import { cn } from '../lib/utils';
 
 export default function Menu() {
@@ -31,10 +28,10 @@ export default function Menu() {
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatingProgress, setGeneratingProgress] = useState<string | null>(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [snapshots, setSnapshots] = useState<MenuSnapshot[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; variant?: 'destructive' | 'primary' } | null>(null);
+  const showConfirm = (title: string, message: string, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
+    setConfirmModal({ title, message, onConfirm, variant });
+  const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const syncFromTop = () => { if (tableScrollRef.current && topScrollRef.current) tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft; };
@@ -42,19 +39,16 @@ export default function Menu() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [menuData, itemsData, groupsData, snapshotsData] = await Promise.all([
+      const [menuData, itemsData, groupsData] = await Promise.all([
         storage.getMenu(),
         storage.getItems(),
         storage.getConfig(),
-        storage.getMenuSnapshots()
       ]);
       setMenuDays(menuData);
       setItems(itemsData);
       setGroups(groupsData);
-      setSnapshots(snapshotsData);
-      if (groupsData.length > 0) {
-        setSelectedGroup(groupsData[0]);
-      }
+      if (groupsData.length > 0) setSelectedGroup(groupsData[0]);
+      try { setCategorySubcategories(await storage.getCategorySubcategories()); } catch (_) { /* ignore */ }
     };
     loadData();
   }, []);
@@ -90,7 +84,7 @@ export default function Menu() {
   };
 
   const getItemsByCategory = (category: Category) => {
-    return items.filter(it => it.categoria === category).sort((a, b) => a.nome.localeCompare(b.nome));
+    return items.filter((it: Item) => (it.categorias?.length ? it.categorias : [it.categoria]).includes(category)).sort((a: Item, b: Item) => a.nome.localeCompare(b.nome));
   };
 
   const getFieldIdFromColumn = (col: string) => {
@@ -102,114 +96,43 @@ export default function Menu() {
   };
 
   const clearMonth = () => {
-    if (window.confirm(`Tem certeza que deseja limpar todo o cardápio deste mês para todos os grupos?`)) {
-      const updatedMenu = menuDays.filter(d => !isSameMonth(new Date(d.data), currentDate));
-      setMenuDays(updatedMenu);
-      storage.saveMenu(updatedMenu);
-      showToast('Mês limpo com sucesso!');
-    }
+    showConfirm(
+      'Limpar Mês',
+      'Tem certeza que deseja limpar todo o cardápio deste mês para todos os grupos?',
+      () => {
+        const updatedMenu = menuDays.filter((d: MenuDay) => !isSameMonth(new Date(d.data), currentDate));
+        setMenuDays(updatedMenu);
+        storage.saveMenu(updatedMenu);
+        showToast('Mês limpo com sucesso!');
+      }
+    );
   };
 
   const copyPrevMonth = () => {
     const prevMonth = subMonths(currentDate, 1);
-    if (!window.confirm(`Copiar cardápio de ${format(prevMonth, 'MMMM yyyy', { locale: ptBR })} para ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}?`)) return;
-    const prevDays = menuDays.filter(d => isSameMonth(new Date(d.data), prevMonth));
-    const currentDayIds = new Set(menuDays.filter(d => isSameMonth(new Date(d.data), currentDate)).map(d => d.id));
-    const copied = prevDays.map(d => {
-      const targetDate = addMonths(new Date(d.data), 1);
-      const newId = `day-${targetDate.getTime()}-${d.id.split('-').pop()}`;
-      if (currentDayIds.has(newId)) return null;
-      return { ...d, id: newId, data: targetDate.toISOString() };
-    }).filter(Boolean) as MenuDay[];
-    const updated = [...menuDays, ...copied];
-    setMenuDays(updated);
-    storage.saveMenu(updated);
-    showToast(`${copied.length} dias copiados com sucesso!`);
-  };
-
-  const generateWithAI = async () => {
-    if (!window.confirm(`Gerar cardápio com IA para ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}? Os dias não preenchidos serão completados.`)) return;
-    const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-    if (!apiKey) {
-      showToast('Configure a chave Gemini API em Configurações para usar esta função.');
-      return;
-    }
-    setIsGenerating(true);
-    setGeneratingProgress('Iniciando...');
-    let updated = [...menuDays];
-    try {
-      const workdays = daysInMonth.filter(d => !isWeekend(d));
-      const ai = new GoogleGenAI({ apiKey });
-
-      for (let gi = 0; gi < groups.length; gi++) {
-        const group = groups[gi];
-        setGeneratingProgress(`Grupo ${gi + 1}/${groups.length}: ${group.nomeCurto}`);
-
-        // Apenas categorias usadas por este grupo, máx 25 itens por categoria
-        const usedCats = new Set(group.colunas.map((c: { categoria: string }) => c.categoria));
-        const itemsByCategory: Record<string, { id: string; nome: string }[]> = {};
-        items.forEach((it: Item) => {
-          if (!usedCats.has(it.categoria)) return;
-          if (!itemsByCategory[it.categoria]) itemsByCategory[it.categoria] = [];
-          if (itemsByCategory[it.categoria].length < 25)
-            itemsByCategory[it.categoria].push({ id: it.id, nome: it.nome });
-        });
-
-        // fieldId exato (mesmo algoritmo do getFieldIdFromColumn)
-        const colFields = group.colunas.map((c: MenuColumn) => ({
-          categoria: c.categoria,
-          fieldId: c.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
-        }));
-
-        const prompt = `Nutricionista infantil. Gere cardápio para o grupo "${group.nomeCompleto}"${group.restricao ? ` (restrição: ${group.restricao})` : ''} em ${format(currentDate, 'MMMM yyyy', { locale: ptBR })}.
-Colunas: ${JSON.stringify(colFields)}
-Itens disponíveis: ${JSON.stringify(itemsByCategory)}
-Dias úteis: ${workdays.map(d => format(d, 'yyyy-MM-dd')).join(',')}
-
-Responda SOMENTE JSON (sem markdown):
-{"assignments":[{"date":"YYYY-MM-DD","groupId":"${group.id}","fields":{"fieldId":"itemId"}}]}
-
-Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os itens ao longo do mês.`;
-
-        const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
-        const text = response.text || '';
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error(`Resposta inválida da IA para grupo ${group.nomeCurto}`);
-
-        const { assignments } = JSON.parse(jsonMatch[0]);
-        (assignments as any[]).forEach(a => {
-          const idx = updated.findIndex(d => isSameDay(new Date(d.data), new Date(a.date)) && d.id.includes(a.groupId));
-          if (idx >= 0) {
-            updated[idx] = { ...updated[idx], ...a.fields };
-          } else {
-            updated.push({ id: `day-${new Date(a.date).getTime()}-${a.groupId}`, data: new Date(a.date).toISOString(), diaSemana: format(new Date(a.date), 'EEEE', { locale: ptBR }), ...a.fields });
-          }
-        });
-
-        // Salva progressivamente após cada grupo
-        setMenuDays([...updated]);
-        await storage.saveMenu(updated);
-
-        // Pausa 1s entre chamadas (evita rate limit: 15 RPM free tier)
-        if (gi < groups.length - 1) await new Promise(r => setTimeout(r, 1000));
-      }
-
-      const snap: MenuSnapshot = { id: Date.now().toString(), label: format(currentDate, 'MMMM yyyy', { locale: ptBR }), monthYear: format(currentDate, 'yyyy-MM'), menuDays: updated.filter(d => isSameMonth(new Date(d.data), currentDate)), createdAt: new Date().toISOString() };
-      await storage.addMenuSnapshot(snap);
-      setSnapshots(prev => [snap, ...prev]);
-      showToast('Cardápio gerado com IA!');
-    } catch (e: any) {
-      console.error('Erro IA:', e);
-      const msg = e?.message?.includes('API_KEY') || e?.message?.includes('API key')
-        ? 'Chave Gemini API inválida. Verifique em Configurações.'
-        : e?.message?.includes('quota') || e?.message?.includes('429')
-        ? 'Cota da API excedida. Aguarde 1 minuto e tente novamente.'
-        : `Erro ao gerar: ${e?.message || 'verifique o console (F12)'}`;
-      showToast(msg);
-    } finally {
-      setIsGenerating(false);
-      setGeneratingProgress(null);
-    }
+    const prevLabel = format(prevMonth, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
+    const currLabel = format(currentDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
+    showConfirm(
+      'Copiar Mês Anterior',
+      <span>Copiar cardápio de <strong>{prevLabel}</strong> para <strong>{currLabel}</strong>? Os dias já planejados serão mantidos.</span>,
+      () => {
+        const prevDays = menuDays.filter((d: MenuDay) => isSameMonth(new Date(d.data), prevMonth));
+        const currentDayIds = new Set(menuDays.filter((d: MenuDay) => isSameMonth(new Date(d.data), currentDate)).map((d: MenuDay) => d.id));
+        const copied = prevDays.map((d: MenuDay) => {
+          const targetDate = addMonths(new Date(d.data), 1);
+          // Extract groupId correctly — format is "day-{timestamp}-{groupId}" where groupId may contain hyphens
+          const groupId = d.id.replace(/^day-\d+-/, '');
+          const newId = `day-${targetDate.getTime()}-${groupId}`;
+          if (currentDayIds.has(newId)) return null;
+          return { ...d, id: newId, data: targetDate.toISOString() };
+        }).filter(Boolean) as MenuDay[];
+        const updated = [...menuDays, ...copied];
+        setMenuDays(updated);
+        storage.saveMenu(updated);
+        showToast(`${copied.length} dias copiados com sucesso!`);
+      },
+      'primary'
+    );
   };
 
   return (
@@ -258,21 +181,6 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
           >
             <Copy size={20} />
             Copiar Mês Anterior
-          </button>
-          <button
-            onClick={generateWithAI}
-            disabled={isGenerating}
-            className="bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest disabled:opacity-60"
-          >
-            <Sparkles size={20} />
-            {isGenerating ? (generatingProgress || 'Gerando...') : 'Gerar com IA'}
-          </button>
-          <button
-            onClick={() => setIsHistoryOpen(true)}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 p-3 rounded-2xl transition-all shadow-sm"
-            title="Ver histórico"
-          >
-            <History size={20} />
           </button>
         </div>
       </div>
@@ -323,8 +231,8 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
               </thead>
               <tbody>
                 {daysInMonth.map((day, idx) => (
-                  <tr key={day.toISOString()} className={cn("border-b border-slate-100 transition-colors", idx % 2 === 0 ? "bg-white hover:bg-slate-50" : "bg-slate-50/40 hover:bg-slate-100/60")}>
-                    <td className={cn("py-2 px-4 border-r border-slate-200 sticky left-0 z-10 min-w-[160px]", idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")}>
+                  <tr key={day.toISOString()} className={cn("border-b border-slate-100 transition-colors", idx % 2 === 0 ? "bg-white hover:bg-slate-50" : "bg-slate-100 hover:bg-slate-200/60")}>
+                    <td className={cn("py-2 px-4 border-r border-slate-200 sticky left-0 z-10 min-w-[160px]", idx % 2 === 0 ? "bg-white" : "bg-slate-100")}>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-black text-brand-blue whitespace-nowrap">{format(day, 'dd/MM')}</span>
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
@@ -362,8 +270,8 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
                                   <div key={col.categoria} className="flex items-start gap-2">
                                     <div className="w-1 h-1 rounded-full bg-brand-lime mt-1.5 shrink-0" />
                                     <div>
-                                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{col.categoria}</p>
-                                      <p className="text-[10px] font-black text-slate-800">{getItemName(itemId)}</p>
+                                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest">{col.subcategoria || col.categoria}</p>
+                                      <p className="text-sm font-black text-slate-800">{getItemName(itemId)}</p>
                                     </div>
                                   </div>
                                 );
@@ -415,7 +323,7 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
                     const itemId = dayMenu?.[fieldId as keyof MenuDay] as string;
                     return (
                       <div key={col.categoria} className="space-y-1">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{col.categoria}</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{col.subcategoria || col.categoria}</p>
                         <p className={cn(
                           "text-sm font-bold",
                           itemId ? "text-slate-900" : "text-slate-300 italic"
@@ -429,43 +337,6 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* History Modal */}
-      {isHistoryOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-black text-brand-blue uppercase tracking-tight">Histórico de Cardápios</h2>
-              <button onClick={() => setIsHistoryOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-400" /></button>
-            </div>
-            <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
-              {snapshots.length === 0 && <p className="text-slate-400 text-sm text-center py-6">Nenhum histórico salvo ainda.<br />Use "Gerar com IA" para criar o primeiro.</p>}
-              {snapshots.map(snap => (
-                <div key={snap.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                  <div>
-                    <p className="font-black text-brand-blue text-sm uppercase">{snap.label}</p>
-                    <p className="text-[10px] text-slate-400">{format(new Date(snap.createdAt), "dd/MM/yyyy 'às' HH:mm")}</p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm(`Restaurar cardápio de ${snap.label}? Os dados atuais desse mês serão substituídos.`)) return;
-                      const others = menuDays.filter(d => !snap.menuDays.find((s: MenuDay) => s.id === d.id));
-                      const updated = [...others, ...snap.menuDays];
-                      setMenuDays(updated);
-                      await storage.saveMenu(updated);
-                      setIsHistoryOpen(false);
-                      showToast('Cardápio restaurado!');
-                    }}
-                    className="text-[10px] font-black text-brand-blue bg-brand-blue/5 hover:bg-brand-blue/10 px-3 py-2 rounded-xl uppercase tracking-widest transition-colors"
-                  >
-                    Restaurar
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -514,9 +385,9 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
                     return (
                       <div key={col.categoria}>
                         <CategorySelect
-                          label={col.categoria} 
-                          value={editingDay[fieldId as keyof MenuDay] as string} 
-                          options={getItemsByCategory(col.categoria)} 
+                          label={col.subcategoria || col.categoria}
+                          value={editingDay[fieldId as keyof MenuDay] as string}
+                          options={getItemsByCategory(col.categoria)}
                           onChange={id => setEditingDay({...editingDay, [fieldId]: id})} 
                         />
                       </div>
@@ -550,6 +421,25 @@ Use os fieldId exatos das colunas. Use apenas IDs de itens fornecidos. Varie os 
                 <Save size={20} />
                 Salvar Planejamento
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-black text-brand-blue uppercase tracking-tight">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="px-8 pb-8 flex gap-3">
+              <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Cancelar</button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className={cn("flex-[2] py-3 rounded-2xl font-black text-sm uppercase tracking-widest text-white transition-all",
+                  confirmModal.variant === 'destructive'
+                    ? "bg-brand-orange hover:bg-brand-orange/90 shadow-lg shadow-brand-orange/20"
+                    : "bg-brand-blue hover:bg-brand-blue/90 shadow-lg shadow-brand-blue/20"
+                )}>Confirmar</button>
             </div>
           </div>
         </div>
