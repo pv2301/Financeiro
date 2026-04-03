@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   Copy
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, isWeekend } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { storage, resolveMainCategory } from '../services/storage';
 import { MenuDay, Item, Category, GroupConfig, CategorySubcategories } from '../types';
@@ -29,7 +29,7 @@ export default function Menu() {
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; variant?: 'destructive' | 'primary' } | null>(null);
-  const showConfirm = (title: string, message: string, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
+  const showConfirm = (title: string, message: React.ReactNode, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
     setConfirmModal({ title, message, onConfirm, variant });
   const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -119,18 +119,57 @@ export default function Menu() {
       () => {
         const prevDays = menuDays.filter((d: MenuDay) => isSameMonth(new Date(d.data), prevMonth));
         const currentDayIds = new Set(menuDays.filter((d: MenuDay) => isSameMonth(new Date(d.data), currentDate)).map((d: MenuDay) => d.id));
-        const copied = prevDays.map((d: MenuDay) => {
-          const targetDate = addMonths(new Date(d.data), 1);
-          // Extract groupId correctly — format is "day-{timestamp}-{groupId}" where groupId may contain hyphens
+
+        // Agrupar dias preenchidos por grupo
+        const prevFilledByGroup: Record<string, MenuDay[]> = {};
+        prevDays.forEach(d => {
+          const date = new Date(d.data);
+          if (isWeekend(date) || d.isFeriado) return; // Excluir fins de semana e feriados
+          // Verificar se preenchido (tem pelo menos um item válido)
+          const hasItems = Object.keys(d).some(key => key.endsWith('Id') && (d as any)[key] && (d as any)[key].trim() !== '');
+          if (!hasItems) return;
+
           const groupId = d.id.replace(/^day-\d+-/, '');
-          const newId = `day-${targetDate.getTime()}-${groupId}`;
-          if (currentDayIds.has(newId)) return null;
-          return { ...d, id: newId, data: targetDate.toISOString() };
-        }).filter(Boolean) as MenuDay[];
+          if (!prevFilledByGroup[groupId]) prevFilledByGroup[groupId] = [];
+          prevFilledByGroup[groupId].push(d);
+        });
+
+        // Ordenar os dias preenchidos por data para mapeamento sequencial correto
+        Object.keys(prevFilledByGroup).forEach(groupId => {
+          prevFilledByGroup[groupId].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+        });
+
+        // Dias úteis do mês atual
+        const currentWorkdays = daysInMonth.filter(d => !isWeekend(d));
+
+        const copied: MenuDay[] = [];
+        Object.keys(prevFilledByGroup).forEach(groupId => {
+          const prevFilled = prevFilledByGroup[groupId];
+          currentWorkdays.forEach((date, idx) => {
+            const sourceDay = prevFilled[idx];
+            if (!sourceDay) return;
+
+            const newId = `day-${date.getTime()}-${groupId}`;
+            if (currentDayIds.has(newId)) return;
+
+            copied.push({
+              ...sourceDay,
+              id: newId,
+              data: date.toISOString(),
+              diaSemana: format(date, 'EEEE', { locale: ptBR })
+            });
+          });
+        });
+
+        if (copied.length === 0) {
+          showToast('Nenhum dia útil preenchido no mês anterior para copiar.');
+          return;
+        }
+
         const updated = [...menuDays, ...copied];
         setMenuDays(updated);
         storage.saveMenu(updated);
-        showToast(`${copied.length} dias copiados com sucesso!`);
+        showToast(`${copied.length} dias úteis copiados com sucesso!`);
       },
       'primary'
     );

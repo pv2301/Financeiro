@@ -37,7 +37,7 @@ export default function Groups() {
   const [logo, setLogo] = useState<string | null>(null);
   const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
   const [toast, setToast] = useState<string | null>(null);
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg: string, duration: number = 3000) => { setToast(msg); setTimeout(() => setToast(null), duration); };
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printGroups, setPrintGroups] = useState<Set<string>>(new Set());
   const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
@@ -46,6 +46,8 @@ export default function Groups() {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [aiDirectives, setAiDirectives] = useState('');
   const [aiStep, setAiStep] = useState<'directives' | 'generating' | 'preview'>('directives');
+  const [aiServiceStatus, setAiServiceStatus] = useState<'available' | 'cooldown'>('available');
+  const [aiCountdownSeconds, setAiCountdownSeconds] = useState(0);
   const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; variant?: 'destructive' | 'primary' } | null>(null);
   const showConfirm = (title: string, message: React.ReactNode, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
@@ -191,30 +193,43 @@ const handleSaveDay = (e: React.FormEvent) => {
       'Copiar Mês Anterior',
       <span>Copiar o cardápio de <strong>{prevLabel}</strong> para <strong>{currLabel}</strong> ({selectedGroup.nomeCompleto})? Os dias já planejados serão substituídos.</span>,
       () => {
-        const newDays = daysInMonth
-          .filter(date => !isWeekend(date))
-          .map(date => {
-            const dayNum = format(date, 'd');
-            const sourceDay = prevMonthMenu.find((d: MenuDay) => format(new Date(d.data), 'd') === dayNum);
-            const copiedFields: any = {};
-            if (sourceDay) {
-              selectedGroup!.colunas.forEach((col: MenuColumn) => {
-                const fieldId = getFieldIdFromColumn(col.categoria);
-                copiedFields[fieldId] = (sourceDay as any)[fieldId];
-              });
-              copiedFields.isFeriado = sourceDay.isFeriado;
-            }
-            return {
-              id: `day-${date.getTime()}-${selectedGroup!.id}`,
-              data: date.toISOString(),
-              diaSemana: format(date, 'EEEE', { locale: ptBR }),
-              ...copiedFields
-            };
+        // Filtrar dias úteis preenchidos do mês anterior (excluindo feriados e fins de semana)
+        const prevWorkdaysFilled = prevMonthMenu.filter(d => {
+          const date = new Date(d.data);
+          if (isWeekend(date) || d.isFeriado) return false;
+          // Verificar se tem pelo menos um campo preenchido
+          return selectedGroup!.colunas.some(col => {
+            const fieldId = getFieldIdFromColumn(col.categoria);
+            return (d as any)[fieldId];
           });
+        });
+
+        // Obter dias úteis do mês atual
+        const currentWorkdays = daysInMonth.filter(d => !isWeekend(d));
+
+        // Mapear sequencialmente: dias úteis preenchidos do mês anterior para dias úteis do mês atual
+        const newDays = currentWorkdays.map((date, idx) => {
+          const sourceDay = prevWorkdaysFilled[idx];
+          const copiedFields: any = {};
+          if (sourceDay) {
+            selectedGroup!.colunas.forEach((col: MenuColumn) => {
+              const fieldId = getFieldIdFromColumn(col.categoria);
+              copiedFields[fieldId] = (sourceDay as any)[fieldId];
+            });
+            copiedFields.isFeriado = sourceDay.isFeriado;
+          }
+          return {
+            id: `day-${date.getTime()}-${selectedGroup!.id}`,
+            data: date.toISOString(),
+            diaSemana: format(date, 'EEEE', { locale: ptBR }),
+            ...copiedFields
+          };
+        });
+
         const updatedMenu = [...menuDays.filter((d: MenuDay) => !(isSameMonth(new Date(d.data), currentDate) && d.id.includes(selectedGroup!.id))), ...newDays];
         setMenuDays(updatedMenu);
         storage.saveMenu(updatedMenu);
-        showToast('Mês anterior copiado!');
+        showToast(`${prevWorkdaysFilled.length} dias úteis copiados com sucesso!`);
       },
       'primary'
     );
@@ -239,16 +254,36 @@ const handleSaveDay = (e: React.FormEvent) => {
     const minutesText = waitSeconds > 30 ? Math.ceil(waitSeconds / 60) : waitSeconds;
     const unit = waitSeconds > 30 ? 'min' : 's';
     
-    return `⏳ Cota temporariamente excedida. Tente novamente em ${minutesText}${unit}. (Último uso: ${elapsedSeconds}s atrás)`;
+    const lastErrorDate = new Date(lastError);
+    const lastUsedTime = `${String(lastErrorDate.getHours()).padStart(2, '0')}:${String(lastErrorDate.getMinutes()).padStart(2, '0')}:${String(lastErrorDate.getSeconds()).padStart(2, '0')}`;
+    
+    return `⏳ Cota temporariamente excedida. Tente novamente em ${minutesText}${unit}. (Último uso: ${lastUsedTime})`;
+  };
+
+  const getAIQuotaWaitSeconds = (): number => {
+    const lastQuotaErrorTime = localStorage.getItem('gemini_last_quota_error');
+    if (!lastQuotaErrorTime) return 0;
+    const elapsedSeconds = Math.floor((Date.now() - parseInt(lastQuotaErrorTime, 10)) / 1000);
+    return Math.max(0, 60 - elapsedSeconds);
   };
 
   const recordAIQuotaError = () => {
     localStorage.setItem('gemini_last_quota_error', Date.now().toString());
   };
+
+  const handleAIFill = async () => {
     if (!selectedGroup) return;
+
+    const waitSeconds = getAIQuotaWaitSeconds();
+    if (waitSeconds > 0) {
+      showToast(`⏳ A IA está em cooldown. Tente novamente em ${waitSeconds}s.`, 6000);
+      setAiStep('directives');
+      return;
+    }
+
     const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
     if (!apiKey) {
-      showToast('Configure a chave Gemini API em Configurações.');
+      showToast('Configure a chave Gemini API em Configurações.', 6000);
       setIsAIModalOpen(false);
       return;
     }
@@ -269,6 +304,10 @@ const handleSaveDay = (e: React.FormEvent) => {
         categoria: col.categoria,
         fieldId: col.categoria.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') + 'Id'
       }));
+      
+      if (colunasInfo.length === 0) {
+        throw new Error('Nenhuma coluna configurada para este grupo.');
+      }
 
       // Otimização 2: REDUZIR itens para apenas os relevantes (6 por coluna)
       const itemsByColuna: Record<string, string[]> = {};
@@ -280,6 +319,11 @@ const handleSaveDay = (e: React.FormEvent) => {
           })
           .slice(0, 6)  // APENAS 6
           .map(it => it.nome);
+        
+        if (colItems.length === 0) {
+          throw new Error(`Nenhum item encontrado para a coluna: ${col.displayName}`);
+        }
+        
         itemsByColuna[col.displayName] = colItems;
       });
 
@@ -302,12 +346,18 @@ Retorne APENAS JSON (sem markdown):
 Regras:
 - Cada sequência será alternada ciclicamente para cada dia útil
 - Use apenas nomes de itens da lista fornecida
+- Se a directiva conter "<item> as <dia>" (por ex. "Biscoito de banana as sextas feiras"), essa regra deve ser aplicada estritamente: o item deve ser colocado na(s) coluna(s) correta(s) dos dias especificados e não em outros dias.
+- Mantenha o máximo de diversidade semanal e evite repetição na mesma semana, exceto regras obrigatórias.
 - Minimo 3 itens por sequência`;
 
       const response = await ai.models.generateContent({ 
-        model: 'gemini-2.0-flash', 
+        model: 'gemini-3-flash-preview',
         contents: prompt 
       });
+      
+      // Registrar tokens usados (estimativa baseada em prompt + resposta)
+      const estimatedTokens = Math.ceil((prompt.length + (response.text?.length || 0)) / 4);
+      localStorage.setItem('gemini_last_tokens_used', estimatedTokens.toString());
       
       const text = response.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -361,28 +411,73 @@ Regras:
 
       setMenuDays(updated);
       await storage.saveMenu(updated);
+
+      // Salvar snapshot no histórico
+      const snapshot: MenuSnapshot = {
+        id: `snap-${Date.now()}`,
+        label: `${selectedGroup.nomeCompleto} — ${format(currentDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase()}`,
+        monthYear: format(currentDate, 'yyyy-MM'),
+        menuDays: updated.filter(d => d.id.includes(selectedGroup.id) && isSameMonth(new Date(d.data), currentDate)),
+        createdAt: new Date().toISOString()
+      };
+      await storage.addMenuSnapshot(snapshot);
+      
+      // Recarregar snapshots para mostrar no histórico
+      const updatedSnapshots = await storage.getMenuSnapshots();
+      setSnapshots(updatedSnapshots);
+
       setIsAIModalOpen(false);
       setAiStep('directives');
-      showToast(`✅ Padrão aplicado para ${workdays.length} dias úteis!`);
+      showToast(`✅ Cardápio planejado e salvo no histórico!`);
 
     } catch (e: any) {
       console.error('Erro IA:', e);
       
-      const isQuotaError = e?.message?.includes('quota') || e?.message?.includes('429') || e?.message?.includes('RESOURCE_EXHAUSTED');
+      const errorMessage = (e?.message || '').toString();
+      const isQuotaError = errorMessage.toLowerCase().includes('quota') || errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED');
+      const isUnavailable = errorMessage.toLowerCase().includes('503') || errorMessage.toLowerCase().includes('unavailable') || errorMessage.toLowerCase().includes('high demand');
       
-      if (isQuotaError) {
+      if (isQuotaError || isUnavailable) {
         recordAIQuotaError();
       }
 
-      const msg = e?.message?.includes('API_KEY') || e?.message?.includes('API key')
+      const msg = errorMessage.toLowerCase().includes('api_key')
         ? '❌ Chave Gemini API inválida. Verifique em Configurações.'
         : isQuotaError
         ? getAIQuotaMessage()
+        : isUnavailable
+        ? '🤖 Modelo indisponível no momento (alta demanda). Tente novamente em alguns minutos.'
         : `❌ Erro: ${e?.message || 'verifique o console (F12)'}`;
-      showToast(msg);
+      showToast(msg, 6000);
       setAiStep('directives');
     }
   };
+
+  const isAIButtonLocked = aiCountdownSeconds > 0;
+
+  useEffect(() => {
+    if (!isAIModalOpen) {
+      setAiCountdownSeconds(0);
+      return;
+    }
+    const wait = getAIQuotaWaitSeconds();
+    setAiServiceStatus(wait > 0 ? 'cooldown' : 'available');
+    setAiCountdownSeconds(wait);
+
+    // Countdown interval
+    if (wait > 0) {
+      const interval = setInterval(() => {
+        const newWait = getAIQuotaWaitSeconds();
+        setAiCountdownSeconds(newWait);
+        if (newWait === 0) {
+          setAiServiceStatus('available');
+          clearInterval(interval);
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isAIModalOpen]);
 
   const mesAno = format(currentDate, 'MMMM yyyy', { locale: ptBR }).toUpperCase();
 
@@ -818,44 +913,98 @@ Exemplos:
                       onChange={e => setAiDirectives(e.target.value)}
                     />
                   </div>
-                  <div className="bg-brand-blue/5 rounded-2xl p-4 flex gap-3">
-                    <Sparkles size={16} className="text-brand-blue shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest mb-1">✨ Novo Modo: Padrão + Executor</p>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        A IA cria <strong>sequências cíclicas</strong> para cada coluna. Um executor interno aplica automaticamente ao mês inteiro!
-                        <br />
-                        <br />
-                        <strong>Exemplo:</strong> Fruta = [Maçã, Pera, Banana] → Dia 1: Maçã, Dia 2: Pera, Dia 3: Banana, Dia 4: Maçã...
-                        <br />
-                        <br />
-                        <strong>Benefícios:</strong> -80% tokens | Mais rápido | Sem erros de alternância
-                      </p>
+                  <div className="bg-brand-blue/5 rounded-2xl p-4 space-y-3">
+                    <div className="flex gap-2 mb-2">
+                      <Sparkles size={16} className="text-brand-blue shrink-0 mt-0.5" />
+                      <p className="text-xs font-black text-brand-blue uppercase tracking-widest">Informações de Uso da API</p>
                     </div>
+                    
+                    {(() => {
+                      const lastQuotaErrorTime = localStorage.getItem('gemini_last_quota_error');
+                      const lastTokensUsed = parseInt(localStorage.getItem('gemini_last_tokens_used') || '0', 10);
+                      const maxTokensPerDay = 15000; // Limite típico de tokens/dia para Gemini SDK
+                      
+                      if (!lastQuotaErrorTime) {
+                        return (
+                          <div className="space-y-2 text-xs">
+                            <p className="text-slate-600">
+                              ℹ️ <strong>Tokens usados:</strong> {lastTokensUsed.toLocaleString('pt-BR')} / {maxTokensPerDay.toLocaleString('pt-BR')}
+                            </p>
+                            <p className="text-slate-600">
+                              ✅ <strong>Status:</strong> Disponível para usar
+                            </p>
+                          </div>
+                        );
+                      }
+                      
+                      const elapsedSeconds = Math.floor((Date.now() - parseInt(lastQuotaErrorTime, 10)) / 1000);
+                      const waitSeconds = Math.max(0, 60 - elapsedSeconds);
+                      
+                      if (waitSeconds > 0) {
+                        const minutesText = waitSeconds > 30 ? Math.ceil(waitSeconds / 60) : waitSeconds;
+                        const unit = waitSeconds > 30 ? 'min' : 's';
+                        return (
+                          <div className="space-y-2 text-xs">
+                            <p className="text-brand-orange font-bold">
+                              ⏳ <strong>Cota excedida!</strong> Tente novamente em {minutesText}{unit}
+                            </p>
+                            <p className="text-slate-600">
+                              Tokens usados: {lastTokensUsed.toLocaleString('pt-BR')} / {maxTokensPerDay.toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="space-y-2 text-xs">
+                          <p className="text-brand-lime font-bold">✅ Cota reposta! Você pode tentar novamente.</p>
+                          <p className="text-slate-600">Tokens usados: {lastTokensUsed.toLocaleString('pt-BR')} / {maxTokensPerDay.toLocaleString('pt-BR')}</p>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const lastQuotaErrorTime = localStorage.getItem('gemini_last_quota_error');
                     if (!lastQuotaErrorTime) return null;
-                    const elapsedSeconds = Math.floor((Date.now() - parseInt(lastQuotaErrorTime, 10)) / 1000);
+                    const lastError = parseInt(lastQuotaErrorTime, 10);
+                    const elapsedSeconds = Math.floor((Date.now() - lastError) / 1000);
                     const waitSeconds = Math.max(0, 60 - elapsedSeconds);
                     if (waitSeconds === 0) return null;
+                    
+                    const lastErrorDate = new Date(lastError);
+                    const lastUsedTime = `${String(lastErrorDate.getHours()).padStart(2, '0')}:${String(lastErrorDate.getMinutes()).padStart(2, '0')}:${String(lastErrorDate.getSeconds()).padStart(2, '0')}`;
+                    
                     return (
                       <div className="bg-brand-orange/10 border border-brand-orange/30 rounded-2xl p-3 flex gap-2">
                         <div className="text-brand-orange mt-0.5">⏳</div>
                         <p className="text-xs text-brand-orange leading-relaxed">
-                          <strong>Cota em repouso:</strong> Tente novamente em {waitSeconds > 30 ? Math.ceil(waitSeconds / 60) + ' min' : waitSeconds + 's'} (último uso: {elapsedSeconds}s atrás)
+                          <strong>Cota em repouso:</strong> Tente novamente em {waitSeconds > 30 ? Math.ceil(waitSeconds / 60) + ' min' : waitSeconds + 's'} (último uso: {lastUsedTime})
                         </p>
                       </div>
                     );
                   })()}
+
+                  <div className={cn('rounded-2xl p-3 text-xs font-black uppercase tracking-widest',
+                    aiServiceStatus === 'available'
+                      ? 'bg-brand-lime/10 text-brand-lime border border-brand-lime/30'
+                      : 'bg-brand-orange/10 text-brand-orange border border-brand-orange/30')}
+                  >
+                    {aiServiceStatus === 'available'
+                      ? '🟢 Serviço IA disponível'
+                      : `🔴 IA em cooldown. Tente novamente em ${aiCountdownSeconds}s.`}
+                  </div>
                 </div>
                 <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4">
                   <button onClick={() => setIsAIModalOpen(false)} className="flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-slate-500 hover:bg-slate-200 transition-all">
                     Cancelar
                   </button>
-                  <button onClick={generateAIPreview} className="flex-[2] bg-brand-blue hover:bg-brand-blue/90 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-blue/20">
+                  <button
+                    onClick={handleAIFill}
+                    disabled={isAIButtonLocked}
+                    className={`flex-[2] ${isAIButtonLocked ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-brand-blue hover:bg-brand-blue/90 text-white'} py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-blue/20`}
+                  >
                     <Sparkles size={18} />
-                    Gerar Padrão do Mês
+                    {isAIButtonLocked ? `Aguarde ${aiCountdownSeconds}s...` : 'Gerar Padrão do Mês'}
                   </button>
                 </div>
               </>
@@ -864,12 +1013,23 @@ Exemplos:
             {/* Step 2: Generating */}
             {aiStep === 'generating' && (
               <div className="flex-1 flex flex-col items-center justify-center py-24 gap-6">
-                <div className="w-20 h-20 rounded-3xl bg-brand-blue/10 flex items-center justify-center text-brand-blue">
-                  <Sparkles size={36} className="animate-pulse" />
+                <div className="relative">
+                  <div className="absolute inset-0 bg-brand-blue/20 rounded-full animate-pulse blur-2xl" />
+                  <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-brand-blue to-brand-dark flex items-center justify-center text-white shadow-2xl shadow-brand-blue/40">
+                    <Sparkles size={48} className="animate-pulse" />
+                  </div>
                 </div>
-                <div className="text-center space-y-2">
-                  <p className="font-black text-xl text-brand-blue uppercase tracking-tight">Gerando Padrões...</p>
-                  <p className="text-sm text-slate-400">IA criando sequências cíclicas. Executor aplicando ao mês...</p>
+                <div className="text-center space-y-3 mt-6">
+                  <p className="font-black text-2xl text-brand-blue uppercase tracking-tight">Seu cardápio está sendo montado!</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                    <p className="text-sm text-slate-500 leading-relaxed">IA escrevendo o cardápio...</p>
+                  </div>
+                  <p className="text-sm text-slate-500 leading-relaxed whitespace-nowrap">🧠 Planejando variações nutritivas • ⏳ Quase pronto...</p>
                 </div>
               </div>
             )}
