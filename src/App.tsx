@@ -93,10 +93,10 @@ const Dashboard = () => {
   }, []);
 
   const stats = [
-    { label: 'Itens no Banco', value: items.length.toString(), icon: Apple, color: 'bg-brand-orange', shadow: 'shadow-brand-orange/20', to: '/items' },
-    { label: 'Receitas', value: recipes.length.toString(), icon: BookOpen, color: 'bg-brand-blue', shadow: 'shadow-brand-blue/20', to: '/recipes' },
     { label: 'Dias Planejados', value: menu.length.toString(), icon: CalendarDays, color: 'bg-brand-lime', shadow: 'shadow-brand-lime/20', to: null },
+    { label: 'Itens no Banco', value: items.length.toString(), icon: Apple, color: 'bg-brand-orange', shadow: 'shadow-brand-orange/20', to: '/items' },
     { label: 'Substituições', value: substitutions.length.toString(), icon: Repeat, color: 'bg-brand-dark', shadow: 'shadow-brand-dark/20', to: '/substitutions' },
+    { label: 'Receitas', value: recipes.length.toString(), icon: BookOpen, color: 'bg-brand-blue', shadow: 'shadow-brand-blue/20', to: '/recipes' },
   ];
 
   const [nutritionalTip, setNutritionalTip] = useState<string>('Carregando dica nutricional...');
