@@ -100,28 +100,72 @@ const Dashboard = () => {
   ];
 
   const [nutritionalTip, setNutritionalTip] = useState<string>('Carregando dica nutricional...');
-  const [isLoadingTip, setIsLoadingTip] = useState(false);
+const [isLoadingTip, setIsLoadingTip] = useState(false);
 
-  const fetchNutritionalTip = async () => {
-    setIsLoadingTip(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Gere uma dica nutricional curta (máximo 150 caracteres) e inspiradora para alimentação infantil (bebês e crianças pequenas). Foque em introdução alimentar, variedade de cores ou texturas. Responda apenas com a dica.",
-      });
-      setNutritionalTip(response.text || 'Ofereça uma variedade de cores no prato para garantir diferentes nutrientes.');
-    } catch (error) {
-      console.error('Error fetching tip:', error);
-      setNutritionalTip('A introdução alimentar deve ser gradual e respeitar o tempo do bebê.');
-    } finally {
-      setIsLoadingTip(false);
-    }
-  };
+const fetchTipsBatch = async () => {
+  setIsLoadingTip(true);
+  try {
+    const ai = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '' });
 
-  useEffect(() => {
-    fetchNutritionalTip();
-  }, []);
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: "Gere 10 dicas nutricionais curtas (máx 150 caracteres) para alimentação infantil. Separe cada dica por quebra de linha.",
+    });
+
+    const tips = response.text
+      ?.split('\n')
+      .map(t => t.trim())
+      .filter(Boolean) || [];
+
+    localStorage.setItem('tipsPool', JSON.stringify(tips));
+
+    return tips;
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    setIsLoadingTip(false);
+  }
+};
+
+const getTodayTip = async () => {
+const today = new Date().toISOString().slice(0, 10);
+
+let tips = JSON.parse(localStorage.getItem('tipsPool') || '[]');
+let index = Number(localStorage.getItem('tipIndex') || 0);
+const storedDate = localStorage.getItem('tipDate');
+
+// Se não tem dicas, busca
+if (!tips || tips.length === 0) {
+  tips = await fetchTipsBatch();
+  index = 0;
+}
+
+// Se mudou o dia, avança
+if (storedDate !== today) {
+  index++;
+
+  // 🔥 Se acabou, busca novas automaticamente
+  if (index >= tips.length) {
+    tips = await fetchTipsBatch();
+    index = 0;
+  }
+
+  localStorage.setItem('tipIndex', index.toString());
+  localStorage.setItem('tipDate', today);
+}
+
+return tips[index] || 'Ofereça variedade de cores no prato.';
+};
+
+useEffect(() => {
+const loadTip = async () => {
+  const tip = await getTodayTip();
+  setNutritionalTip(tip);
+};
+
+loadTip();
+}, []);
 
   return (
     <div className="p-6 w-full space-y-8">
@@ -242,7 +286,14 @@ const Dashboard = () => {
                   <Apple size={24} className="text-brand-lime" />
                 </div>
                 <button 
-                  onClick={fetchNutritionalTip}
+                  onClick={async () => {
+                    const tips = await fetchTipsBatch();
+                    if (tips.length > 0) {
+                      localStorage.setItem('tipIndex', '0');
+                      localStorage.setItem('tipDate', new Date().toISOString().slice(0, 10));
+                      setNutritionalTip(tips[0]);
+                    }
+                  }}
                   disabled={isLoadingTip}
                   className="p-2 hover:bg-white/10 rounded-xl transition-colors disabled:opacity-50"
                 >

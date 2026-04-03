@@ -618,14 +618,13 @@ Regras:
           >
             <Trash2 size={20} />
             Limpar Mês
-          </button>
-
+          </button>      
           <button
-            onClick={() => setIsPrintModalOpen(true)}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+            onClick={() => { setAiStep('directives'); setAiDirectives(''); setIsAIModalOpen(true); }}
+            className="bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-blue/20 font-black text-sm uppercase tracking-widest"
           >
-            <Download size={20} />
-            Imprimir
+            <Sparkles size={20} />
+            Gerar com IA
           </button>
           <button
             onClick={() => setIsHistoryOpen(true)}
@@ -634,11 +633,11 @@ Regras:
             <History size={20} />
           </button>
           <button
-            onClick={() => { setAiStep('directives'); setAiDirectives(''); setIsAIModalOpen(true); }}
-            className="bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-blue/20 font-black text-sm uppercase tracking-widest"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
-            <Sparkles size={20} />
-            Gerar com IA
+            <Download size={20} />
+            Imprimir
           </button>
         </div>
       </div>
