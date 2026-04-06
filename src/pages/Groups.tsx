@@ -632,7 +632,7 @@ Regras:
           </button>
           <button
             onClick={() => setIsHistoryOpen(true)}
-            className="bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 px-4 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+            className="bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
             <History size={20} />
           </button>

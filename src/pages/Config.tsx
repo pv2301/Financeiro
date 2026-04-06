@@ -370,8 +370,8 @@ export default function Config() {
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <label className="cursor-pointer bg-brand-blue hover:bg-brand-blue/90 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-brand-blue/20 w-fit">
-                <Upload size={14} />
+              <label className="cursor-pointer bg-brand-blue hover:bg-brand-blue/90 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-brand-blue/20 w-fit">
+                <Upload size={20} />
                 Fazer Upload
                 <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
               </label>
