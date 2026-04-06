@@ -119,7 +119,7 @@ const fetchTipsBatch = async () => {
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: "Gere 10 dicas nutricionais curtas (máx 150 caracteres) para alimentação infantil. Separe cada dica por quebra de linha.",
+      contents: "Gere 50 dicas nutricionais curtas e variadas (máx 150 caracteres cada) para alimentação infantil saudável. Separe cada dica por uma quebra de linha. Não numere as dicas.",
     });
 
     const tips = response.text

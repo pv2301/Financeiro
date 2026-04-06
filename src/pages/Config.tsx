@@ -332,14 +332,14 @@ export default function Config() {
           <button
             onClick={handlePopulateFromExcel}
             disabled={isPopulating}
-            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest disabled:opacity-50"
+            className="bg-white hover:bg-slate-50 text-brand-orange border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest disabled:opacity-50"
           >
             <Upload size={20} />
             {isPopulating ? 'Importando...' : 'Importar Excel'}
           </button>
-          <button 
+          <button
             onClick={addGroup}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
           >
             <Plus size={20} />
             Novo Grupo

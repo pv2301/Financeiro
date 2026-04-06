@@ -209,18 +209,18 @@ export default function Menu() {
             </button>
           </div>
           <button
+            onClick={copyPrevMonth}
+            className="bg-white hover:bg-slate-50 text-brand-lime border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
+          >
+            <Copy size={20} />
+            Copiar Mês Anterior
+          </button>
+          <button
             onClick={clearMonth}
             className="bg-white hover:bg-slate-50 text-brand-orange border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
             <Trash2 size={20} />
             Limpar Mês
-          </button>
-          <button
-            onClick={copyPrevMonth}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
-          >
-            <Copy size={20} />
-            Copiar Mês Anterior
           </button>
         </div>
       </div>
