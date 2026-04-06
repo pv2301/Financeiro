@@ -66,8 +66,15 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  // Desativado temporariamente conforme solicitado
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
+};
+
+const LoginRoute = () => {
+  const { user } = useAuth();
+  if (user) return <Navigate to="/" replace />;
+  return <Login />;
 };
 
 const Dashboard = () => {
@@ -353,6 +360,7 @@ const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: stri
 };
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
   const [logo, setLogo] = useState<string | null>(null);
   const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
 
@@ -414,6 +422,17 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             <p className="text-sm text-brand-blue font-black leading-tight">{nutricionista.nome || 'Nutricionista'}</p>
             <p className="text-[10px] text-brand-orange font-bold">{nutricionista.crn ? `CRN ${nutricionista.crn}` : 'Configure em Configurações'}</p>
           </div>
+          <div className="px-5 py-2">
+            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Logado como</p>
+            <p className="text-xs text-brand-blue font-bold truncate">{user?.displayName || user?.email || '—'}</p>
+          </div>
+          <button
+            onClick={() => signOut(auth)}
+            className="flex items-center gap-3 px-5 py-4 rounded-2xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all w-full mt-1"
+          >
+            <LogOut size={20} />
+            <span className="text-sm font-black uppercase tracking-widest">Sair</span>
+          </button>
         </nav>
       </aside>
 
@@ -431,7 +450,7 @@ export default function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/login" element={<LoginRoute />} />
             <Route path="/*" element={
               <ProtectedRoute>
                 <Layout>

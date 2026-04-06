@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import { LogIn, Apple, Utensils, Mail, Lock } from 'lucide-react';
 
@@ -8,6 +8,24 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Preencha o e-mail acima antes de redefinir a senha.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (err: any) {
+      setError(`Erro ao enviar e-mail: ${err.code || err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -17,7 +35,11 @@ export default function Login() {
       await signInWithPopup(auth, provider);
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(`Erro Google: ${err.code || err.message}`);
+      if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/api-key-expired') {
+        setError('Erro de configuração: o domínio atual não está autorizado na chave de API. Acesse Google Cloud Console → APIs & Services → Credentials e adicione este domínio à chave de API Web.');
+      } else {
+        setError(`Erro Google: ${err.code || err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -41,8 +63,8 @@ export default function Login() {
       console.error('Email login error:', err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('E-mail ou senha incorretos. Verifique se você cadastrou o usuário no console do Firebase.');
-      } else if (err.code === 'auth/api-key-not-valid') {
-        setError('Erro de Chave de API: O Google ainda está bloqueando sua chave. Por favor, crie uma NOVA chave no Google Cloud Console e me envie.');
+      } else if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/api-key-expired') {
+        setError('Erro de configuração: o domínio atual não está autorizado na chave de API. Acesse Google Cloud Console → APIs & Services → Credentials e adicione este domínio à chave de API Web.');
       } else {
         setError(`Erro: ${err.code || err.message}`);
       }
@@ -67,6 +89,11 @@ export default function Login() {
             Gestão nutricional infantil simplificada.
           </p>
 
+          {resetSent && (
+            <div className="bg-green-50 text-green-600 p-4 rounded-2xl text-xs font-bold mb-6 border border-green-100 text-left">
+              E-mail de redefinição enviado! Verifique sua caixa de entrada.
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 text-red-500 p-4 rounded-2xl text-xs font-bold mb-6 border border-red-100 text-left">
               {error}
@@ -95,6 +122,16 @@ export default function Login() {
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-brand-blue focus:bg-white rounded-2xl outline-none transition-all text-sm font-bold"
                 required
               />
+            </div>
+            <div className="text-right -mt-2">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={loading}
+                className="text-xs text-brand-blue font-bold hover:underline disabled:opacity-50"
+              >
+                Esqueceu a senha?
+              </button>
             </div>
             <button
               type="submit"
