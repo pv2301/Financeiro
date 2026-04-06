@@ -189,19 +189,19 @@ export default function Menu() {
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="bg-slate-100 p-1 rounded-2xl flex gap-1 mr-4">
-            <button 
+            <button
               onClick={() => setViewMode('mensal')}
               className={cn(
-                "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                "px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all",
                 viewMode === 'mensal' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
               Mensal
             </button>
-            <button 
+            <button
               onClick={() => setViewMode('diaria')}
               className={cn(
-                "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                "px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all",
                 viewMode === 'diaria' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >

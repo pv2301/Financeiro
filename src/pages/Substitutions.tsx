@@ -132,23 +132,23 @@ export default function Substitutions() {
         <div className="flex gap-2">
           <button
             onClick={() => setIsRestrictionModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all font-black text-xs uppercase tracking-widest"
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
-            <ShieldAlert size={16} />
+            <ShieldAlert size={20} />
             Restrições
           </button>
           <button
             onClick={() => { setEditingSub({}); setIsModalOpen(true); }}
-            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-xs uppercase tracking-widest"
+            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-brand-orange/20 font-black text-sm uppercase tracking-widest"
           >
-            <Plus size={16} />
+            <Plus size={20} />
             Nova Substituição
           </button>
           <button
             onClick={() => window.print()}
-            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm font-black text-xs uppercase tracking-widest"
+            className="bg-white hover:bg-slate-50 text-brand-blue border border-slate-200 px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-sm font-black text-sm uppercase tracking-widest"
           >
-            <Printer size={16} />
+            <Printer size={20} />
             Imprimir
           </button>
         </div>
