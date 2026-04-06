@@ -82,19 +82,22 @@ const Dashboard = () => {
   const [recipes, setRecipes] = useState<any[]>([]);
   const [menu, setMenu] = useState<any[]>([]);
   const [substitutions, setSubstitutions] = useState<any[]>([]);
-  
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+
   useEffect(() => {
     const loadData = async () => {
-      const [itemsData, recipesData, menuData, substitutionsData] = await Promise.all([
+      const [itemsData, recipesData, menuData, substitutionsData, geminiKey] = await Promise.all([
         storage.getItems(),
         storage.getRecipes(),
         storage.getMenu(),
-        storage.getSubstitutions()
+        storage.getSubstitutions(),
+        storage.getGeminiApiKey(),
       ]);
       setItems(itemsData);
       setRecipes(recipesData);
       setMenu(menuData);
       setSubstitutions(substitutionsData);
+      setGeminiApiKey(geminiKey);
     };
     loadData();
   }, []);
@@ -112,7 +115,7 @@ const [isLoadingTip, setIsLoadingTip] = useState(false);
 const fetchTipsBatch = async () => {
   setIsLoadingTip(true);
   try {
-    const ai = new GoogleGenAI({ apiKey: (import.meta as any).env?.VITE_GEMINI_API_KEY || '' });
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

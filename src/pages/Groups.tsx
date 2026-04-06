@@ -49,6 +49,7 @@ export default function Groups() {
   const [aiServiceStatus, setAiServiceStatus] = useState<'available' | 'cooldown'>('available');
   const [aiCountdownSeconds, setAiCountdownSeconds] = useState(0);
   const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
+  const [geminiApiKey, setGeminiApiKey] = useState('');
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: React.ReactNode; onConfirm: () => void; variant?: 'destructive' | 'primary' } | null>(null);
   const showConfirm = (title: string, message: React.ReactNode, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
     setConfirmModal({ title, message, onConfirm, variant });
@@ -67,6 +68,8 @@ export default function Groups() {
       try { snapshotsData = await storage.getMenuSnapshots(); } catch (_) { /* permission denied — ignore */ }
       let subcatsData: CategorySubcategories = {};
       try { subcatsData = await storage.getCategorySubcategories(); } catch (_) { /* ignore */ }
+      let geminiKey = '';
+      try { geminiKey = await storage.getGeminiApiKey(); } catch (_) { /* ignore */ }
       setMenuDays(menuData);
       setItems(itemsData);
       setGroups(groupsData);
@@ -76,6 +79,7 @@ export default function Groups() {
       setNutricionista(nutData);
       setSnapshots(snapshotsData);
       setCategorySubcategories(subcatsData);
+      setGeminiApiKey(geminiKey);
       if (groupsData.length > 0) {
         setSelectedGroup(groupsData[0]);
       }
@@ -281,7 +285,7 @@ const handleSaveDay = (e: React.FormEvent) => {
       return;
     }
 
-    const apiKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+    const apiKey = geminiApiKey;
     if (!apiKey) {
       showToast('Configure a chave Gemini API em Configurações.', 6000);
       setIsAIModalOpen(false);

@@ -60,7 +60,8 @@ export default function Config() {
       setCategories(categoriesData);
       setNutricionista(nutData);
       setCategorySubcategories(subcatsData);
-      setGeminiKey(localStorage.getItem('gemini_api_key') || '');
+      const geminiKeyData = await storage.getGeminiApiKey();
+      setGeminiKey(geminiKeyData);
     };
     loadData();
   }, []);
@@ -113,6 +114,7 @@ export default function Config() {
       await Promise.all([
         storage.saveLogo(logoUrl),
         storage.saveNutricionista(nutricionista),
+        storage.saveGeminiApiKey(geminiKey),
       ]);
       window.dispatchEvent(new CustomEvent('cardapio:logoUpdated', { detail: logoUrl }));
       window.dispatchEvent(new CustomEvent('cardapio:nutricionistaUpdated', { detail: nutricionista }));
@@ -457,14 +459,14 @@ export default function Config() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGeminiKey(e.target.value)}
               />
               <button
-                onClick={() => { localStorage.setItem('gemini_api_key', geminiKey); showToast('Chave salva!'); }}
+                onClick={async () => { await storage.saveGeminiApiKey(geminiKey); showToast('Chave salva!'); }}
                 className="bg-brand-blue text-white px-6 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-blue/90 transition-all"
               >
                 Salvar
               </button>
             </div>
             <p className="text-[10px] text-slate-400 mt-3">
-              Obtenha sua chave em <span className="font-black text-brand-blue">aistudio.google.com</span>. A chave é salva apenas no seu navegador.
+              Obtenha sua chave em <span className="font-black text-brand-blue">aistudio.google.com</span>. A chave é salva no servidor e acessível a todos os usuários.
             </p>
           </div>
         )}

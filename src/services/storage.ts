@@ -132,6 +132,9 @@ export const storage = {
   getNutricionista: () => getConfigValue<{nome: string, crn: string}>('nutricionista', {nome: '', crn: ''}),
   saveNutricionista: (data: {nome: string, crn: string}) => setConfigValue('nutricionista', data),
 
+  getGeminiApiKey: () => getConfigValue<string>('geminiApiKey', ''),
+  saveGeminiApiKey: (key: string) => setConfigValue('geminiApiKey', key),
+
   addMenuSnapshot: async (snapshot: MenuSnapshot): Promise<void> => {
     try {
       const ref = doc(collection(db, 'menuSnapshots'), snapshot.id);
