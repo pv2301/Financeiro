@@ -22,7 +22,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, addMont
 import { ptBR } from 'date-fns/locale';
 import { GoogleGenAI } from '@google/genai';
 import { storage, resolveMainCategory } from '../services/storage';
-import { MenuDay, Item, Category, GroupConfig, MenuColumn, MenuSnapshot, CategorySubcategories } from '../types';
+import { MenuDay, Item, Category, GroupConfig, MenuColumn, MenuSnapshot, CategorySubcategories, GroupCapacity } from '../types';
 import { cn } from '../lib/utils';
 
 export default function Groups() {
@@ -54,6 +54,7 @@ export default function Groups() {
   const showConfirm = (title: string, message: React.ReactNode, onConfirm: () => void, variant: 'destructive' | 'primary' = 'destructive') =>
     setConfirmModal({ title, message, onConfirm, variant });
 
+
   useEffect(() => {
     const loadData = async () => {
       const [menuData, itemsData, groupsData, subsData, logoData, nutData] = await Promise.all([
@@ -70,6 +71,7 @@ export default function Groups() {
       try { subcatsData = await storage.getCategorySubcategories(); } catch (_) { /* ignore */ }
       let geminiKey = '';
       try { geminiKey = await storage.getGeminiApiKey(); } catch (_) { /* ignore */ }
+
       setMenuDays(menuData);
       setItems(itemsData);
       setGroups(groupsData);
@@ -584,29 +586,27 @@ Regras:
               </span>
               <ChevronDown size={16} className={cn("text-slate-400 transition-transform shrink-0", isGroupDropdownOpen && "rotate-180")} />
             </button>
-            {isGroupDropdownOpen && (
-              <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 overflow-hidden min-w-[260px] py-1">
-                {groups.map((g: GroupConfig) => (
-                  <button
-                    key={g.id}
-                    onClick={() => { setSelectedGroup(g); setIsGroupDropdownOpen(false); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50",
-                      selectedGroup?.id === g.id ? "bg-brand-blue/5" : ""
-                    )}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.cor }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm text-brand-blue uppercase tracking-widest truncate">{g.nomeCompleto}</p>
-                      {g.nomeCurto !== g.nomeCompleto && (
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{g.nomeCurto}</p>
-                      )}
+              {isGroupDropdownOpen && (
+                <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 overflow-hidden min-w-[280px] py-1">
+                  {groups.map((g: GroupConfig) => (
+                    <div key={g.id} className={cn('px-4 py-3 border-b border-slate-50 last:border-0', selectedGroup?.id === g.id ? 'bg-brand-blue/5' : '')}>
+                      <button
+                        onClick={() => { setSelectedGroup(g); setIsGroupDropdownOpen(false); }}
+                        className="w-full flex items-center gap-3 text-left"
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.cor }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-sm text-brand-blue uppercase tracking-widest truncate">{g.nomeCompleto}</p>
+                          {g.nomeCurto !== g.nomeCompleto && (
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{g.nomeCurto}</p>
+                          )}
+                        </div>
+                        {selectedGroup?.id === g.id && <CheckCircle2 size={14} className="text-brand-blue shrink-0" />}
+                      </button>
                     </div>
-                    {selectedGroup?.id === g.id && <CheckCircle2 size={14} className="text-brand-blue shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
           </div>
 
           <button 

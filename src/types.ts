@@ -1,5 +1,8 @@
 export type Category = string;
 
+/** Supported purchase units for shopping list items */
+export type UnitType = 'kg' | 'g' | 'un' | 'L' | 'ml' | 'cx' | 'pct' | 'porcao';
+
 export interface Restriction {
   id: string;
   nome: string;
@@ -16,6 +19,10 @@ export interface Item {
   receitaVinculadaId?: string;
   corFundo?: string;
   negrito?: boolean;
+  /** Purchase unit override (defaults derived from categoria in shoppingCalculator) */
+  unitType?: UnitType;
+  /** Quantity per child per meal (e.g. 0.15 for 150g). Defaults from categoria. */
+  portionSize?: number;
 }
 
 export interface Recipe {
@@ -68,4 +75,37 @@ export interface MenuSnapshot {
   monthYear: string;  // ex: "2026-04"
   menuDays: MenuDay[];
   createdAt: string;  // ISO
+}
+
+/** Number of children registered for a group — configured in Groups page */
+export interface GroupCapacity {
+  groupId: string;
+  childrenCount: number;
+}
+
+/** A calculated line-item in the smart shopping list */
+export interface ShoppingItem {
+  itemId: string;
+  nome: string;
+  categoria: string;
+  /** Market grouping, e.g. "Hortifrúti", "Laticínios" */
+  marketCategory: string;
+  /** Total quantity across all groups for the selected period */
+  quantidadeTotal: number;
+  /** Unit of measure used for this item */
+  unitType: UnitType;
+  /** Quantity per child per meal-day for this item */
+  portionSize: number;
+  /** Per-group detail breakdown */
+  grupos: { nomeGrupo: string; quantidade: number }[];
+}
+
+/** Analytics computed from a set of MenuDays */
+export interface MenuAnalytics {
+  monthYear: string;
+  totalDias: number;
+  /** Category → occurrence count */
+  categoriaDistribuicao: Record<string, number>;
+  topItens: { nome: string; aparicoes: number }[];
+  alertas: string[];
 }

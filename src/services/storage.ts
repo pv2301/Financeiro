@@ -10,7 +10,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Item, Recipe, Substitution, MenuDay, GroupConfig, Restriction, MenuSnapshot, CategorySubcategories } from '../types';
+import { Item, Recipe, Substitution, MenuDay, GroupConfig, Restriction, MenuSnapshot, CategorySubcategories, GroupCapacity, UnitType } from '../types';
 
 const COLLECTIONS = {
   ITEMS: 'items',
@@ -134,6 +134,20 @@ export const storage = {
 
   getGeminiApiKey: () => getConfigValue<string>('geminiApiKey', ''),
   saveGeminiApiKey: (key: string) => setConfigValue('geminiApiKey', key),
+
+  /** Group child-count capacities — edited in Groups page, read by ShoppingList */
+  getGroupCapacities: () => getConfigValue<GroupCapacity[]>('groupCapacities', []),
+  saveGroupCapacities: (caps: GroupCapacity[]) => setConfigValue('groupCapacities', caps),
+
+  /**
+   * Per-item shopping overrides: { [itemId]: { unitType, portionSize } }
+   * Edited inline on the Shopping List page and persisted between sessions.
+   */
+  getItemPortions: () =>
+    getConfigValue<Record<string, { unitType: UnitType; portionSize: number }>>('itemPortions', {}),
+  saveItemPortions: (
+    portions: Record<string, { unitType: UnitType; portionSize: number }>
+  ) => setConfigValue('itemPortions', portions),
 
   addMenuSnapshot: async (snapshot: MenuSnapshot): Promise<void> => {
     try {

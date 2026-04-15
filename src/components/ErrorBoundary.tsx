@@ -1,7 +1,7 @@
-import * as React from 'react';
+import React, { Component, ReactNode } from 'react';
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 interface State {
@@ -9,22 +9,22 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends (React.Component as any) {
-  constructor(props: any) {
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
     super(props);
-    (this as any).state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
 
   render() {
-    if ((this as any).state.hasError) {
+    if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 max-w-md w-full text-center">
@@ -41,6 +41,6 @@ export class ErrorBoundary extends (React.Component as any) {
       );
     }
 
-    return (this as any).props.children;
+    return this.props.children;
   }
 }

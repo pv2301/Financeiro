@@ -19,7 +19,7 @@ import {
 import { storage } from '../services/storage';
 import { storage as firebaseStorage } from '../firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { GroupConfig, Restriction, Item, Recipe, Substitution, CategorySubcategories } from '../types';
+import { GroupConfig, Restriction, Item, Recipe, Substitution, CategorySubcategories, GroupCapacity } from '../types';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import excelData from '../../public/excel_data.json';
@@ -43,16 +43,18 @@ export default function Config() {
   const showConfirm = (title: string, message: string, onConfirm: () => void) => setConfirmModal({ title, message, onConfirm });
   const [categorySubcategories, setCategorySubcategories] = useState<CategorySubcategories>({});
   const [newSubcatInputs, setNewSubcatInputs] = useState<Record<string, string>>({});
+  const [groupCapacities, setGroupCapacities] = useState<GroupCapacity[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
-      const [configData, restrictionsData, logoData, categoriesData, nutData, subcatsData] = await Promise.all([
+      const [configData, restrictionsData, logoData, categoriesData, nutData, subcatsData, capacitiesData] = await Promise.all([
         storage.getConfig(),
         storage.getRestrictions(),
         storage.getLogo(),
         storage.getCategories(),
         storage.getNutricionista(),
         storage.getCategorySubcategories(),
+        storage.getGroupCapacities(),
       ]);
       setConfigs(configData);
       setRestrictions(restrictionsData);
@@ -60,11 +62,22 @@ export default function Config() {
       setCategories(categoriesData);
       setNutricionista(nutData);
       setCategorySubcategories(subcatsData);
+      setGroupCapacities(capacitiesData || []);
       const geminiKeyData = await storage.getGeminiApiKey();
       setGeminiKey(geminiKeyData);
     };
     loadData();
   }, []);
+
+  const getChildrenCount = (groupId: string) =>
+    groupCapacities.find(c => c.groupId === groupId)?.childrenCount ?? 0;
+
+  const updateChildrenCount = async (groupId: string, count: number) => {
+    const next = groupCapacities.filter(c => c.groupId !== groupId);
+    if (count > 0) next.push({ groupId, childrenCount: count });
+    setGroupCapacities(next);
+    await storage.saveGroupCapacities(next);
+  };
 
   const addGroup = () => {
     const newGroup: GroupConfig = {
@@ -568,6 +581,7 @@ export default function Config() {
                   <thead>
                     <tr className="bg-brand-blue text-white">
                       <th className="p-4 text-[10px] font-black uppercase tracking-widest border-r border-white/10">Nome Completo</th>
+                      <th className="p-4 text-[10px] font-black uppercase tracking-widest border-r border-white/10 text-center w-24">Nº Crianças</th>
                       {Array.from({length: maxCols}, (_, i) => (
                         <th key={i} className="p-4 text-[10px] font-black uppercase tracking-widest border-r border-white/10">Coluna {i+1}</th>
                       ))}
@@ -589,6 +603,16 @@ export default function Config() {
                             {expandedGroupId === config.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             {config.nomeCompleto}
                           </div>
+                        </td>
+                        <td className="p-4 border-l border-slate-100 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="number"
+                            min={0}
+                            value={getChildrenCount(config.id) || ''}
+                            onChange={(e) => updateChildrenCount(config.id, parseInt(e.target.value, 10) || 0)}
+                            className="w-16 text-center text-sm font-black text-brand-blue border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-blue"
+                            placeholder="0"
+                          />
                         </td>
                         {Array.from({length: maxCols}, (_, idx) => (
                           <td key={idx} className="p-4 border-l border-slate-100">
