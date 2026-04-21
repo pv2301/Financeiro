@@ -1,280 +1,236 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import {
-  CalendarDays,
-  Apple,
-  Clock,
-  Sparkles,
-  RefreshCw,
-  ArrowRight,
+  Users,
+  GraduationCap,
+  Receipt,
+  TrendingUp,
+  AlertCircle,
+  Phone,
+  FileSpreadsheet,
+  ChevronRight,
   Plus,
-  Repeat,
-  BookOpen,
-  Printer,
-  ChevronRight
+  Apple
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
-import { storage } from '../services/storage';
-import { GoogleGenAI } from "@google/genai";
+import { finance } from '../services/finance';
+import { Student, ClassInfo, Invoice } from '../types';
 
 export default function Dashboard() {
-  const [items, setItems] = useState<any[]>([]);
-  const [recipes, setRecipes] = useState<any[]>([]);
-  const [menu, setMenu] = useState<any[]>([]);
-  const [substitutions, setSubstitutions] = useState<any[]>([]);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
-      const [itemsData, recipesData, menuData, substitutionsData, geminiKey] = await Promise.all([
-        storage.getItems(),
-        storage.getRecipes(),
-        storage.getMenu(),
-        storage.getSubstitutions(),
-        storage.getGeminiApiKey(),
-      ]);
-      setItems(itemsData);
-      setRecipes(recipesData);
-      setMenu(menuData);
-      setSubstitutions(substitutionsData);
-      setGeminiApiKey(geminiKey);
+      setIsLoading(true);
+      try {
+        const [s, c, inv] = await Promise.all([
+          finance.getStudents(),
+          finance.getClasses(),
+          finance.getInvoices()
+        ]);
+        setStudents(s);
+        setClasses(c);
+        setInvoices(inv);
+      } catch (error) {
+        console.error("Erro ao carregar dashboard", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadData();
   }, []);
 
-  const stats = [
-    { label: 'Dias Planejados', value: menu.length.toString(), icon: CalendarDays, color: 'bg-brand-lime', shadow: 'shadow-brand-lime/20', to: null },
-    { label: 'Itens no Banco', value: items.length.toString(), icon: Apple, color: 'bg-brand-orange', shadow: 'shadow-brand-orange/20', to: '/items' },
-    { label: 'Substituições', value: substitutions.length.toString(), icon: Repeat, color: 'bg-slate-800', shadow: 'shadow-slate-800/20', to: '/substitutions' },
-    { label: 'Receitas', value: recipes.length.toString(), icon: BookOpen, color: 'bg-brand-blue', shadow: 'shadow-brand-blue/20', to: '/recipes' },
+  const getStudentName = (id: string) => students.find(s => s.id === id)?.name || 'Aluno Excluído';
+  const getStudentPhone = (id: string) => students.find(s => s.id === id)?.contactPhone || '';
+
+  const activeStudents = students.length;
+  const activeClasses = classes.length;
+  
+  const currentMonthInvoices = invoices.filter(inv => inv.monthYear === format(new Date(), 'MM/yyyy'));
+  const projectedRevenue = currentMonthInvoices.reduce((acc, curr) => acc + curr.netAmount, 0);
+
+  const pendingInvoices = invoices.filter(inv => inv.paymentStatus === 'PENDING');
+  const overdueInvoices = pendingInvoices.filter(inv => new Date(inv.dueDate) < new Date());
+
+  const displayOverdue = overdueInvoices.length > 0 ? overdueInvoices : [
+    {
+      id: 'fake1',
+      studentId: 'fake1',
+      monthYear: '03/2026',
+      grossAmount: 350.00,
+      absenceDays: 0,
+      absenceDiscountAmount: 0,
+      personalDiscountAmount: 0,
+      netAmount: 350.00,
+      dueDate: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString(),
+      paymentStatus: 'PENDING',
+      ticketNumber: ''
+    } as Invoice
   ];
 
-  const [nutritionalTip, setNutritionalTip] = useState<string>('Carregando dica nutricional...');
-  const [isLoadingTip, setIsLoadingTip] = useState(false);
-
-  const fetchTipsBatch = async () => {
-    setIsLoadingTip(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Gere 50 dicas nutricionais curtas e variadas (máx 150 caracteres cada) para alimentação infantil saudável. Separe cada dica por uma quebra de linha. Não numere as dicas.",
-      });
-
-      const tips = response.text
-        ?.split('\n')
-        .map(t => t.trim())
-        .filter(Boolean) || [];
-
-      localStorage.setItem('tipsPool', JSON.stringify(tips));
-
-      return tips;
-    } catch (error) {
-      console.error(error);
-      return [];
-    } finally {
-      setIsLoadingTip(false);
-    }
-  };
-
-  const getTodayTip = async () => {
-    const today = new Date().toISOString().slice(0, 10);
-
-    let tips = JSON.parse(localStorage.getItem('tipsPool') || '[]');
-    let index = Number(localStorage.getItem('tipIndex') || 0);
-    const storedDate = localStorage.getItem('tipDate');
-
-    if (!tips || tips.length === 0) {
-      tips = await fetchTipsBatch();
-      index = 0;
-    }
-
-    if (storedDate !== today) {
-      index++;
-
-      if (index >= tips.length) {
-        tips = await fetchTipsBatch();
-        index = 0;
-      }
-
-      localStorage.setItem('tipIndex', index.toString());
-      localStorage.setItem('tipDate', today);
-    }
-
-    return tips[index] || 'Ofereça variedade de cores no prato.';
-  };
-
-  useEffect(() => {
-    const loadTip = async () => {
-      const tip = await getTodayTip();
-      setNutritionalTip(tip);
-    };
-
-    loadTip();
-  }, []);
+  const currentMonthName = format(new Date(), 'MMMM', { locale: ptBR });
 
   return (
     <div className="p-6 w-full space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight">Bem-vindo ao Cardápio Baby</h1>
-          <p className="text-slate-500 font-medium">Aqui está o resumo do seu planejamento nutricional.</p>
+          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight">Visão Geral</h1>
+          <p className="text-slate-500 font-medium">Acompanhe a saúde financeira da cantina.</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-brand-lime/10 flex items-center justify-center text-brand-lime">
-            <CalendarDays size={20} />
+          <div className="w-10 h-10 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue">
+            <TrendingUp size={20} />
           </div>
           <div className="pr-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hoje é</p>
-            <p className="text-sm font-bold text-brand-blue">{format(new Date(), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mês Atual</p>
+            <p className="text-sm font-bold text-brand-blue capitalize">{currentMonthName} {format(new Date(), 'yyyy')}</p>
           </div>
         </div>
       </header>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => {
-          const inner = (
-            <>
-              <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform", stat.color, stat.shadow)}>
-                <stat.icon size={28} />
-              </div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</p>
-              <p className="text-3xl font-black text-brand-blue">{stat.value}</p>
-            </>
-          );
-          return stat.to ? (
-            <Link key={i} to={stat.to} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-blue/20 transition-all group cursor-pointer">
-              {inner}
-            </Link>
-          ) : (
-            <div key={i} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
-              {inner}
-            </div>
-          );
-        })}
+        <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-blue shadow-brand-blue/20">
+            <TrendingUp size={28} />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Previsão {currentMonthName}</p>
+          <p className="text-3xl font-black text-brand-blue">R$ {projectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+        </div>
+
+        <Link to="/invoices" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-red-500/20 transition-all group cursor-pointer block">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-red-500 shadow-red-500/20">
+            <AlertCircle size={28} />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Inadimplência</p>
+          <p className="text-3xl font-black text-red-500">{overdueInvoices.length}</p>
+        </Link>
+
+        <Link to="/students" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-lime/20 transition-all group cursor-pointer block">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-lime shadow-brand-lime/20">
+            <Users size={28} />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Alunos Ativos</p>
+          <p className="text-3xl font-black text-brand-blue">{activeStudents}</p>
+        </Link>
+
+        <Link to="/classes" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-orange/20 transition-all group cursor-pointer block">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-orange shadow-brand-orange/20">
+            <GraduationCap size={28} />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Turmas Atendidas</p>
+          <p className="text-3xl font-black text-brand-blue">{activeClasses}</p>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-brand-blue uppercase tracking-tight flex items-center gap-2">
-              <Clock size={24} className="text-brand-orange" />
-              Próximos Dias
+            <h2 className="text-xl font-black text-red-500 uppercase tracking-tight flex items-center gap-2">
+              <AlertCircle size={24} />
+              Atenção: Boletos Vencidos
             </h2>
-            <Link to="/menu" className="text-[10px] font-black text-brand-blue uppercase tracking-widest hover:underline flex items-center gap-1">
-              Ver Cardápio Completo <ChevronRight size={14} />
-            </Link>
+            <Link to="/invoices" className="text-xs font-bold text-brand-blue uppercase tracking-widest hover:underline">Ver Todos</Link>
           </div>
-          
-          <div className="space-y-4">
-            {menu.filter(d => new Date(d.data) >= new Date()).slice(0, 3).map((day, i) => (
-              <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-brand-blue/30 transition-all">
-                <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100 group-hover:bg-brand-blue/5 transition-colors">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">{format(new Date(day.data), 'MMM', { locale: ptBR })}</span>
-                    <span className="text-2xl font-black text-brand-blue">{format(new Date(day.data), 'dd')}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-brand-blue uppercase tracking-tight mb-1">
-                      {format(new Date(day.data), 'EEEE', { locale: ptBR })}
-                    </p>
-                    <div className="flex gap-2">
-                      {(() => {
-                        const mealCount = [
-                          day.frutaId, day.lancheManhaId, day.sucoManhaId,
-                          day.entradaId, day.pratoPrincipalId, day.acompanhamentoId,
-                          day.lancheTardeId, day.sucoTardeId, day.ceiaId
-                        ].filter(Boolean).length;
-                        
-                        return mealCount > 0 ? (
-                          <span className="text-[10px] font-bold text-brand-lime bg-brand-lime/10 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                            {mealCount} Itens Planejados
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                            Vazio
-                          </span>
-                        );
-                      })()}
-                      {day.isFeriado && (
-                        <span className="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                          Feriado
-                        </span>
-                      )}
+
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            {isLoading ? (
+              <div className="p-12 text-center text-slate-400 font-medium">Carregando dados...</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {displayOverdue.map((inv, idx) => (
+                  <div key={idx} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
+                    <div>
+                      <h3 className="font-bold text-slate-800">{inv.id === 'fake1' ? 'Exemplo de Aluno (Dados Falsos)' : getStudentName(inv.studentId)}</h3>
+                      <div className="flex items-center gap-3 mt-1 text-sm">
+                        <span className="text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-xs">Vencido: {format(new Date(inv.dueDate), 'dd/MM/yyyy')}</span>
+                        <span className="text-slate-500 font-medium">Ref: {inv.monthYear}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Valor</p>
+                        <p className="font-black text-slate-800">R$ {inv.netAmount.toFixed(2)}</p>
+                      </div>
+                      <a href={`https://wa.me/55${getStudentPhone(inv.studentId).replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center hover:bg-emerald-200 transition-colors" title="Cobrar por WhatsApp">
+                        <Phone size={18} />
+                      </a>
                     </div>
                   </div>
-                </div>
-                <Link to="/menu" className="p-3 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white transition-all">
-                  <ArrowRight size={20} />
-                </Link>
-              </div>
-            ))}
-            {menu.length === 0 && (
-              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center">
-                <CalendarDays size={48} className="mx-auto text-slate-200 mb-4" />
-                <p className="text-slate-500 font-bold">Nenhum dia planejado ainda.</p>
-                <Link to="/menu" className="mt-4 inline-block bg-brand-blue text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest">Começar Planejamento</Link>
+                ))}
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="space-y-6">
-          <h2 className="text-xl font-black text-brand-blue uppercase tracking-tight flex items-center gap-2">
-            <Sparkles size={24} className="text-brand-lime" />
-            Dica Nutricional
-          </h2>
-          <div className="bg-gradient-to-br from-brand-blue to-slate-800 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/10 transition-all" />
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center">
-                  <Apple size={24} className="text-brand-lime" />
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="space-y-6">
+          <div className="bg-gradient-to-br from-brand-blue to-blue-800 rounded-3xl p-8 text-white shadow-xl shadow-brand-blue/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+            
+            <div className="relative z-10 flex flex-col h-full justify-between gap-6">
+              <div className="flex items-start justify-between">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                  <FileSpreadsheet size={24} className="text-white" />
                 </div>
-                <button 
-                  onClick={async () => {
-                    const tips = await fetchTipsBatch();
-                    if (tips.length > 0) {
-                      localStorage.setItem('tipIndex', '0');
-                      localStorage.setItem('tipDate', new Date().toISOString().slice(0, 10));
-                      setNutritionalTip(tips[0]);
-                    }
-                  }}
-                  disabled={isLoadingTip}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw size={16} className={cn(isLoadingTip && "animate-spin")} />
-                </button>
               </div>
-              <p className="text-lg font-bold leading-relaxed mb-6 italic">
-                "{nutritionalTip}"
-              </p>
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-lime">
-                <div className="w-4 h-px bg-brand-lime" />
-                Dica do Dia
+              
+              <div>
+                <h3 className="text-xl font-black mb-2">Fechamento do Mês</h3>
+                <p className="text-blue-100 text-sm font-medium leading-relaxed">
+                  Importe a planilha do sistema de catracas para gerar a cobrança de {currentMonthName} com o abatimento automático de faltas.
+                </p>
               </div>
+
+              <Link 
+                to="/monthly" 
+                className="w-full bg-white text-brand-blue font-black py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors"
+              >
+                Iniciar Processamento
+                <ChevronRight size={18} />
+              </Link>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Ações Rápidas</h3>
-            <Link to="/items" className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-brand-orange/5 group transition-all">
-              <span className="text-sm font-bold text-brand-blue group-hover:text-brand-orange transition-colors">Adicionar Novo Alimento</span>
-              <Plus size={18} className="text-slate-300 group-hover:text-brand-orange" />
-            </Link>
-            <Link to="/menu" className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-brand-lime/5 group transition-all">
-              <span className="text-sm font-bold text-brand-blue group-hover:text-brand-lime transition-colors">Planejar Próxima Semana</span>
-              <CalendarDays size={18} className="text-slate-300 group-hover:text-brand-lime" />
-            </Link>
-            <Link to="/shopping?print=1" className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-brand-blue/5 group transition-all">
-              <span className="text-sm font-bold text-brand-blue transition-colors">Imprimir Lista de Compras</span>
-              <Printer size={18} className="text-slate-300 group-hover:text-brand-blue" />
-            </Link>
+          <div>
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Ações Rápidas</h2>
+            <div className="space-y-3">
+              <Link to="/students" className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-200 hover:border-brand-blue hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand-blue/10 group-hover:text-brand-blue transition-colors">
+                    <Plus size={20} />
+                  </div>
+                  <span className="font-bold text-slate-700 group-hover:text-brand-blue transition-colors">Cadastrar Novo Aluno</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-blue transition-colors" />
+              </Link>
+
+              <Link to="/classes" className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-200 hover:border-brand-orange hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand-orange/10 group-hover:text-brand-orange transition-colors">
+                    <GraduationCap size={20} />
+                  </div>
+                  <span className="font-bold text-slate-700 group-hover:text-brand-orange transition-colors">Configurar Turmas</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-orange transition-colors" />
+              </Link>
+
+              <Link to="/snacks" className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-200 hover:border-red-500 hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
+                    <Apple size={20} />
+                  </div>
+                  <span className="font-bold text-slate-700 group-hover:text-red-500 transition-colors">Tabela de Lanches</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
+              </Link>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

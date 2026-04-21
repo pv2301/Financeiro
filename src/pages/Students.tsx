@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Pencil, Trash2, Save, X, Search } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload } from 'lucide-react';
 import { Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
+import * as XLSX from 'xlsx';
 
 export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -10,6 +11,7 @@ export default function Students() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [editingStudent, setEditingStudent] = useState<Student>({
     id: '',
@@ -35,6 +37,72 @@ export default function Students() {
     setStudents(studentsData.sort((a, b) => a.name.localeCompare(b.name)));
     setClasses(classesData);
     setIsLoading(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet);
+
+      const newClasses: ClassInfo[] = [];
+      const newStudents: Student[] = [];
+      let currentClasses = [...classes];
+
+      json.forEach((row: any) => {
+        const studentName = row['Aluno'] || row['Nome'] || row['Nome do Aluno'];
+        const className = row['Turma'];
+        
+        if (!studentName || !className) return;
+        
+        let classId = currentClasses.find(c => c.name.toLowerCase() === className.toLowerCase())?.id;
+        if (!classId) {
+          classId = crypto.randomUUID();
+          const newClass: ClassInfo = {
+            id: classId,
+            name: className,
+            billingMode: 'ANTICIPATED_FIXED',
+            basePrice: 0,
+            applyAbsenceDiscount: false
+          };
+          currentClasses.push(newClass);
+          newClasses.push(newClass);
+        }
+
+        newStudents.push({
+          id: crypto.randomUUID(),
+          name: studentName,
+          classId: classId,
+          responsibleName: row['Responsável'] || row['Nome do Responsável'] || '',
+          responsibleCpf: String(row['CPF'] || ''),
+          contactPhone: String(row['Telefone'] || row['Celular'] || ''),
+          personalDiscount: parseFloat(row['Desconto']) || 0,
+          hasTimelyPaymentDiscount: row['Desconto no Vencimento'] === 'Sim' || row['Desconto no Vencimento'] === true
+        });
+      });
+
+      if (newClasses.length > 0) {
+        await finance.mergeBatchClasses(newClasses);
+      }
+      if (newStudents.length > 0) {
+        await finance.mergeBatchStudents(newStudents);
+      }
+
+      alert(`Importação concluída! ${newStudents.length} alunos e ${newClasses.length} novas turmas criadas.`);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao importar arquivo Excel. Verifique o formato das colunas (Aluno, Turma, Responsável, CPF, Telefone, Desconto).');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -96,7 +164,7 @@ export default function Students() {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
@@ -107,6 +175,22 @@ export default function Students() {
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue transition-all"
             />
           </div>
+          
+          <input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            className="hidden" 
+            ref={fileInputRef}
+            onChange={handleFileUpload} 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
+          >
+            <Upload size={20} />
+            Importar
+          </button>
+
           <button 
             onClick={() => openModal()}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-brand-blue text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-600 transition-colors"

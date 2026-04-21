@@ -78,8 +78,8 @@ Módulo de Gestão de Custos e Faturamento, integrado ao ecossistema "Cardápio 
 - **Processamento de Arquivos:** Biblioteca `xlsx` (já presente no package.json) rodando no Client-Side para evitar sobrecarga de servidor.
 
 ## 5. Ordem de Implementação (Próximos Passos)
-- [ ] 1. Ajuste das Regras de Segurança do Firestore (`firestore.rules`).
-- [ ] 2. Telas de Configuração (Turmas, Lanches e Alunos).
-- [ ] 3. Lógica do Parser de Excel para Consumos (`xlsx`).
-- [ ] 4. Tela de Processamento Mensal (Faltas e Fechamento).
-- [ ] 5. Painel de Boletos, Baixa Manual e Inadimplência.
+- [x] 1. Ajuste das Regras de Segurança do Firestore (`firestore.rules`).
+- [x] 2. Telas de Configuração (Turmas, Lanches e Alunos).
+- [x] 3. Lógica do Parser de Excel para Consumos (`xlsx`).
+- [x] 4. Tela de Processamento Mensal (Faltas e Fechamento).
+- [x] 5. Painel de Boletos, Baixa Manual e Inadimplência.

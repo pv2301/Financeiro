@@ -96,22 +96,17 @@ const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: stri
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const [logo, setLogo] = useState<string | null>(null);
-  const [nutricionista, setNutricionista] = useState<{nome: string, crn: string}>({nome: '', crn: ''});
 
   useEffect(() => {
     const loadData = async () => {
-      const [logoData, nutData] = await Promise.all([storage.getLogo(), storage.getNutricionista()]);
+      const logoData = await storage.getLogo();
       setLogo(logoData);
-      setNutricionista(nutData);
     };
     loadData();
     const logoHandler = (e: CustomEvent) => setLogo(e.detail);
-    const nutHandler = (e: CustomEvent) => setNutricionista(e.detail);
     window.addEventListener('cardapio:logoUpdated', logoHandler as EventListener);
-    window.addEventListener('cardapio:nutricionistaUpdated', nutHandler as EventListener);
     return () => {
       window.removeEventListener('cardapio:logoUpdated', logoHandler as EventListener);
-      window.removeEventListener('cardapio:nutricionistaUpdated', nutHandler as EventListener);
     };
   }, []);
 
@@ -150,11 +145,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <NavItem to="/config" icon={Settings} label="Configurações" />
 
           <div className="mx-2 my-2 border-t border-slate-100" />
-          <div className="px-5 py-2">
-            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Nutricionista</p>
-            <p className="text-sm text-brand-blue font-black leading-tight">{nutricionista.nome || 'Nutricionista'}</p>
-            <p className="text-[10px] text-brand-orange font-bold">{nutricionista.crn ? `CRN ${nutricionista.crn}` : 'Configure em Configurações'}</p>
-          </div>
+
           <div className="px-5 py-2">
             <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Logado como</p>
             <p className="text-xs text-brand-blue font-bold truncate">{user?.displayName || user?.email || '—'}</p>

@@ -65,15 +65,30 @@ async function saveAllToCollection<T extends { id: string }>(collectionName: str
   }
 }
 
+async function mergeBatchToCollection<T extends { id: string }>(collectionName: string, items: T[]): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    items.forEach((item) => {
+      const docRef = doc(db, collectionName, item.id);
+      batch.set(docRef, JSON.parse(JSON.stringify(item)), { merge: true });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, collectionName);
+  }
+}
+
 export const finance = {
   getClasses: () => getAllFromCollection<ClassInfo>(COLLECTIONS.CLASSES),
   saveClass: (classInfo: ClassInfo) => saveItem(COLLECTIONS.CLASSES, classInfo),
   deleteClass: (id: string) => deleteItem(COLLECTIONS.CLASSES, id),
   saveAllClasses: (classes: ClassInfo[]) => saveAllToCollection(COLLECTIONS.CLASSES, classes),
+  mergeBatchClasses: (classes: ClassInfo[]) => mergeBatchToCollection(COLLECTIONS.CLASSES, classes),
 
   getStudents: () => getAllFromCollection<Student>(COLLECTIONS.STUDENTS),
   saveStudent: (student: Student) => saveItem(COLLECTIONS.STUDENTS, student),
   deleteStudent: (id: string) => deleteItem(COLLECTIONS.STUDENTS, id),
+  mergeBatchStudents: (students: Student[]) => mergeBatchToCollection(COLLECTIONS.STUDENTS, students),
 
   getSnacks: () => getAllFromCollection<Snack>(COLLECTIONS.SNACKS),
   saveSnack: (snack: Snack) => saveItem(COLLECTIONS.SNACKS, snack),
