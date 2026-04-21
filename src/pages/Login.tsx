@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
-import { LogIn, Apple, Utensils, Mail, Lock } from 'lucide-react';
+import { LogIn, Apple, Receipt, Mail, Lock } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -81,12 +81,12 @@ export default function Login() {
         
         <div className="relative z-10">
           <div className="w-20 h-20 bg-brand-blue text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-brand-blue/20">
-            <Utensils size={40} />
+            <Receipt size={40} />
           </div>
           
-          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight mb-2">Cardápio Baby</h1>
+          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight mb-2">Financeiro Baby</h1>
           <p className="text-slate-500 font-medium mb-8 text-sm">
-            Gestão nutricional infantil simplificada.
+            Gestão financeira escolar simplificada.
           </p>
 
           {resetSent && (

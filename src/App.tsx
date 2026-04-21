@@ -2,37 +2,27 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Utensils,
-  BookOpen,
-  CalendarDays,
   Users,
   Settings,
   ChevronRight,
   Apple,
-  Clock,
-  Sparkles,
-  RefreshCw,
-  ArrowRight,
-  Plus,
-  Repeat,
-  ShoppingCart,
-  LogOut,
-  Printer,
-  BarChart3
+  Calculator,
+  Receipt,
+  GraduationCap,
+  LogOut
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import Items from './pages/Items';
-import Recipes from './pages/Recipes';
-import Menu from './pages/Menu';
-import Groups from './pages/Groups';
-import Config from './pages/Config';
-import Substitutions from './pages/Substitutions';
-import ShoppingList from './pages/ShoppingList';
-import Reports from './pages/Reports';
+
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Config from './pages/Config';
+import Students from './pages/Students';
+import Classes from './pages/Classes';
+import MonthlyProcessing from './pages/MonthlyProcessing';
+import Invoices from './pages/Invoices';
+import Snacks from './pages/Snacks';
 import { storage } from './services/storage';
 import { GoogleGenAI } from "@google/genai";
 import { auth } from './firebase';
@@ -140,25 +130,23 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               />
             ) : (
               <div className="w-full h-20 bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-200">
-                <Utensils size={32} className="text-slate-300" />
+                <Receipt size={32} className="text-slate-300" />
               </div>
             )}
           </div>
           <h2 className="text-xl font-black text-brand-blue flex items-center gap-2">
-            Cardápio Baby
+            Financeiro Baby
           </h2>
-          <p className="text-[10px] text-brand-orange font-black mt-1 uppercase tracking-[0.2em]">Gestão Nutricional</p>
+          <p className="text-[10px] text-brand-orange font-black mt-1 uppercase tracking-[0.2em]">Gestão de Contas</p>
         </div>
         
         <nav className="flex flex-col gap-1">
           <NavItem to="/" icon={LayoutDashboard} label="Visão Geral" />
-          <NavItem to="/menu" icon={CalendarDays} label="Cardápio Mensal" />
-          <NavItem to="/groups" icon={Users} label="Grupos" />
-          <NavItem to="/items" icon={Utensils} label="Banco de Itens" />
-          <NavItem to="/recipes" icon={BookOpen} label="Receitas" />
-          <NavItem to="/substitutions" icon={Settings} label="Substituições" />
-          <NavItem to="/shopping" icon={ShoppingCart} label="Lista de Compras" />
-          <NavItem to="/reports" icon={BarChart3} label="Relatórios" />
+          <NavItem to="/invoices" icon={Receipt} label="Financeiro" />
+          <NavItem to="/monthly" icon={Calculator} label="Fechamento Mensal" />
+          <NavItem to="/students" icon={Users} label="Alunos" />
+          <NavItem to="/classes" icon={GraduationCap} label="Turmas" />
+          <NavItem to="/snacks" icon={Apple} label="Tabela Lanches" />
           <NavItem to="/config" icon={Settings} label="Configurações" />
 
           <div className="mx-2 my-2 border-t border-slate-100" />
@@ -201,13 +189,11 @@ export default function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/items" element={<Items />} />
-                    <Route path="/recipes" element={<Recipes />} />
-                    <Route path="/menu" element={<Menu />} />
-                    <Route path="/groups" element={<Groups />} />
-                    <Route path="/substitutions" element={<Substitutions />} />
-                    <Route path="/shopping" element={<ShoppingList />} />
-                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/invoices" element={<Invoices />} />
+                    <Route path="/monthly" element={<MonthlyProcessing />} />
+                    <Route path="/students" element={<Students />} />
+                    <Route path="/classes" element={<Classes />} />
+                    <Route path="/snacks" element={<Snacks />} />
                     <Route path="/config" element={<Config />} />
                   </Routes>
                 </Layout>
