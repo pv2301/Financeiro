@@ -9,7 +9,8 @@ import {
   Calculator,
   Receipt,
   GraduationCap,
-  LogOut
+  LogOut,
+  BarChart3
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
@@ -23,10 +24,11 @@ import Classes from './pages/Classes';
 import MonthlyProcessing from './pages/MonthlyProcessing';
 import Invoices from './pages/Invoices';
 import Snacks from './pages/Snacks';
+import Reports from './pages/Reports';
 import { storage } from './services/storage';
-import { GoogleGenAI } from "@google/genai";
 import { auth } from './firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import CollaborationBar from './components/CollaborationBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Auth Context
@@ -142,6 +144,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <NavItem to="/students" icon={Users} label="Alunos" />
           <NavItem to="/classes" icon={GraduationCap} label="Turmas" />
           <NavItem to="/snacks" icon={Apple} label="Tabela Lanches" />
+          <NavItem to="/reports" icon={BarChart3} label="Relatórios" />
           <NavItem to="/config" icon={Settings} label="Configurações" />
 
           <div className="mx-2 my-2 border-t border-slate-100" />
@@ -162,6 +165,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
+        <CollaborationBar />
         {children}
       </main>
     </div>
@@ -185,6 +189,7 @@ export default function App() {
                     <Route path="/students" element={<Students />} />
                     <Route path="/classes" element={<Classes />} />
                     <Route path="/snacks" element={<Snacks />} />
+                    <Route path="/reports" element={<Reports />} />
                     <Route path="/config" element={<Config />} />
                   </Routes>
                 </Layout>

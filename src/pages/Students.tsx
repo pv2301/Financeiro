@@ -1,27 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload } from 'lucide-react';
 import { Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
-import * as XLSX from 'xlsx';
+import ImportStudentsModal from '../components/ImportStudentsModal';
 
 export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [editingStudent, setEditingStudent] = useState<Student>({
-    id: '',
-    name: '',
-    classId: '',
-    responsibleName: '',
-    responsibleCpf: '',
-    contactPhone: '',
-    personalDiscount: 0,
-    hasTimelyPaymentDiscount: false
+    id: '', name: '', classId: '', segment: '', birthDate: '',
+    responsibleName: '', responsibleCpf: '', contactPhone: '', contactEmail: '',
+    personalDiscount: 0, hasTimelyPaymentDiscount: false, filenameSuffix: '',
   });
 
   useEffect(() => {
@@ -39,71 +34,6 @@ export default function Students() {
     setIsLoading(false);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(worksheet);
-
-      const newClasses: ClassInfo[] = [];
-      const newStudents: Student[] = [];
-      let currentClasses = [...classes];
-
-      json.forEach((row: any) => {
-        const studentName = row['Aluno'] || row['Nome'] || row['Nome do Aluno'];
-        const className = row['Turma'];
-        
-        if (!studentName || !className) return;
-        
-        let classId = currentClasses.find(c => c.name.toLowerCase() === className.toLowerCase())?.id;
-        if (!classId) {
-          classId = crypto.randomUUID();
-          const newClass: ClassInfo = {
-            id: classId,
-            name: className,
-            billingMode: 'ANTICIPATED_FIXED',
-            basePrice: 0,
-            applyAbsenceDiscount: false
-          };
-          currentClasses.push(newClass);
-          newClasses.push(newClass);
-        }
-
-        newStudents.push({
-          id: crypto.randomUUID(),
-          name: studentName,
-          classId: classId,
-          responsibleName: row['Responsável'] || row['Nome do Responsável'] || '',
-          responsibleCpf: String(row['CPF'] || ''),
-          contactPhone: String(row['Telefone'] || row['Celular'] || ''),
-          personalDiscount: parseFloat(row['Desconto']) || 0,
-          hasTimelyPaymentDiscount: row['Desconto no Vencimento'] === 'Sim' || row['Desconto no Vencimento'] === true
-        });
-      });
-
-      if (newClasses.length > 0) {
-        await finance.mergeBatchClasses(newClasses);
-      }
-      if (newStudents.length > 0) {
-        await finance.mergeBatchStudents(newStudents);
-      }
-
-      alert(`Importação concluída! ${newStudents.length} alunos e ${newClasses.length} novas turmas criadas.`);
-      await loadData();
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao importar arquivo Excel. Verifique o formato das colunas (Aluno, Turma, Responsável, CPF, Telefone, Desconto).');
-    } finally {
-      setIsLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   const handleSave = async () => {
     if (!editingStudent.name || !editingStudent.classId) {
@@ -132,14 +62,10 @@ export default function Students() {
       setEditingStudent({ ...s });
     } else {
       setEditingStudent({
-        id: '',
-        name: '',
-        classId: classes.length > 0 ? classes[0].id : '',
-        responsibleName: '',
-        responsibleCpf: '',
-        contactPhone: '',
-        personalDiscount: 0,
-        hasTimelyPaymentDiscount: false
+        id: '', name: '', classId: classes.length > 0 ? classes[0].id : '',
+        segment: '', birthDate: '', responsibleName: '', responsibleCpf: '',
+        contactPhone: '', contactEmail: '', personalDiscount: 0,
+        hasTimelyPaymentDiscount: false, filenameSuffix: '',
       });
     }
     setIsModalOpen(true);
@@ -176,15 +102,8 @@ export default function Students() {
             />
           </div>
           
-          <input 
-            type="file" 
-            accept=".xlsx, .xls" 
-            className="hidden" 
-            ref={fileInputRef}
-            onChange={handleFileUpload} 
-          />
           <button 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowImportModal(true)}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
           >
             <Upload size={20} />
@@ -370,6 +289,14 @@ export default function Students() {
           </div>
         )}
       </AnimatePresence>
+
+      {showImportModal && (
+        <ImportStudentsModal
+          existingClasses={classes}
+          onClose={() => setShowImportModal(false)}
+          onComplete={loadData}
+        />
+      )}
     </div>
   );
 }
