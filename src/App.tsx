@@ -132,9 +132,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             )}
           </div>
           <h2 className="text-xl font-black text-brand-blue flex items-center gap-2">
-            Financeiro Baby
+            Financeiro Canteen
           </h2>
-          <p className="text-[10px] text-brand-orange font-black mt-1 uppercase tracking-[0.2em]">Gestão de Contas</p>
+          <p className="text-[10px] text-brand-orange font-black mt-1 uppercase tracking-[0.2em]">Gestão de Custos</p>
         </div>
         
         <nav className="flex flex-col gap-1">

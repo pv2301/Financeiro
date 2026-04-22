@@ -15,7 +15,9 @@ interface ParsedConsumption {
 }
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_MONTH_IDX = new Date().getMonth(); // 0-indexed
 
 export default function MonthlyProcessing() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -23,6 +25,7 @@ export default function MonthlyProcessing() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   
   const [monthYear, setMonthYear] = useState(format(new Date(), 'MM/yyyy'));
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(CURRENT_MONTH_IDX);
   const [scholasticDays, setScholasticDays] = useState<Record<string, number>>({});
   const [boletoFee, setBoletoFee] = useState(3.50);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,24 +52,6 @@ export default function MonthlyProcessing() {
     }
     load();
   }, []);
-
-  // Computed values for the banner
-  const configuredMonths = Object.values(scholasticDays).filter(v => v > 0).length;
-  const totalDays = Object.values(scholasticDays).reduce((a, b) => a + b, 0);
-  const missingMonths = 12 - configuredMonths;
-
-  const getMonthKey = (monthIdx: number) => `${CURRENT_YEAR}-${String(monthIdx + 1).padStart(2, '0')}`;
-
-  const saveScholasticDays = async () => {
-    await finance.saveGlobalConfig({ scholasticDays, boletoEmissionFee: boletoFee });
-  };
-
-  const updateDay = (monthIdx: number, val: string) => {
-    const key = getMonthKey(monthIdx);
-    const days = parseInt(val) || 0;
-    const updated = { ...scholasticDays, [key]: days };
-    setScholasticDays(updated);
-  };
 
   // Get the scholastic days for the currently selected processing month
   const getCurrentMonthDays = (): number => {
@@ -289,71 +274,62 @@ export default function MonthlyProcessing() {
         </div>
       </motion.div>
 
-      {/* Step 1: Scholastic Days */}
+      {/* Step 1: Processing Month Selection */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <Calendar className="text-brand-orange" size={24} />
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Dias Letivos — {CURRENT_YEAR}</h2>
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Referência — {CURRENT_YEAR}</h2>
         </div>
 
-        {/* Banner */}
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[180px] bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Meses Configurados</p>
-            <p className="text-2xl font-black text-emerald-700">{configuredMonths} <span className="text-sm font-bold">de 12</span></p>
-          </div>
-          <div className={`flex-1 min-w-[180px] ${missingMonths > 0 ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} rounded-2xl p-4 border`}>
-            <p className={`text-[9px] font-black ${missingMonths > 0 ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-widest mb-1`}>Meses Faltando</p>
-            <p className={`text-2xl font-black ${missingMonths > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{missingMonths}</p>
-          </div>
-          <div className="flex-1 min-w-[180px] bg-sky-50 rounded-2xl p-4 border border-sky-100">
-            <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Total Dias Letivos</p>
-            <p className="text-2xl font-black text-sky-700">{totalDays} <span className="text-sm font-bold">dias</span></p>
-          </div>
-        </div>
-
-        {/* Grid of 12 months */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-          {MONTHS.map((m, i) => {
-            const key = getMonthKey(i);
-            const val = scholasticDays[key] || 0;
-            return (
-              <div key={i} className={`rounded-2xl p-3 text-center border ${val > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
-                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{m}</p>
-                <input type="number" value={val || ''} onChange={e => updateDay(i, e.target.value)}
-                  onBlur={saveScholasticDays}
-                  className="w-full text-center font-black text-brand-blue bg-transparent focus:outline-none text-lg" min={0} max={31}
-                  placeholder="0" />
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2 text-[10px] text-slate-400">
-          <Info size={12} />
-          <span>Os dias letivos podem ser atualizados a qualquer momento. Apenas turmas "Antecipado por Dias Letivos" usam este valor.</span>
-        </div>
-
-        {/* Processing month + boleto fee */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
-          <div>
-            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Mês/Ano de Referência</label>
-            <input type="text" value={monthYear} onChange={e => setMonthYear(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
-              placeholder="MM/AAAA" />
-          </div>
-          <div>
-            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
-            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700">
-              {getCurrentMonthDays()} dias
+        {getCurrentMonthDays() === 0 && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+            <div className="text-amber-500 mt-0.5">⚠️</div>
+            <div>
+              <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
+              <p className="text-sm text-amber-700">O mês selecionado possui 0 dias letivos configurados. Acesse as Configurações para definir.</p>
             </div>
           </div>
+        )}
+
+        <div className="space-y-5">
           <div>
-            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Taxa Boleto (R$)</label>
-            <input type="number" value={boletoFee} onChange={e => setBoletoFee(parseFloat(e.target.value) || 0)}
-              onBlur={saveScholasticDays}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
-              min={0} step={0.01} />
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Mês/Ano de Referência — Clique para selecionar</label>
+            <div className="flex flex-wrap gap-2">
+              {MONTHS_FULL.map((m, i) => {
+                const mmStr = String(i + 1).padStart(2, '0');
+                const label = `${mmStr}/${CURRENT_YEAR}`;
+                const isCurrent = i === CURRENT_MONTH_IDX;
+                const isSelected = monthYear === label;
+                return (
+                  <button key={i} onClick={() => { setMonthYear(label); setSelectedMonthIdx(i); }}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all border ${
+                      isSelected
+                        ? 'bg-brand-blue text-white border-brand-blue shadow-lg shadow-brand-blue/20'
+                        : isCurrent
+                        ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/30 hover:bg-brand-orange/20'
+                        : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'
+                    }`}>
+                    {MONTHS[i]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
+              <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700 flex items-center justify-between">
+                <span>{getCurrentMonthDays()} dias</span>
+                <span className="text-xs font-bold opacity-60">{MONTHS_FULL[selectedMonthIdx]} {CURRENT_YEAR}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Taxa Boleto (R$)</label>
+              <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-black text-slate-700 flex items-center justify-between">
+                <span>R$ {boletoFee.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global</span>
+              </div>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -362,7 +338,7 @@ export default function MonthlyProcessing() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <Upload className="text-brand-blue" size={24} />
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 2: Importar Relatório da Catraca</h2>
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 2: Importar Relatório de Consumo</h2>
         </div>
 
         <div className="text-center py-8">
@@ -371,7 +347,7 @@ export default function MonthlyProcessing() {
             className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50">
             {isLoading ? 'Processando...' : 'Selecionar Arquivo Excel'}
           </button>
-          <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do "Relatório Cardápios Consumidos.xls" extraído do sistema da catraca.</p>
+          <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx) extraído do sistema.</p>
         </div>
       </motion.div>
 

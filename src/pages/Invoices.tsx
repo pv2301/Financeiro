@@ -157,7 +157,15 @@ export default function Invoices() {
         {isLoading ? (
           <div className="p-12 text-center text-slate-400 font-medium">Carregando faturas...</div>
         ) : filteredInvoices.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 font-medium">Nenhum boleto encontrado para os filtros selecionados.</div>
+          <div className="p-12 text-center flex flex-col items-center justify-center gap-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+              <Receipt size={32} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-700">Nenhum boleto encontrado</h3>
+              <p className="text-slate-500 font-medium max-w-md mx-auto mt-1">Não há boletos para os filtros selecionados. Vá em <span className="text-brand-blue font-bold">Fechamento Mensal</span> para gerar novos boletos.</p>
+            </div>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">

@@ -84,7 +84,7 @@ export default function Login() {
             <Receipt size={40} />
           </div>
           
-          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight mb-2">Financeiro Baby</h1>
+          <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight mb-2">Financeiro Canteen</h1>
           <p className="text-slate-500 font-medium mb-8 text-sm">
             Gestão financeira escolar simplificada.
           </p>
