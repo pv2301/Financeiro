@@ -14,6 +14,7 @@ export default function Students() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  const [filterSegment, setFilterSegment] = useState('');
   const [filterDiscount, setFilterDiscount] = useState<'ALL' | 'WITH'>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   
@@ -79,8 +80,9 @@ export default function Students() {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       s.responsibleName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesClass = !filterClass || s.classId === filterClass;
+    const matchesSegment = !filterSegment || s.segment === filterSegment;
     const matchesDiscount = filterDiscount === 'ALL' || s.personalDiscount > 0;
-    return matchesSearch && matchesClass && matchesDiscount;
+    return matchesSearch && matchesClass && matchesSegment && matchesDiscount;
   });
 
   const getDiscountBadge = (s: Student) => {
@@ -142,11 +144,19 @@ export default function Students() {
           <Filter size={18} />
           <span className="text-sm font-bold uppercase tracking-widest">Filtros:</span>
         </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+          <select value={filterSegment} onChange={e => { setFilterSegment(e.target.value); setFilterClass(''); }}
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+            <option value="">Todos os Segmentos</option>
+            {['Berçário', 'Educação Infantil', 'Ensino Fundamental I'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
           <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
             <option value="">Todas as Turmas</option>
-            {classes.sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {classes
+              .filter(c => !filterSegment || c.segment === filterSegment)
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={filterDiscount} onChange={e => setFilterDiscount(e.target.value as any)}
             className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
@@ -176,6 +186,11 @@ export default function Students() {
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-slate-800">{s.name}</h3>
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-500 font-medium">
+                      {studentClass?.segment && (
+                        <span className="bg-brand-blue/10 text-brand-blue px-3 py-1 rounded-full font-bold">
+                          {studentClass.segment}
+                        </span>
+                      )}
                       <span className="bg-slate-100 px-3 py-1 rounded-full text-slate-700">
                         {studentClass?.name || 'Turma não encontrada'}
                       </span>
