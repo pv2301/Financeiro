@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload, Building2, FileText } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload, Building2, FileText, Filter } from 'lucide-react';
 import { Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
 import ImportStudentsModal from '../components/ImportStudentsModal';
@@ -136,21 +136,29 @@ export default function Students() {
         </div>
       </motion.div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
-          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
-          <option value="">Todas as Turmas</option>
-          {classes.sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={filterDiscount} onChange={e => setFilterDiscount(e.target.value as any)}
-          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
-          <option value="ALL">Todos</option>
-          <option value="WITH">Com Desconto</option>
-        </select>
-        <span className="ml-auto text-sm font-bold text-slate-400">
-          {filteredStudents.length} aluno{filteredStudents.length !== 1 ? 's' : ''}
-        </span>
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm items-center">
+        <div className="flex items-center gap-2 text-slate-400 px-2">
+          <Filter size={18} />
+          <span className="text-sm font-bold uppercase tracking-widest">Filtros:</span>
+        </div>
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+          <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+            <option value="">Todas as Turmas</option>
+            {classes.sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={filterDiscount} onChange={e => setFilterDiscount(e.target.value as any)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+            <option value="ALL">Todos os Alunos</option>
+            <option value="WITH">Apenas com Desconto</option>
+          </select>
+        </div>
+        <div className="md:ml-auto px-4 w-full md:w-auto text-center md:text-right">
+          <span className="text-sm font-black text-brand-blue bg-brand-blue/10 px-4 py-2 rounded-xl">
+            {filteredStudents.length} aluno{filteredStudents.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {/* List */}

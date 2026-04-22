@@ -224,7 +224,7 @@ export default function Dashboard() {
                   <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
                     <Apple size={20} />
                   </div>
-                  <span className="font-bold text-slate-700 group-hover:text-red-500 transition-colors">Tabela de Lanches</span>
+                  <span className="font-bold text-slate-700 group-hover:text-red-500 transition-colors">Serviços e Valores</span>
                 </div>
                 <ChevronRight size={16} className="text-slate-300 group-hover:text-red-500 transition-colors" />
               </Link>
