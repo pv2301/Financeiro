@@ -446,145 +446,145 @@ export default function MonthlyProcessing() {
                   </div>
                 </div>
 
-          <div className="overflow-x-auto mt-6">
-            {activeTab === 'fixed' ? (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="pb-3 pr-4">Aluno / Turma</th>
-                    <th className="pb-3 pr-4 text-right">Base (R$)</th>
-                    <th className="pb-3 pr-4 text-center">Faltas</th>
-                    <th className="pb-3 pr-4 text-right">Desc. Faltas</th>
-                    <th className="pb-3 pr-4 text-right">Desc. Pessoal</th>
-                    <th className="pb-3 text-right">Líquido Final</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {previewInvoices
-                    .filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION')
-                    .filter(inv => {
-                      if (!studentSearch) return true;
-                      const s = students.find(x => x.id === inv.studentId);
-                      return s?.name.toLowerCase().includes(studentSearch.toLowerCase());
-                    })
-                    .map((inv) => {
-                    const s = students.find(x => x.id === inv.studentId);
-                    const cls = classes.find(x => x.id === inv.classId);
-                    
-                    return (
-                      <tr key={inv.studentId} className="hover:bg-slate-50 group">
-                        <td className="py-4 pr-4">
-                          <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
-                          <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
-                        </td>
-                        <td className="py-4 pr-4 text-right text-sm text-slate-500">R$ {inv.grossAmount.toFixed(2)}</td>
-                        <td className="py-4 pr-4 text-center">
-                          {cls?.applyAbsenceDiscount ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={getCurrentMonthDays()}
-                              value={manualAbsences[inv.studentId] || ''}
-                              onChange={(e) => setManualAbsences(prev => ({
-                                ...prev,
-                                [inv.studentId]: parseInt(e.target.value) || 0
-                              }))}
-                              placeholder="0"
-                              className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
-                            />
-                          ) : (
-                            <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-1 rounded-md">N/A</span>
-                          )}
-                        </td>
-                        <td className="py-4 pr-4 text-right text-sm text-red-500 font-medium">
-                          {inv.absenceDiscountAmount > 0 ? `- R$ ${inv.absenceDiscountAmount.toFixed(2)}` : '—'}
-                        </td>
-                        <td className="py-4 pr-4 text-right text-sm text-emerald-500 font-medium">
-                          {inv.personalDiscountAmount > 0 ? `- R$ ${inv.personalDiscountAmount.toFixed(2)}` : '—'}
-                        </td>
-                        <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <button onClick={() => setConsumptionFilter('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
-                  <button onClick={() => setConsumptionFilter('imported')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
-                  <button onClick={() => setConsumptionFilter('pending')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
-                </div>
-
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      <th className="pb-3 pr-4">Aluno / Turma</th>
-                      <th className="pb-3 pr-4">Status</th>
-                      <th className="pb-3 pr-4">Itens Consumidos (Resumo)</th>
-                      <th className="pb-3 text-right">Líquido Final</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {previewInvoices
-                      .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
-                      .filter(inv => {
-                        const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
-                        const matchesSearch = !studentSearch || students.find(x => x.id === inv.studentId)?.name.toLowerCase().includes(studentSearch.toLowerCase());
-                        
-                        if (consumptionFilter === 'imported') return hasConsumption && matchesSearch;
-                        if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
-                        return matchesSearch;
-                      })
-                      .map((inv) => {
-                      const s = students.find(x => x.id === inv.studentId);
-                      const cls = classes.find(x => x.id === inv.classId);
-                      const consumption = dbConsumption.find(d => d.studentId === inv.studentId);
-                      
-                      return (
-                        <tr key={inv.studentId} className="hover:bg-slate-50 group">
-                          <td className="py-4 pr-4">
-                            <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
-                            <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
-                          </td>
-                          <td className="py-4 pr-4">
-                            {consumption ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700">
-                                <CheckCircle2 size={12} /> Importado
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700">
-                                Pendente
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 pr-4">
-                            {consumption && consumption.summary && Object.keys(consumption.summary).length > 0 ? (
-                              <div className="flex flex-wrap gap-2">
-                                {Object.entries(consumption.summary).map(([item, qty]) => (
-                                  <span key={item} className="text-xs font-medium text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
-                                    {qty}x <span className="font-bold text-slate-800">{item}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400 italic">Nenhum consumo registrado</span>
-                            )}
-                          </td>
-                          <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
+                <div className="overflow-x-auto mt-6">
+                  {activeTab === 'fixed' ? (
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <th className="pb-3 pr-4">Aluno / Turma</th>
+                          <th className="pb-3 pr-4 text-right">Base (R$)</th>
+                          <th className="pb-3 pr-4 text-center">Faltas</th>
+                          <th className="pb-3 pr-4 text-right">Desc. Faltas</th>
+                          <th className="pb-3 pr-4 text-right">Desc. Pessoal</th>
+                          <th className="pb-3 text-right">Líquido Final</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {previewInvoices
+                          .filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION')
+                          .filter(inv => {
+                            if (!studentSearch) return true;
+                            const s = students.find(x => x.id === inv.studentId);
+                            return s?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                          })
+                          .map((inv) => {
+                          const s = students.find(x => x.id === inv.studentId);
+                          const cls = classes.find(x => x.id === inv.classId);
+                          
+                          return (
+                            <tr key={inv.studentId} className="hover:bg-slate-50 group">
+                              <td className="py-4 pr-4">
+                                <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
+                                <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
+                              </td>
+                              <td className="py-4 pr-4 text-right text-sm text-slate-500">R$ {inv.grossAmount.toFixed(2)}</td>
+                              <td className="py-4 pr-4 text-center">
+                                {cls?.applyAbsenceDiscount ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={getCurrentMonthDays()}
+                                    value={manualAbsences[inv.studentId] || ''}
+                                    onChange={(e) => setManualAbsences(prev => ({
+                                      ...prev,
+                                      [inv.studentId]: parseInt(e.target.value) || 0
+                                    }))}
+                                    placeholder="0"
+                                    className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+                                  />
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-1 rounded-md">N/A</span>
+                                )}
+                              </td>
+                              <td className="py-4 pr-4 text-right text-sm text-red-500 font-medium">
+                                {inv.absenceDiscountAmount > 0 ? `- R$ ${inv.absenceDiscountAmount.toFixed(2)}` : '—'}
+                              </td>
+                              <td className="py-4 pr-4 text-right text-sm text-emerald-500 font-medium">
+                                {inv.personalDiscountAmount > 0 ? `- R$ ${inv.personalDiscountAmount.toFixed(2)}` : '—'}
+                              </td>
+                              <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <button onClick={() => setConsumptionFilter('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
+                        <button onClick={() => setConsumptionFilter('imported')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
+                        <button onClick={() => setConsumptionFilter('pending')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
+                      </div>
+
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="pb-3 pr-4">Aluno / Turma</th>
+                            <th className="pb-3 pr-4">Status</th>
+                            <th className="pb-3 pr-4">Itens Consumidos (Resumo)</th>
+                            <th className="pb-3 text-right">Líquido Final</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {previewInvoices
+                            .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
+                            .filter(inv => {
+                              const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
+                              const matchesSearch = !studentSearch || students.find(x => x.id === inv.studentId)?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                              
+                              if (consumptionFilter === 'imported') return hasConsumption && matchesSearch;
+                              if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
+                              return matchesSearch;
+                            })
+                            .map((inv) => {
+                            const s = students.find(x => x.id === inv.studentId);
+                            const cls = classes.find(x => x.id === inv.classId);
+                            const consumption = dbConsumption.find(d => d.studentId === inv.studentId);
+                            
+                            return (
+                              <tr key={inv.studentId} className="hover:bg-slate-50 group">
+                                <td className="py-4 pr-4">
+                                  <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
+                                  <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
+                                </td>
+                                <td className="py-4 pr-4">
+                                  {consumption ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                                      <CheckCircle2 size={12} /> Importado
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700">
+                                      Pendente
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-4 pr-4">
+                                  {consumption && consumption.summary && Object.keys(consumption.summary).length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      {Object.entries(consumption.summary).map(([item, qty]) => (
+                                        <span key={item} className="text-xs font-medium text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
+                                          {qty}x <span className="font-bold text-slate-800">{item}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 italic">Nenhum consumo registrado</span>
+                                  )}
+                                </td>
+                                <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </motion.div>
       )}
-    </AnimatePresence>
-  </motion.div>
-)}
 
       <ConfirmDialog
         isOpen={showSaveConfirm}
