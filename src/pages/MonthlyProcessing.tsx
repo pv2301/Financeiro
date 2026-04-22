@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Student, ClassInfo, ServiceItem, Invoice, BillingMode } from '../types';
 import { finance } from '../services/finance';
