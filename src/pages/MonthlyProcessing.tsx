@@ -7,6 +7,37 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import ConfirmDialog from '../components/ConfirmDialog';
 
+function getPriceKey(studentClass: ClassInfo): string {
+  const seg = studentClass.segment;
+  const name = studentClass.name.toLowerCase();
+  
+  if (seg === 'Berçário') {
+    if (studentClass.ageRange === '6-9m') return 'Berçário|Baby';
+    if (studentClass.ageRange === '10-12m') return 'Berçário|Ninho';
+    if (studentClass.ageRange === '13-24m') return 'Berçário|Extra';
+    return 'Berçário|Baby'; 
+  }
+  
+  if (seg === 'Educação Infantil') {
+    if (name.includes('maternal')) return 'Educação Infantil|Maternal';
+    if (name.includes('grupo 1')) return 'Educação Infantil|Grupo 1';
+    if (name.includes('grupo 2')) return 'Educação Infantil|Grupo 2';
+    if (name.includes('grupo 3')) return 'Educação Infantil|Grupo 3';
+    return 'Educação Infantil|Maternal'; 
+  }
+
+  if (seg === 'Ensino Fundamental I' || seg === 'Fundamental') {
+    if (name.includes('1º') || name.includes('1o') || name.includes('ano 1')) return 'Ensino Fundamental I|Ano 1';
+    if (name.includes('2º') || name.includes('2o') || name.includes('ano 2')) return 'Ensino Fundamental I|Ano 2';
+    if (name.includes('3º') || name.includes('3o') || name.includes('ano 3')) return 'Ensino Fundamental I|Ano 3';
+    if (name.includes('4º') || name.includes('4o') || name.includes('ano 4')) return 'Ensino Fundamental I|Ano 4';
+    if (name.includes('5º') || name.includes('5o') || name.includes('ano 5')) return 'Ensino Fundamental I|Ano 5';
+    return 'Ensino Fundamental I|Ano 1'; 
+  }
+  
+  return studentClass.segment;
+}
+
 interface ParsedConsumption {
   studentName: string;
   className: string;
@@ -159,9 +190,7 @@ export default function MonthlyProcessing() {
             // Find service price by matching name and segment
             const svc = services.find(s => s.name.toLowerCase() === snackName.toLowerCase());
             if (svc) {
-              // Build price key from segment + ageRange
-              const ageRange = studentClass.ageRange;
-              const priceKey = ageRange ? `${studentClass.segment}|${ageRange}` : studentClass.segment;
+              const priceKey = getPriceKey(studentClass);
               const price = svc.priceByKey[priceKey] || 0;
               grossAmount += (price * qty);
             }

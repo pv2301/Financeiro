@@ -5,29 +5,7 @@ import { ServiceItem, Segment } from '../types';
 import { finance } from '../services/finance';
 import ConfirmDialog from '../components/ConfirmDialog';
 
-const SEGMENTS: { key: Segment; label: string; subKeys: { key: string; label: string }[] }[] = [
-  {
-    key: 'Berçário', label: 'Berçário',
-    subKeys: [
-      { key: 'Berçário|6-9m',   label: 'Baby (6-9 meses)' },
-      { key: 'Berçário|10-12m', label: 'Ninho (10-12 meses)' },
-      { key: 'Berçário|13-24m', label: 'Extra (13-24 meses)' },
-    ]
-  },
-  {
-    key: 'Educação Infantil', label: 'Educação Infantil',
-    subKeys: [
-      { key: 'Educação Infantil|Maternal', label: 'Maternal' },
-      { key: 'Educação Infantil|Grupo',    label: 'Grupo 1/2/3' },
-    ]
-  },
-  {
-    key: 'Ensino Fundamental I', label: 'Ensino Fundamental I',
-    subKeys: [
-      { key: 'Ensino Fundamental I', label: 'Todos (1º ao 4º Ano)' },
-    ]
-  }
-];
+import EditServiceModal, { ALL_SEGMENTS } from '../components/EditServiceModal';
 
 const SEGMENT_COLORS: Record<string, { bg: string; border: string; text: string; headerBg: string }> = {
   'Berçário':              { bg: 'bg-amber-50',   border: 'border-amber-200', text: 'text-amber-700',   headerBg: 'bg-amber-100' },
@@ -38,9 +16,7 @@ const SEGMENT_COLORS: Record<string, { bg: string; border: string; text: string;
 export default function Snacks() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [newName, setNewName] = useState('');
-  const [editPrices, setEditPrices] = useState<Record<string, number>>({});
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -55,19 +31,16 @@ export default function Snacks() {
   };
 
   const startEdit = (s: ServiceItem) => {
-    setEditingId(s.id);
-    setNewName(s.name);
-    setEditPrices({ ...s.priceByKey });
+    setEditingService(s);
   };
 
-  const saveEdit = async () => {
-    if (!editingId || !newName.trim()) return;
-    await finance.saveService({ id: editingId, name: newName.trim(), priceByKey: editPrices });
-    setEditingId(null);
+  const saveEdit = async (id: string, name: string, prices: Record<string, number>) => {
+    await finance.saveService({ id, name: name.trim(), priceByKey: prices });
+    setEditingService(null);
     await loadData();
   };
 
-  const cancelEdit = () => { setEditingId(null); };
+  const cancelEdit = () => { setEditingService(null); };
 
   const handleAdd = async () => {
     if (!addName.trim()) return;
@@ -85,8 +58,34 @@ export default function Snacks() {
     await loadData();
   };
 
-  const setPrice = (key: string, val: string) => {
-    setEditPrices(prev => ({ ...prev, [key]: parseFloat(val) || 0 }));
+  const loadDefaults = async () => {
+    setIsLoading(true);
+    const defaults = [
+      {
+        id: 'LANCHE_COLETIVO', name: 'Lanche Coletivo',
+        priceByKey: { 'Educação Infantil|Maternal': 11.00, 'Educação Infantil|Grupo 1': 14.50, 'Educação Infantil|Grupo 2': 14.50, 'Educação Infantil|Grupo 3': 14.50, 'Ensino Fundamental I|Ano 1': 14.20, 'Ensino Fundamental I|Ano 2': 14.20, 'Ensino Fundamental I|Ano 3': 14.20, 'Ensino Fundamental I|Ano 4': 14.20, 'Ensino Fundamental I|Ano 5': 14.20 }
+      },
+      {
+        id: 'LANCHE_INTEGRAL', name: 'Lanche Integral',
+        priceByKey: { 'Educação Infantil|Maternal': 10.50, 'Educação Infantil|Grupo 1': 13.60, 'Educação Infantil|Grupo 2': 13.60, 'Educação Infantil|Grupo 3': 13.60, 'Ensino Fundamental I|Ano 1': 13.60, 'Ensino Fundamental I|Ano 2': 13.60, 'Ensino Fundamental I|Ano 3': 13.60, 'Ensino Fundamental I|Ano 4': 13.60, 'Ensino Fundamental I|Ano 5': 13.60 }
+      },
+      {
+        id: 'ALMOCO', name: 'Almoço',
+        priceByKey: { 'Berçário|Baby': 12.20, 'Berçário|Ninho': 13.50, 'Berçário|Extra': 15.00, 'Educação Infantil|Maternal': 17.00, 'Educação Infantil|Grupo 1': 21.00, 'Educação Infantil|Grupo 2': 21.00, 'Educação Infantil|Grupo 3': 21.00, 'Ensino Fundamental I|Ano 1': 21.00, 'Ensino Fundamental I|Ano 2': 21.00, 'Ensino Fundamental I|Ano 3': 21.00, 'Ensino Fundamental I|Ano 4': 21.00, 'Ensino Fundamental I|Ano 5': 21.00 }
+      },
+      {
+        id: 'CEIA', name: 'Ceia',
+        priceByKey: { 'Berçário|Baby': 11.20, 'Berçário|Ninho': 12.50, 'Berçário|Extra': 14.00, 'Educação Infantil|Maternal': 14.50, 'Educação Infantil|Grupo 1': 15.50, 'Educação Infantil|Grupo 2': 15.50, 'Educação Infantil|Grupo 3': 15.50 }
+      },
+      {
+        id: 'LANCHE', name: 'Lanche',
+        priceByKey: { 'Berçário|Baby': 4.80, 'Berçário|Ninho': 6.20, 'Berçário|Extra': 8.80 }
+      }
+    ];
+    for (const svc of defaults) {
+      await finance.saveService(svc);
+    }
+    await loadData();
   };
 
   return (
@@ -114,11 +113,14 @@ export default function Snacks() {
       ) : services.length === 0 ? (
         <div className="text-center text-slate-400 py-16">
           <Utensils size={40} className="mx-auto mb-4 opacity-30" />
-          <p className="font-bold">Nenhum serviço cadastrado.</p>
+          <p className="font-bold mb-4">Nenhum serviço cadastrado.</p>
+          <button onClick={loadDefaults} className="bg-white border-2 border-brand-blue text-brand-blue font-bold px-6 py-3 rounded-2xl hover:bg-brand-blue/5 transition-colors">
+            Carregar Tabela Padrão (Colégio)
+          </button>
         </div>
       ) : (
         /* Segment blocks */
-        SEGMENTS.map(seg => {
+        ALL_SEGMENTS.map(seg => {
           const colors = SEGMENT_COLORS[seg.key];
           return (
             <motion.div key={seg.key} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -139,44 +141,26 @@ export default function Snacks() {
                   </thead>
                   <tbody className="divide-y divide-slate-200/30">
                     {services.map(svc => {
-                      const isEditing = editingId === svc.id;
                       const hasAnyPrice = seg.subKeys.some(sk => (svc.priceByKey[sk.key] || 0) > 0);
-                      // Show service in this segment if it has prices or is being edited
-                      if (!hasAnyPrice && !isEditing) return null;
+                      // Show service in this segment if it has prices
+                      if (!hasAnyPrice) return null;
                       return (
                         <tr key={svc.id} className="hover:bg-white/50 transition-colors">
                           <td className="px-6 py-3 font-bold text-slate-800">
-                            {isEditing ? (
-                              <input value={newName} onChange={e => setNewName(e.target.value)}
-                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-bold w-40" />
-                            ) : svc.name}
+                            {svc.name}
                           </td>
                           {seg.subKeys.map(sk => (
                             <td key={sk.key} className="px-6 py-3 text-center">
-                              {isEditing ? (
-                                <input type="number" step="0.01" min="0"
-                                  value={editPrices[sk.key] || ''}
-                                  onChange={e => setPrice(sk.key, e.target.value)}
-                                  className="w-24 px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-center mx-auto" />
-                              ) : (
                                 <span className={`font-bold ${(svc.priceByKey[sk.key] || 0) > 0 ? colors.text : 'text-slate-300'}`}>
                                   {(svc.priceByKey[sk.key] || 0) > 0 ? `R$ ${svc.priceByKey[sk.key].toFixed(2)}` : '—'}
                                 </span>
-                              )}
                             </td>
                           ))}
                           <td className="px-6 py-3 text-right">
-                            {isEditing ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <button onClick={saveEdit} className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg"><Save size={16} /></button>
-                                <button onClick={cancelEdit} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
-                              </div>
-                            ) : (
                               <div className="flex items-center justify-end gap-1">
                                 <button onClick={() => startEdit(svc)} className="p-1.5 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg"><Pencil size={16} /></button>
                                 <button onClick={() => setDeleteTarget({ id: svc.id, name: svc.name })} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                               </div>
-                            )}
                           </td>
                         </tr>
                       );
@@ -216,6 +200,15 @@ export default function Snacks() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Edit Service Modal */}
+      {editingService && (
+        <EditServiceModal
+          service={editingService}
+          onSave={saveEdit}
+          onClose={cancelEdit}
+        />
+      )}
     </div>
   );
 }
