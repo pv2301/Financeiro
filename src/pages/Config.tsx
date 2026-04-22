@@ -232,7 +232,7 @@ export default function Config() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-100">
                 <div className="p-6 space-y-6">
                   
-                  <div className="flex flex-col md:flex-row md:items-center gap-6 mb-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
                     {/* Year selector */}
                     <div className="flex items-center justify-between bg-slate-100 p-2 rounded-2xl shrink-0 w-fit">
                       <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-white rounded-xl transition-all">◀</button>
@@ -240,32 +240,32 @@ export default function Config() {
                       <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-white rounded-xl transition-all">▶</button>
                     </div>
 
-                    {totalDaysCount === 0 && (
-                      <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 w-full">
-                        <div className="text-amber-500 mt-0.5">⚠️</div>
-                        <div>
-                          <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
-                          <p className="text-sm text-amber-700">Os dias letivos de {selectedYear} ainda não foram definidos. Configure antes de gerar os boletos de consumo.</p>
-                        </div>
+                    {/* Banner */}
+                    <div className="flex flex-wrap gap-4 flex-1">
+                      <div className="flex-1 min-w-[130px] bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Meses Config</p>
+                        <p className="text-2xl font-black text-emerald-700">{configuredMonthsCount} <span className="text-sm font-bold">/ 12</span></p>
                       </div>
-                    )}
+                      <div className={`flex-1 min-w-[130px] ${missingMonthsCount > 0 ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} rounded-2xl p-4 border`}>
+                        <p className={`text-[9px] font-black ${missingMonthsCount > 0 ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-widest mb-1`}>Faltam</p>
+                        <p className={`text-2xl font-black ${missingMonthsCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{missingMonthsCount}</p>
+                      </div>
+                      <div className="flex-1 min-w-[130px] bg-sky-50 rounded-2xl p-4 border border-sky-100">
+                        <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Total Dias</p>
+                        <p className="text-2xl font-black text-sky-700">{totalDaysCount}</p>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Banner */}
-                  <div className="flex flex-wrap gap-4">
-                    <div className="flex-1 min-w-[150px] bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Meses Config</p>
-                      <p className="text-2xl font-black text-emerald-700">{configuredMonthsCount} <span className="text-sm font-bold">/ 12</span></p>
+                  {totalDaysCount === 0 && (
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 w-full mb-6">
+                      <div className="text-amber-500 mt-0.5">⚠️</div>
+                      <div>
+                        <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
+                        <p className="text-sm text-amber-700">Os dias letivos de {selectedYear} ainda não foram definidos. Configure antes de gerar os boletos de consumo.</p>
+                      </div>
                     </div>
-                    <div className={`flex-1 min-w-[150px] ${missingMonthsCount > 0 ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} rounded-2xl p-4 border`}>
-                      <p className={`text-[9px] font-black ${missingMonthsCount > 0 ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-widest mb-1`}>Faltam</p>
-                      <p className={`text-2xl font-black ${missingMonthsCount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{missingMonthsCount}</p>
-                    </div>
-                    <div className="flex-1 min-w-[150px] bg-sky-50 rounded-2xl p-4 border border-sky-100">
-                      <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Total Dias</p>
-                      <p className="text-2xl font-black text-sky-700">{totalDaysCount}</p>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Grid of 12 months */}
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">

@@ -381,13 +381,6 @@ export default function MonthlyProcessing() {
                   {isLoading ? 'Carregando...' : 'Importar Consumo'}
                 </button>
                 <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx).</p>
-                
-                {dbConsumption.length > 0 && (
-                  <div className="mt-6 inline-flex items-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl font-bold text-sm border border-emerald-100">
-                    <CheckCircle2 size={18} />
-                    {dbConsumption.length} {dbConsumption.length === 1 ? 'aluno' : 'alunos'} com consumo no mês
-                  </div>
-                )}
               </div>
             </motion.div>
           )}
@@ -415,8 +408,8 @@ export default function MonthlyProcessing() {
                 exit={{ height: 0, opacity: 0 }}
                 className="p-8 border-t border-slate-100 space-y-6"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                  {/* Tab switcher */}
+                {/* Row 1: Tabs + Gerar boletos button */}
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
                     <button
                       onClick={() => setActiveTab('fixed')}
@@ -436,30 +429,6 @@ export default function MonthlyProcessing() {
                     </button>
                   </div>
 
-                  {/* Filters row */}
-                  <div className="flex flex-wrap gap-2 flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                      <input
-                        type="text"
-                        placeholder="Buscar aluno..."
-                        value={studentSearch}
-                        onChange={(e) => setStudentSearch(e.target.value)}
-                        className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-sm w-44"
-                      />
-                    </div>
-                    <select
-                      value={classFilter}
-                      onChange={(e) => setClassFilter(e.target.value)}
-                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 text-slate-600"
-                    >
-                      <option value="all">Todas as turmas</option>
-                      {classes.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
                   <button
                     onClick={() => setShowSaveConfirm(true)}
                     disabled={isLoading}
@@ -468,6 +437,30 @@ export default function MonthlyProcessing() {
                     <Save size={18} />
                     Gerar {previewInvoices.filter(inv => inv.netAmount > 0).length} Boletos
                   </button>
+                </div>
+
+                {/* Row 2: Search + class filter */}
+                <div className="flex flex-wrap gap-3">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                    <input
+                      type="text"
+                      placeholder="Buscar aluno por nome..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-sm"
+                    />
+                  </div>
+                  <select
+                    value={classFilter}
+                    onChange={(e) => setClassFilter(e.target.value)}
+                    className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 text-slate-600"
+                  >
+                    <option value="all">Todas as turmas</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Summary cards */}
@@ -555,11 +548,15 @@ export default function MonthlyProcessing() {
                         <button onClick={() => setConsumptionFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
                         <button onClick={() => setConsumptionFilter('imported')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
                         <button onClick={() => setConsumptionFilter('pending')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
-                        {recentlyImportedIds.length > 0 && (
-                          <button onClick={() => setConsumptionFilter('recent')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${consumptionFilter === 'recent' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-sky-50'}`}>
-                            <Clock size={11} /> Recentes ({recentlyImportedIds.length})
-                          </button>
-                        )}
+                        {(() => {
+                          const effectiveRecentIds = recentlyImportedIds.length > 0 ? recentlyImportedIds : dbConsumption.map(d => d.studentId);
+                          if (effectiveRecentIds.length === 0) return null;
+                          return (
+                            <button onClick={() => setConsumptionFilter('recent')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${consumptionFilter === 'recent' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-sky-50'}`}>
+                              <Clock size={11} /> Recentes ({effectiveRecentIds.length})
+                            </button>
+                          );
+                        })()}
                       </div>
 
                       <table className="w-full text-left">
@@ -576,8 +573,9 @@ export default function MonthlyProcessing() {
                             .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
                             .filter(inv => classFilter === 'all' || inv.classId === classFilter)
                             .filter(inv => {
+                              const effectiveRecentIds = recentlyImportedIds.length > 0 ? recentlyImportedIds : dbConsumption.map(d => d.studentId);
                               const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
-                              const isRecent = recentlyImportedIds.includes(inv.studentId);
+                              const isRecent = effectiveRecentIds.includes(inv.studentId);
                               const studentName = students.find(x => x.id === inv.studentId)?.name;
                               const matchesSearch = !studentSearch || (studentName?.toLowerCase().includes(studentSearch.toLowerCase()) ?? false);
 
@@ -585,6 +583,16 @@ export default function MonthlyProcessing() {
                               if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
                               if (consumptionFilter === 'recent') return isRecent && matchesSearch;
                               return matchesSearch;
+                            })
+                            .sort((a, b) => {
+                              if (consumptionFilter === 'recent') {
+                                const effectiveRecentIds = recentlyImportedIds.length > 0 ? recentlyImportedIds : dbConsumption.map(d => d.studentId);
+                                const indexA = effectiveRecentIds.indexOf(a.studentId);
+                                const indexB = effectiveRecentIds.indexOf(b.studentId);
+                                // Order by recency (last added at the top)
+                                return indexB - indexA;
+                              }
+                              return 0; // Default order
                             })
                             .map((inv) => {
                             const s = students.find(x => x.id === inv.studentId);
@@ -639,7 +647,7 @@ export default function MonthlyProcessing() {
       <ConfirmDialog
         isOpen={showSaveConfirm}
         title="Gerar Boletos"
-        message={`Deseja gerar e salvar ${previewInvoices.length} boletos para ${monthYear}?\n\nTotal Líquido: R$ ${totalNet.toFixed(2)}`}
+        message={`Deseja gerar e salvar ${previewInvoices.filter(inv => inv.netAmount > 0).length} boletos com valor acima de R$ 0,00 para ${monthYear}?\n\nTotal Líquido: R$ ${totalNet.toFixed(2)}`}
         confirmLabel="Gerar Boletos"
         variant="info"
         onConfirm={handleSaveInvoices}

@@ -115,7 +115,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-full md:w-56 bg-white border-r border-slate-200 p-3 flex flex-col gap-2 shadow-sm z-20 print:hidden">
+      <aside className="w-full md:w-64 bg-white border-r border-slate-200 p-3 flex flex-col gap-2 shadow-sm z-20 print:hidden">
         <div className="px-4 py-6 mb-4 flex flex-col items-center text-center">
           <div className="w-full max-w-[200px] mb-4 flex items-center justify-center min-h-[80px]">
             {logo ? (
