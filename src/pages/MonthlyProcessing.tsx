@@ -465,7 +465,7 @@ export default function MonthlyProcessing() {
                           .filter(inv => {
                             if (!studentSearch) return true;
                             const s = students.find(x => x.id === inv.studentId);
-                            return s?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                            return s?.name?.toLowerCase().includes(studentSearch.toLowerCase()) ?? false;
                           })
                           .map((inv) => {
                           const s = students.find(x => x.id === inv.studentId);
@@ -530,7 +530,8 @@ export default function MonthlyProcessing() {
                             .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
                             .filter(inv => {
                               const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
-                              const matchesSearch = !studentSearch || students.find(x => x.id === inv.studentId)?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                              const studentName = students.find(x => x.id === inv.studentId)?.name;
+                              const matchesSearch = !studentSearch || (studentName?.toLowerCase().includes(studentSearch.toLowerCase()) ?? false);
                               
                               if (consumptionFilter === 'imported') return hasConsumption && matchesSearch;
                               if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
