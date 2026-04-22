@@ -16,7 +16,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
   Student,
   ClassInfo,
-  Snack,
+  ServiceItem,
   Invoice,
   UserPresence,
   PaymentImportResult
@@ -26,7 +26,7 @@ import {
 const C = {
   STUDENTS:  'fin_students',
   CLASSES:   'fin_classes',
-  SNACKS:    'fin_snacks',
+  SERVICES:  'fin_services',
   INVOICES:  'fin_invoices',
   CONFIG:    'fin_config',
   PRESENCE:  'fin_presence',
@@ -98,11 +98,16 @@ export const finance = {
   deleteStudent:     (id: string)       => deleteItem(C.STUDENTS, id),
   mergeBatchStudents:(ss: Student[])    => mergeBatchToCollection(C.STUDENTS, ss),
 
-  // ── Snacks ───────────────────────────────────────────────────────────────
-  getSnacks:       ()                => getAllFromCollection<Snack>(C.SNACKS),
-  saveSnack:       (s: Snack)        => saveItem(C.SNACKS, s),
-  deleteSnack:     (id: string)      => deleteItem(C.SNACKS, id),
-  saveAllSnacks:   (ss: Snack[])     => saveAllToCollection(C.SNACKS, ss),
+  // ── Services (ex-Snacks) ──────────────────────────────────────────────────
+  getServices:       ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
+  saveService:       (s: ServiceItem)      => saveItem(C.SERVICES, s),
+  deleteService:     (id: string)          => deleteItem(C.SERVICES, id),
+  saveAllServices:   (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
+  // Legacy aliases
+  getSnacks:         ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
+  saveSnack:         (s: ServiceItem)      => saveItem(C.SERVICES, s),
+  deleteSnack:       (id: string)          => deleteItem(C.SERVICES, id),
+  saveAllSnacks:     (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
 
   // ── Invoices ─────────────────────────────────────────────────────────────
   getInvoices:       ()                 => getAllFromCollection<Invoice>(C.INVOICES),

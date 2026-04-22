@@ -1,85 +1,78 @@
-# Plano de Implementação: Sistema de Gestão de Custos
+# PLAN — Financeiro Baby: Tarefas Pendentes
 
-## 1. Visão Geral
-Módulo de Gestão de Custos e Faturamento, integrado ao ecossistema "Cardápio Baby", para automatizar o cálculo de boletos da cantina. Substituirá o processo manual em planilhas por um fluxo guiado, com leitura de relatório de consumo, aplicação de descontos por acordo/falta e gestão manual do status de pagamento (Pago vs. Vencido).
+> **Status:** AGUARDANDO APROVAÇÃO  
+> **Data:** 2026-04-21  
+> **Agentes:** `project-planner`, `frontend-specialist`, `backend-specialist`
 
-## 2. Modelagem de Dados (Firebase Firestore)
+---
 
-### 2.1 Coleção `students` (Alunos)
-- `id`: string
-- `name`: string
-- `classId`: string (Ref. Turma)
-- `responsibleName`: string
-- `responsibleCpf`: string
-- `contactPhone`: string
-- `personalDiscount`: number (Desconto por acordo ou filho de funcionário - % ou valor fixo)
-- `hasTimelyPaymentDiscount`: boolean (Se o desconto só vale até o vencimento)
+## Diagnóstico do Estado Atual
 
-### 2.2 Coleção `classes` (Turmas)
-- `id`: string
-- `name`: string (ex: "1 ANO A")
-- `billingMode`: enum (`ANTICIPATED_FIXED`, `ANTICIPATED_DAYS`, `POSTPAID_CONSUMPTION`)
-- `basePrice`: number (Parcela fixa ou Valor unitário base)
-- `applyAbsenceDiscount`: boolean (Aplica desconto por falta?)
+| Página | Estado | Problemas |
+|--------|--------|-----------|
+| `Snacks.tsx` | ❌ Vazio | Apenas header, sem CRUD, sem segmentos |
+| `Students.tsx` | ⚠️ Parcial | Sem filtros por turma, sem popup de confirmação, sem distinção visual de desconto |
+| `Classes.tsx` | ✅ OK | Mas dias letivos devem migrar para Fechamento Mensal |
+| `MonthlyProcessing.tsx` | ⚠️ Desatualizado | Usa tipos antigos, não gera campos novos do Invoice |
+| `Invoices.tsx` | ⚠️ Parcial | Sem importação bancária |
+| `Reports.tsx` | ✅ OK | Dashboard + export Excel funcionando |
 
-### 2.3 Coleção `snacks` (Lanches / Valores Unitários)
-- `id`: string
-- `name`: string (ex: "Lanche da Manhã", "Almoço CFC Baby")
-- `unitPrice`: number
+### Dias Letivos — Situação Atual
+- **Onde estão:** `ClassInfo.scholasticDays` (por turma)
+- **Onde devem estar:** Página Fechamento Mensal, Passo 1, como parâmetro global
+- **Razão:** Dias letivos são iguais para todas as turmas no mesmo mês
 
-### 2.4 Coleção `invoices` (Boletos/Cobranças)
-- `id`: string
-- `studentId`: string
-- `monthYear`: string (ex: "04/2026")
-- `grossAmount`: number (Valor Bruto)
-- `absenceDays`: number (Faltas no mês)
-- `absenceDiscountAmount`: number (Valor descontado por falta)
-- `personalDiscountAmount`: number
-- `netAmount`: number (Valor Final/Líquido)
-- `dueDate`: timestamp (Vencimento)
-- `paymentStatus`: enum (`PENDING`, `PAID`, `OVERDUE`)
-- `ticketNumber`: string (Número do Boleto/Título)
+### Tabela de Serviços — Análise da Imagem
+3 segmentos com serviços e preços DIFERENTES:
 
-## 3. Fluxo de Funcionalidades (UI/UX)
+| Segmento | Serviços |
+|----------|----------|
+| **Berçário** (Baby, Ninho) | INTEGRAL, Lanche, Almoço, Ceia |
+| **Ed. Infantil** (Maternal, Grupo 1/2/3) | Lanche Coletivo, Lanche Integral, Almoço, Ceia |
+| **Fundamental** (1º a 4º Ano) | Lanche Coletivo, Lanche Integral, Almoço |
 
-### Fase 1: Configurações e Cadastros
-1. **Página de Turmas e Regras:** 
-   - Criar turmas.
-   - Definir modelo de faturamento (`Antecipada Fixa`, `Antecipada por Dias Letivos`, `Postecipada por Consumo`).
-   - Configurar valores unitários dos lanches.
-   - Ativar/Desativar regra de faltas por turma.
-2. **Página de Alunos:** 
-   - Cadastro de aluno, vínculo com responsável e turma.
-   - Configuração de desconto especial (condicionado ao pagamento em dia).
+---
 
-### Fase 2: Processamento Mensal (O "Motor" de Cálculo)
-1. **Importação de Consumo:**
-   - Tela de Upload do arquivo "Relatório Cardápios Consumidos".
-   - Parser do Excel para o sistema, vinculando o consumo (quantidade de cada lanche) aos alunos cadastrados.
-2. **Revisão e Faltas:**
-   - Tabela listando os alunos para o mês em referência.
-   - Campo editável para inserir as "Faltas" manuais.
-   - O sistema calcula automaticamente: `Valor Final = (Consumo * Preço Unitário) - (Faltas * Preço Lanche) - Descontos Pessoais`.
-   *(A fórmula exata varia conforme o `billingMode` da turma do aluno).*
-3. **Geração de Cobranças:**
-   - Geração dos registros de "Invoices" no banco de dados.
+## 7 Tarefas de Execução
 
-### Fase 3: Gestão Financeira
-1. **Dashboard de Recebimentos (Diário/Geral):**
-   - Lista de boletos aguardando pagamento.
-   - Botão para dar baixa manual (`Marcar como Pago`).
-2. **Painel de Inadimplência (Boletos Vencidos):**
-   - Filtro para exibir apenas boletos `OVERDUE`.
-   - Se o boleto possuía desconto condicionado ao vencimento e venceu, o sistema recalcula ou exibe a remoção do desconto.
+### TASK 1 — Reestruturar Tabela de Serviços
+- Substituir tipo `Snack` por `ServiceItem` com `priceBySegment`
+- Layout em 3 blocos visuais por segmento
+- CRUD com preços editáveis inline + popup de confirmação
 
-## 4. Stack Tecnológico
-- **Frontend:** React + TypeScript + Vite + TailwindCSS + Componentes Reusáveis atuais (Lucide, Motion).
-- **Backend/DB:** Firebase Firestore.
-- **Processamento de Arquivos:** Biblioteca `xlsx` (já presente no package.json) rodando no Client-Side para evitar sobrecarga de servidor.
+### TASK 2 — Refatorar Alunos
+- Filtros: por turma, ordem A-Z, com desconto
+- Badges visuais: Funcionário (verde) vs Acordo (azul)
+- Popup de confirmação em vez de `window.confirm()`
 
-## 5. Ordem de Implementação (Próximos Passos)
-- [x] 1. Ajuste das Regras de Segurança do Firestore (`firestore.rules`).
-- [x] 2. Telas de Configuração (Turmas, Lanches e Alunos).
-- [x] 3. Lógica do Parser de Excel para Consumos (`xlsx`).
-- [x] 4. Tela de Processamento Mensal (Faltas e Fechamento).
-- [x] 5. Painel de Boletos, Baixa Manual e Inadimplência.
+### TASK 3 — Migrar Dias Letivos para Fechamento Mensal
+- Remover `scholasticDays` de ClassInfo
+- Grid de 12 meses no Passo 1 do MonthlyProcessing
+- Banner: "8/12 meses configurados | Total: 196 dias"
+- Salvar em `fin_config/global`
+
+### TASK 4 — Corrigir MonthlyProcessing para novos tipos
+- Preencher todos campos novos do Invoice
+- Implementar cálculo correto para cada modelo de cobrança
+- Usar `scholasticDays` do config global
+
+### TASK 5 — Importação Bancária no Invoices
+- Botão "Importar Baixa Bancária" + modal
+- Chama `processPaymentImport()` já existente
+- Exibe resultado com divergências
+
+### TASK 6 — ConfirmDialog reutilizável
+- Componente modal para substituir `window.confirm()`
+- Usar em todas as páginas
+
+### TASK 7 — Build + Deploy + Verificação
+
+## Ordem: TASK 6,1,2 (paralelo) → TASK 3 → TASK 4 → TASK 5 → TASK 7
+
+---
+
+## Perguntas antes de iniciar:
+1. Os dias letivos são iguais para TODAS as turmas no mesmo mês?
+2. A taxa de emissão do boleto é valor fixo global ou varia por turma?
+3. A coluna "Idades" no Berçário influencia o preço ou é informativa?
+4. Os segmentos são exatamente 3 (Berçário, Ed. Infantil, Fundamental)?

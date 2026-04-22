@@ -10,59 +10,60 @@ export type PaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE';
 export interface ClassInfo {
   id: string;
   name: string;                     // "1º ANO A"
-  segment: string;                  // "Ensino Fundamental I" / "Educação Infantil"
+  segment: string;                  // "Berçário" / "Educação Infantil" / "Ensino Fundamental I"
   billingMode: BillingMode;
-  basePrice: number;                // Valor fixo mensal (ANTICIPATED_FIXED) ou preço/dia (ANTICIPATED_DAYS)
+  basePrice: number;                // Valor fixo mensal ou preço/dia
   applyAbsenceDiscount: boolean;
   discountPerAbsence: number;       // Valor descontado por falta (R$)
   collegeSharePercent: number;      // % do líquido que vai para o colégio
-  // Dias letivos por mês – chave: "YYYY-MM", valor: número de dias
-  scholasticDays: Record<string, number>;
+  ageRange?: string;                // Faixa etária para Berçário: "6-9m", "10-12m", "13-24m"
 }
 
 // ─── Student (Aluno) ───────────────────────────────────────────────────────
 export interface Student {
-  id: string;                       // CPF do responsável financeiro (único)
-  name: string;                     // ALUNO
-  classId: string;                  // FK → fin_classes
-  segment: string;                  // car (Ensino Fundamental I)
-  birthDate: string;                // DATANASCALUNO (ISO)
-
-  // Responsável Financeiro
-  responsibleName: string;          // NOME_RESPONS_FIN
-  responsibleCpf: string;           // CPF_RESP_FIN
-  contactPhone: string;             // TEL_RESP
-  contactEmail: string;             // EMAIL_RESP
-  landlinePhone?: string;           // TELEX
-
-  // Dados adicionais (opcionais na importação)
-  motherName?: string;              // MAE
-  motherCpf?: string;               // CPF_MAE
-  motherEmail?: string;             // EMAIL_MAE
-  motherPhone1?: string;            // TEL_MAE1
-  motherPhone2?: string;            // TEL_MAE2
-
-  fatherName?: string;              // PAI
-  fatherCpf?: string;               // CPF_PAI
-  fatherEmail?: string;             // EMAIL_PAI
-  fatherPhone1?: string;            // TEL_PAI1
-  fatherPhone2?: string;            // TEL_PAI2
-
-  // Descontos acordados
-  personalDiscount: number;         // % ou valor fixo
-  personalDiscountNote?: string;    // Observação (ex: "Filho de funcionária")
-  hasTimelyPaymentDiscount: boolean;
-
-  // Padrão para nome do arquivo PDF do boleto: "NOMECOMPLETO_"
-  filenameSuffix: string;           // ex: "ALICESANTOSBARBOZA_"
-}
-
-// ─── Snack (Lanche) ────────────────────────────────────────────────────────
-export interface Snack {
   id: string;
   name: string;
-  unitPrice: number;
+  classId: string;
+  segment: string;
+  birthDate: string;
+
+  responsibleName: string;
+  responsibleCpf: string;
+  contactPhone: string;
+  contactEmail: string;
+  landlinePhone?: string;
+
+  motherName?: string;
+  motherCpf?: string;
+  motherEmail?: string;
+  motherPhone1?: string;
+  motherPhone2?: string;
+
+  fatherName?: string;
+  fatherCpf?: string;
+  fatherEmail?: string;
+  fatherPhone1?: string;
+  fatherPhone2?: string;
+
+  personalDiscount: number;
+  personalDiscountNote?: string;    // "Funcionário", "Acordo", etc.
+  hasTimelyPaymentDiscount: boolean;
+  filenameSuffix: string;
 }
+
+// ─── ServiceItem (Serviço/Lanche) ──────────────────────────────────────────
+export type Segment = 'Berçário' | 'Educação Infantil' | 'Ensino Fundamental I';
+
+export interface ServiceItem {
+  id: string;
+  name: string;                     // "Lanche Coletivo", "Almoço", "Ceia", "INTEGRAL"
+  // Preço por segmento + faixa etária (para Berçário)
+  // Chave: "Berçário|6-9m", "Berçário|10-12m", "Educação Infantil|Maternal", "Ensino Fundamental I"
+  priceByKey: Record<string, number>;
+}
+
+// Legacy alias for backward compat
+export type Snack = ServiceItem;
 
 // ─── Invoice (Boleto) ─────────────────────────────────────────────────────
 export interface Invoice {

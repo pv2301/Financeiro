@@ -5,7 +5,7 @@ import {
   Users,
   Settings,
   ChevronRight,
-  Apple,
+  Utensils,
   Calculator,
   Receipt,
   GraduationCap,
@@ -143,7 +143,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <NavItem to="/monthly" icon={Calculator} label="Fechamento Mensal" />
           <NavItem to="/students" icon={Users} label="Alunos" />
           <NavItem to="/classes" icon={GraduationCap} label="Turmas" />
-          <NavItem to="/snacks" icon={Apple} label="Tabela Lanches" />
+          <NavItem to="/snacks" icon={Utensils} label="Serviços e Valores" />
           <NavItem to="/reports" icon={BarChart3} label="Relatórios" />
           <NavItem to="/config" icon={Settings} label="Configurações" />
 

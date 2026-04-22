@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check, Info } from 'lucide-react';
+import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check } from 'lucide-react';
 import { ClassInfo, BillingMode } from '../types';
 import { finance } from '../services/finance';
+import ConfirmDialog from '../components/ConfirmDialog';
+
+const SEGMENT_OPTIONS = ['Berçário', 'Educação Infantil', 'Ensino Fundamental I'];
+const AGE_RANGES = ['6-9m', '10-12m', '13-24m'];
 
 const BILLING_LABELS: Record<BillingMode, string> = {
   ANTICIPATED_FIXED:    'Antecipado Fixo',
@@ -16,19 +20,15 @@ const BILLING_DESC: Record<BillingMode, string> = {
   POSTPAID_CONSUMPTION: 'Cobra pelo consumo real importado da catraca',
 };
 
-const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const CURRENT_YEAR = new Date().getFullYear();
-
 const emptyClass = (): ClassInfo => ({
   id: '',
   name: '',
-  segment: '',
+  segment: 'Berçário',
   billingMode: 'ANTICIPATED_FIXED',
   basePrice: 0,
   applyAbsenceDiscount: false,
   discountPerAbsence: 0,
   collegeSharePercent: 20,
-  scholasticDays: {},
 });
 
 export default function Classes() {
@@ -38,6 +38,7 @@ export default function Classes() {
   const [modal, setModal] = useState<ClassInfo | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -66,23 +67,11 @@ export default function Classes() {
     closeModal();
   };
 
-  const remove = async (id: string, name: string) => {
-    if (!confirm(`Excluir a turma "${name}"? Os alunos vinculados não serão excluídos.`)) return;
-    await finance.deleteClass(id);
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await finance.deleteClass(deleteTarget.id);
+    setDeleteTarget(null);
     await loadData();
-  };
-
-  const setDay = (monthIdx: number, val: string) => {
-    if (!modal) return;
-    const key = `${CURRENT_YEAR}-${String(monthIdx + 1).padStart(2, '0')}`;
-    const days = parseInt(val) || 0;
-    setModal({ ...modal, scholasticDays: { ...modal.scholasticDays, [key]: days } });
-  };
-
-  const getDay = (monthIdx: number): number => {
-    if (!modal) return 0;
-    const key = `${CURRENT_YEAR}-${String(monthIdx + 1).padStart(2, '0')}`;
-    return modal.scholasticDays[key] || 0;
   };
 
   return (
@@ -126,7 +115,7 @@ export default function Classes() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEdit(cls)} className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-colors"><Pencil size={16} /></button>
-                  <button onClick={() => remove(cls.id, cls.name)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                  <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
                 </div>
               </div>
 
@@ -178,8 +167,10 @@ export default function Classes() {
                   </div>
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Segmento</label>
-                    <input value={modal.segment} onChange={e => setModal({ ...modal, segment: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20" placeholder="Ex: Ensino Fundamental I" />
+                    <select value={modal.segment} onChange={e => setModal({ ...modal, segment: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+                      {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -223,25 +214,20 @@ export default function Classes() {
                   </div>
                 </div>
 
-                {/* Scholastic days per month (for ANTICIPATED_DAYS) */}
-                {modal.billingMode === 'ANTICIPATED_DAYS' && (
+                {/* Age range for Berçário */}
+                {modal.segment === 'Berçário' && (
                   <div>
-                    <label className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                      <Info size={14} className="text-brand-blue" />
-                      Dias Letivos por Mês — {CURRENT_YEAR}
-                    </label>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {MONTHS.map((m, i) => (
-                        <div key={i} className="bg-slate-50 rounded-2xl p-3 text-center">
-                          <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{m}</p>
-                          <input type="number" value={getDay(i)} onChange={e => setDay(i, e.target.value)}
-                            className="w-full text-center font-black text-brand-blue bg-transparent focus:outline-none text-sm" min={0} max={31} />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-2">💡 Os dias letivos podem ser atualizados a qualquer momento, inclusive durante o mês.</p>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Faixa Etária</label>
+                    <select value={modal.ageRange || ''} onChange={e => setModal({ ...modal, ageRange: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+                      <option value="">Selecione...</option>
+                      {AGE_RANGES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">Define a faixa de preço na tabela de serviços.</p>
                   </div>
                 )}
+
+                <p className="text-[10px] text-slate-400 bg-sky-50 rounded-xl p-3">💡 Os dias letivos são configurados na página <strong>Fechamento Mensal</strong>, Passo 1.</p>
               </div>
 
               <div className="flex justify-end gap-3 p-6 border-t border-slate-100">
@@ -255,6 +241,16 @@ export default function Classes() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Excluir Turma"
+        message={`Deseja excluir a turma "${deleteTarget?.name}"? Os alunos vinculados não serão excluídos.`}
+        confirmLabel="Excluir"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
