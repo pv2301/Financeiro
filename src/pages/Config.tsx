@@ -30,6 +30,7 @@ export default function Config() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [scholasticDays, setScholasticDays] = useState<Record<string, number>>({});
   const [boletoFee, setBoletoFee] = useState<number>(3.50);
+  const [boletoFeeInput, setBoletoFeeInput] = useState<string>("3,50");
   const [defaultCollegeShare, setDefaultCollegeShare] = useState<number>(20);
 
   // Summary state
@@ -58,7 +59,9 @@ export default function Config() {
 
       if (globalConfig) {
         setScholasticDays(globalConfig.scholasticDays || {});
-        setBoletoFee(globalConfig.boletoEmissionFee ?? 3.50);
+        const fee = globalConfig.boletoEmissionFee ?? 3.50;
+        setBoletoFee(fee);
+        setBoletoFeeInput(fee.toFixed(2).replace('.', ','));
         setDefaultCollegeShare(globalConfig.defaultCollegeSharePercent ?? 20);
       }
     } catch (e) {
@@ -185,7 +188,7 @@ export default function Config() {
                   <div className="flex items-center gap-8">
                     <div className="w-32 h-32 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-2 relative overflow-hidden group">
                       {logo ? (
-                        <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+                        <img src={logo} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                       ) : (
                         <ImageIcon className="text-slate-300" size={32} />
                       )}
@@ -227,22 +230,24 @@ export default function Config() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-100">
                 <div className="p-6 space-y-6">
                   
-                  {/* Year selector */}
-                  <div className="flex items-center justify-between bg-slate-100 p-2 rounded-2xl w-fit mx-auto mb-6">
-                    <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-white rounded-xl transition-all">◀</button>
-                    <span className="px-6 text-xl font-black text-brand-blue">{selectedYear}</span>
-                    <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-white rounded-xl transition-all">▶</button>
-                  </div>
-
-                  {totalDaysCount === 0 && (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
-                      <div className="text-amber-500 mt-0.5">⚠️</div>
-                      <div>
-                        <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
-                        <p className="text-sm text-amber-700">Os dias letivos de {selectedYear} ainda não foram definidos. Configure antes de gerar os boletos de consumo.</p>
-                      </div>
+                  <div className="flex flex-col md:flex-row md:items-center gap-6 mb-6">
+                    {/* Year selector */}
+                    <div className="flex items-center justify-between bg-slate-100 p-2 rounded-2xl shrink-0 w-fit">
+                      <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-white rounded-xl transition-all">◀</button>
+                      <span className="px-6 text-xl font-black text-brand-blue">{selectedYear}</span>
+                      <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-white rounded-xl transition-all">▶</button>
                     </div>
-                  )}
+
+                    {totalDaysCount === 0 && (
+                      <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 w-full">
+                        <div className="text-amber-500 mt-0.5">⚠️</div>
+                        <div>
+                          <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
+                          <p className="text-sm text-amber-700">Os dias letivos de {selectedYear} ainda não foram definidos. Configure antes de gerar os boletos de consumo.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Banner */}
                   <div className="flex flex-wrap gap-4">
@@ -297,11 +302,29 @@ export default function Config() {
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Taxa de Boleto (R$)</label>
-                    <input type="number" value={boletoFee} onChange={e => setBoletoFee(parseFloat(e.target.value) || 0)}
-                      onBlur={saveFinancialConfig}
+                    <input type="text" value={boletoFeeInput} 
+                      onChange={e => setBoletoFeeInput(e.target.value)}
+                      onBlur={() => {
+                        const val = parseFloat(boletoFeeInput.replace(',', '.'));
+                        if (!isNaN(val)) {
+                          setBoletoFee(val);
+                          setBoletoFeeInput(val.toFixed(2).replace('.', ','));
+                          
+                          // trigger save
+                          finance.saveGlobalConfig({ 
+                            scholasticDays, 
+                            boletoEmissionFee: val,
+                            defaultDueDay: 10,
+                            defaultCollegeSharePercent: defaultCollegeShare
+                          });
+                          showToast('Configurações salvas');
+                        } else {
+                          setBoletoFeeInput(boletoFee.toFixed(2).replace('.', ','));
+                        }
+                      }}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
-                      min={0} step={0.01} />
-                    <p className="text-[10px] text-slate-400 mt-1">Sempre formatado: R$ {boletoFee.toFixed(2)}</p>
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Ex: 3,50</p>
                   </div>
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">% Repasse Colégio (Padrão)</label>
