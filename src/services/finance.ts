@@ -222,12 +222,13 @@ export const finance = {
         scholasticDays: data.scholasticDays || {},
         boletoEmissionFee: data.boletoEmissionFee ?? 3.50,
         defaultDueDay: data.defaultDueDay ?? 10,
+        defaultCollegeSharePercent: data.defaultCollegeSharePercent ?? 20,
       };
     } catch {
       return null;
     }
   },
-  saveGlobalConfig: async (data: { scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay?: number }): Promise<void> => {
+  saveGlobalConfig: async (data: { scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay?: number; defaultCollegeSharePercent?: number }): Promise<void> => {
     try {
       await setDoc(doc(db, C.CONFIG, 'global'), data, { merge: true });
     } catch (error) {

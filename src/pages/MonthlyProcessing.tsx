@@ -315,20 +315,11 @@ export default function MonthlyProcessing() {
               })}
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
-              <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700 flex items-center justify-between">
-                <span>{getCurrentMonthDays()} dias</span>
-                <span className="text-xs font-bold opacity-60">{MONTHS_FULL[selectedMonthIdx]} {CURRENT_YEAR}</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Taxa Boleto (R$)</label>
-              <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-black text-slate-700 flex items-center justify-between">
-                <span>R$ {boletoFee.toFixed(2)}</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global</span>
-              </div>
+          <div className="pt-2">
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
+            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700 flex items-center justify-between max-w-sm">
+              <span>{getCurrentMonthDays()} dias</span>
+              <span className="text-xs font-bold opacity-60">{MONTHS_FULL[selectedMonthIdx]} {CURRENT_YEAR}</span>
             </div>
           </div>
         </div>

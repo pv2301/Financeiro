@@ -16,7 +16,7 @@ export default function Config() {
   
   // Sections state
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    logo: true,
+    logo: false,
     academicYear: true,
     financial: true,
     summary: true
@@ -59,6 +59,7 @@ export default function Config() {
       if (globalConfig) {
         setScholasticDays(globalConfig.scholasticDays || {});
         setBoletoFee(globalConfig.boletoEmissionFee ?? 3.50);
+        setDefaultCollegeShare(globalConfig.defaultCollegeSharePercent ?? 20);
       }
     } catch (e) {
       console.error(e);
@@ -100,7 +101,8 @@ export default function Config() {
     await finance.saveGlobalConfig({ 
       scholasticDays, 
       boletoEmissionFee: boletoFee,
-      defaultDueDay: 10 // keep standard
+      defaultDueDay: 10, // keep standard
+      defaultCollegeSharePercent: defaultCollegeShare
     });
     showToast('Configurações salvas');
   };
@@ -301,12 +303,13 @@ export default function Config() {
                       min={0} step={0.01} />
                     <p className="text-[10px] text-slate-400 mt-1">Sempre formatado: R$ {boletoFee.toFixed(2)}</p>
                   </div>
-                  <div className="opacity-50 pointer-events-none">
+                  <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">% Repasse Colégio (Padrão)</label>
                     <input type="number" value={defaultCollegeShare} onChange={e => setDefaultCollegeShare(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium outline-none"
+                      onBlur={saveFinancialConfig}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
                       min={0} max={100} />
-                    <p className="text-[10px] text-slate-400 mt-1">Em breve. Definirá o repasse global.</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Definirá o repasse global do colégio.</p>
                   </div>
                 </div>
               </motion.div>
