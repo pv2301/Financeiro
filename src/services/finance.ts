@@ -26,7 +26,7 @@ import {
 const C = {
   STUDENTS:  'fin_students',
   CLASSES:   'fin_classes',
-  SERVICES:  'fin_services',
+  SERVICES:  'fin_snacks', // Kept as fin_snacks to match firestore.rules
   INVOICES:  'fin_invoices',
   CONFIG:    'fin_config',
   PRESENCE:  'fin_presence',

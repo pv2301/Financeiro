@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check, LayoutGrid, List } from 'lucide-react';
+import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check, LayoutGrid, List, Filter } from 'lucide-react';
 import { ClassInfo, BillingMode } from '../types';
 import { finance } from '../services/finance';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -43,6 +43,9 @@ export default function Classes() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
     return (localStorage.getItem('classesViewMode') as 'cards' | 'list') || 'cards';
   });
+
+  const [filterSegment, setFilterSegment] = useState<string>('all');
+  const [filterBilling, setFilterBilling] = useState<string>('all');
 
   useEffect(() => {
     localStorage.setItem('classesViewMode', viewMode);
@@ -112,6 +115,28 @@ export default function Classes() {
         </div>
       </motion.div>
 
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-2 text-slate-400 px-2">
+          <Filter size={18} />
+          <span className="text-sm font-bold uppercase tracking-widest">Filtros:</span>
+        </div>
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <select value={filterSegment} onChange={e => setFilterSegment(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+            <option value="all">Todos os Segmentos</option>
+            {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterBilling} onChange={e => setFilterBilling(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+            <option value="all">Todos os Modelos de Cobrança</option>
+            {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
+              <option key={mode} value={mode}>{BILLING_LABELS[mode]}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Content */}
       {isLoading ? (
         <div className="text-center text-slate-400 py-16">Carregando turmas...</div>
@@ -123,8 +148,8 @@ export default function Classes() {
         </div>
       ) : (
         <div className="space-y-12">
-          {SEGMENT_OPTIONS.map(seg => {
-            const segClasses = classes.filter(c => c.segment === seg);
+          {SEGMENT_OPTIONS.filter(seg => filterSegment === 'all' || filterSegment === seg).map(seg => {
+            const segClasses = classes.filter(c => c.segment === seg && (filterBilling === 'all' || c.billingMode === filterBilling));
             if (segClasses.length === 0) return null;
 
             return (
