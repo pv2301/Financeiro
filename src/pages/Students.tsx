@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Save, X, Search, Upload, Building2, FileText } from 'lucide-react';
 import { Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
 import ImportStudentsModal from '../components/ImportStudentsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -12,6 +13,9 @@ export default function Students() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterDiscount, setFilterDiscount] = useState<'ALL' | 'WITH'>('ALL');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   
   const [editingStudent, setEditingStudent] = useState<Student>({
     id: '', name: '', classId: '', segment: '', birthDate: '',
@@ -50,11 +54,11 @@ export default function Students() {
     setIsModalOpen(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este aluno?')) {
-      await finance.deleteStudent(id);
-      await loadData();
-    }
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await finance.deleteStudent(deleteTarget.id);
+    setDeleteTarget(null);
+    await loadData();
   };
 
   const openModal = (s?: Student) => {
@@ -71,10 +75,22 @@ export default function Students() {
     setIsModalOpen(true);
   };
 
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.responsibleName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      s.responsibleName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesClass = !filterClass || s.classId === filterClass;
+    const matchesDiscount = filterDiscount === 'ALL' || s.personalDiscount > 0;
+    return matchesSearch && matchesClass && matchesDiscount;
+  });
+
+  const getDiscountBadge = (s: Student) => {
+    if (!s.personalDiscount || s.personalDiscount <= 0) return null;
+    const note = (s.personalDiscountNote || '').toLowerCase();
+    const isEmployee = note.includes('funcion') || note.includes('colaborador');
+    return isEmployee
+      ? { label: 'Funcionário', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', Icon: Building2 }
+      : { label: 'Acordo', bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-100', Icon: FileText };
+  };
 
   return (
     <div className="p-8 pb-24 max-w-7xl mx-auto space-y-8">
@@ -120,6 +136,23 @@ export default function Students() {
         </div>
       </motion.div>
 
+      {/* Filters Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
+          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+          <option value="">Todas as Turmas</option>
+          {classes.sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={filterDiscount} onChange={e => setFilterDiscount(e.target.value as any)}
+          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/20">
+          <option value="ALL">Todos</option>
+          <option value="WITH">Com Desconto</option>
+        </select>
+        <span className="ml-auto text-sm font-bold text-slate-400">
+          {filteredStudents.length} aluno{filteredStudents.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
       {/* List */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         {isLoading ? (
@@ -143,18 +176,24 @@ export default function Students() {
                           Responsável: {s.responsibleName}
                         </span>
                       )}
-                      {s.personalDiscount > 0 && (
-                        <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full">
-                          Desconto: {s.personalDiscount}% {s.hasTimelyPaymentDiscount ? '(Até Vencimento)' : ''}
-                        </span>
-                      )}
+                      {(() => {
+                        const badge = getDiscountBadge(s);
+                        if (!badge) return null;
+                        return (
+                          <span className={`${badge.bg} ${badge.text} border ${badge.border} px-3 py-1 rounded-full inline-flex items-center gap-1`}>
+                            <badge.Icon size={12} />
+                            {s.personalDiscount}% — {badge.label}
+                            {s.hasTimelyPaymentDiscount ? ' (Até Venc.)' : ''}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex gap-2 self-end md:self-center">
                     <button onClick={() => openModal(s)} className="p-2 text-slate-400 hover:bg-brand-blue/10 hover:text-brand-blue rounded-xl transition-colors">
                       <Pencil size={20} />
                     </button>
-                    <button onClick={() => handleDelete(s.id)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
+                    <button onClick={() => setDeleteTarget({ id: s.id, name: s.name })} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
                       <Trash2 size={20} />
                     </button>
                   </div>
@@ -297,6 +336,16 @@ export default function Students() {
           onComplete={loadData}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Excluir Aluno"
+        message={`Deseja excluir o aluno "${deleteTarget?.name}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

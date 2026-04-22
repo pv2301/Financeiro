@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Receipt, Search, Filter, CheckCircle2, AlertCircle, Trash2, Phone, Clock } from 'lucide-react';
+import { Receipt, Search, CheckCircle2, AlertCircle, Trash2, Phone, Clock, Upload } from 'lucide-react';
 import { Invoice, Student } from '../types';
 import { finance } from '../services/finance';
 import { format } from 'date-fns';
+import ConfirmDialog from '../components/ConfirmDialog';
+import ImportPaymentsModal from '../components/ImportPaymentsModal';
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -13,6 +15,10 @@ export default function Invoices() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'PAID'>('ALL');
   const [filterMonth, setFilterMonth] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [payTarget, setPayTarget] = useState<{ id: string; name: string } | null>(null);
+  const [boletoFee, setBoletoFee] = useState(3.50);
 
   useEffect(() => {
     loadData();
@@ -21,12 +27,14 @@ export default function Invoices() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [invData, stuData] = await Promise.all([
+      const [invData, stuData, config] = await Promise.all([
         finance.getInvoices(),
-        finance.getStudents()
+        finance.getStudents(),
+        finance.getGlobalConfig()
       ]);
       setInvoices(invData.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()));
       setStudents(stuData);
+      if (config) setBoletoFee(config.boletoEmissionFee);
     } catch (e) {
       console.error(e);
     } finally {
@@ -37,21 +45,21 @@ export default function Invoices() {
   const getStudentName = (id: string) => students.find(s => s.id === id)?.name || 'Desconhecido';
   const getStudentPhone = (id: string) => students.find(s => s.id === id)?.contactPhone || '';
 
-  const handleMarkAsPaid = async (id: string) => {
-    if (confirm('Marcar este boleto como PAGO?')) {
-      const invToUpdate = invoices.find(i => i.id === id);
-      if (invToUpdate) {
-        await finance.saveInvoice({ ...invToUpdate, paymentStatus: 'PAID' });
-        await loadData();
-      }
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este boleto permanentemente?')) {
-      await finance.deleteInvoice(id);
+  const handleMarkAsPaid = async () => {
+    if (!payTarget) return;
+    const invToUpdate = invoices.find(i => i.id === payTarget.id);
+    if (invToUpdate) {
+      await finance.saveInvoice({ ...invToUpdate, paymentStatus: 'PAID' });
       await loadData();
     }
+    setPayTarget(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await finance.deleteInvoice(deleteTarget.id);
+    setDeleteTarget(null);
+    await loadData();
   };
 
   // Extract unique months for filter
@@ -113,6 +121,12 @@ export default function Invoices() {
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
+
+          <button onClick={() => setShowImportModal(true)}
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-colors">
+            <Upload size={18} />
+            Baixa Bancária
+          </button>
         </div>
       </motion.div>
 
@@ -204,7 +218,7 @@ export default function Invoices() {
                           {inv.paymentStatus === 'PENDING' && (
                             <>
                               <button 
-                                onClick={() => handleMarkAsPaid(inv.id!)}
+                                onClick={() => setPayTarget({ id: inv.id!, name: getStudentName(inv.studentId) })}
                                 className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
                                 title="Marcar como Pago"
                               >
@@ -224,7 +238,7 @@ export default function Invoices() {
                           )}
                           
                           <button 
-                            onClick={() => handleDelete(inv.id!)}
+                            onClick={() => setDeleteTarget({ id: inv.id!, name: getStudentName(inv.studentId) })}
                             className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
                             title="Excluir"
                           >
@@ -240,6 +254,34 @@ export default function Invoices() {
           </div>
         )}
       </motion.div>
+
+      {showImportModal && (
+        <ImportPaymentsModal
+          boletoFee={boletoFee}
+          onClose={() => setShowImportModal(false)}
+          onComplete={loadData}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Excluir Boleto"
+        message={`Deseja excluir permanentemente o boleto de "${deleteTarget?.name}"?`}
+        confirmLabel="Excluir"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!payTarget}
+        title="Confirmar Pagamento"
+        message={`Marcar o boleto de "${payTarget?.name}" como PAGO?`}
+        confirmLabel="Confirmar Pagamento"
+        variant="info"
+        onConfirm={handleMarkAsPaid}
+        onCancel={() => setPayTarget(null)}
+      />
     </div>
   );
 }

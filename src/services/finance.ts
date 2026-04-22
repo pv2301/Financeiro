@@ -211,6 +211,29 @@ export const finance = {
       handleFirestoreError(error, OperationType.WRITE, C.CONFIG);
     }
   },
+
+  // ── Global Config (typed) ───────────────────────────────────────────────
+  getGlobalConfig: async (): Promise<{ scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay: number } | null> => {
+    try {
+      const snap = await getDoc(doc(db, C.CONFIG, 'global'));
+      if (!snap.exists()) return null;
+      const data = snap.data();
+      return {
+        scholasticDays: data.scholasticDays || {},
+        boletoEmissionFee: data.boletoEmissionFee ?? 3.50,
+        defaultDueDay: data.defaultDueDay ?? 10,
+      };
+    } catch {
+      return null;
+    }
+  },
+  saveGlobalConfig: async (data: { scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay?: number }): Promise<void> => {
+    try {
+      await setDoc(doc(db, C.CONFIG, 'global'), data, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, C.CONFIG);
+    }
+  },
 };
 
 // ─── Presence Service ─────────────────────────────────────────────────────

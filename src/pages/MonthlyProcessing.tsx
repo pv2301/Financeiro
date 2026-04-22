@@ -1,45 +1,80 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Calculator, Upload, CheckCircle2, AlertCircle, Save, Settings } from 'lucide-react';
-import { Student, ClassInfo, Snack, Invoice } from '../types';
+import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info } from 'lucide-react';
+import { Student, ClassInfo, ServiceItem, Invoice, BillingMode } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface ParsedConsumption {
   studentName: string;
   className: string;
   daysConsumed: number;
-  items: {
-    [snackName: string]: number;
-  };
+  items: Record<string, number>;
 }
+
+const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const CURRENT_YEAR = new Date().getFullYear();
 
 export default function MonthlyProcessing() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
-  const [snacks, setSnacks] = useState<Snack[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
   
   const [monthYear, setMonthYear] = useState(format(new Date(), 'MM/yyyy'));
-  const [businessDays, setBusinessDays] = useState(20);
+  const [scholasticDays, setScholasticDays] = useState<Record<string, number>>({});
+  const [boletoFee, setBoletoFee] = useState(3.50);
   const [isLoading, setIsLoading] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedConsumption[]>([]);
   const [previewInvoices, setPreviewInvoices] = useState<Invoice[]>([]);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
-      const [s, c, sn] = await Promise.all([
+      const [s, c, svc, config] = await Promise.all([
         finance.getStudents(),
         finance.getClasses(),
-        finance.getSnacks()
+        finance.getServices(),
+        finance.getGlobalConfig()
       ]);
       setStudents(s);
       setClasses(c);
-      setSnacks(sn);
+      setServices(svc);
+      if (config) {
+        setScholasticDays(config.scholasticDays || {});
+        setBoletoFee(config.boletoEmissionFee ?? 3.50);
+      }
     }
     load();
   }, []);
+
+  // Computed values for the banner
+  const configuredMonths = Object.values(scholasticDays).filter(v => v > 0).length;
+  const totalDays = Object.values(scholasticDays).reduce((a, b) => a + b, 0);
+  const missingMonths = 12 - configuredMonths;
+
+  const getMonthKey = (monthIdx: number) => `${CURRENT_YEAR}-${String(monthIdx + 1).padStart(2, '0')}`;
+
+  const saveScholasticDays = async () => {
+    await finance.saveGlobalConfig({ scholasticDays, boletoEmissionFee: boletoFee });
+  };
+
+  const updateDay = (monthIdx: number, val: string) => {
+    const key = getMonthKey(monthIdx);
+    const days = parseInt(val) || 0;
+    const updated = { ...scholasticDays, [key]: days };
+    setScholasticDays(updated);
+  };
+
+  // Get the scholastic days for the currently selected processing month
+  const getCurrentMonthDays = (): number => {
+    const parts = monthYear.split('/');
+    if (parts.length !== 2) return 0;
+    const key = `${parts[1]}-${parts[0]}`;
+    return scholasticDays[key] || 0;
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,7 +87,6 @@ export default function MonthlyProcessing() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
 
-      // Identify header row index
       let headerRowIndex = -1;
       for (let i = 0; i < Math.min(20, json.length); i++) {
         const row = json[i];
@@ -66,8 +100,7 @@ export default function MonthlyProcessing() {
         throw new Error('Formato inválido. Coluna "Aluno (Turma)" não encontrada.');
       }
 
-      const headers = json[headerRowIndex]; // e.g. ["Aluno (Turma)", "Data", "Lanche da Manhã", "ALMOÇO - CFC BABY", "Lanche da Tarde", "Total"]
-      
+      const headers = json[headerRowIndex];
       const consumptionMap: Record<string, ParsedConsumption> = {};
 
       for (let i = headerRowIndex + 1; i < json.length; i++) {
@@ -77,7 +110,6 @@ export default function MonthlyProcessing() {
         const rawName = String(row[0]);
         if (rawName.startsWith('Total ') || rawName === 'undefined' || !rawName) continue;
 
-        // "NOME DO ALUNO (NOME DA TURMA)"
         const match = rawName.match(/^(.*?)\s*\((.*?)\)$/);
         let studentName = rawName.trim();
         let className = '';
@@ -96,7 +128,6 @@ export default function MonthlyProcessing() {
 
         consumptionMap[mapKey].daysConsumed += 1;
 
-        // Parse items (from column index 2 to end - 1, ignoring the last "Total" column)
         for (let col = 2; col < headers.length - 1; col++) {
           const snackName = String(headers[col]).trim();
           const quantity = Number(row[col]) || 0;
@@ -119,9 +150,8 @@ export default function MonthlyProcessing() {
 
   const generatePreview = (data: ParsedConsumption[]) => {
     const newInvoices: Invoice[] = [];
+    const businessDays = getCurrentMonthDays();
 
-    // Para cada aluno no banco, tentamos achar o consumo correspondente.
-    // Mesmo alunos sem consumo (0 faltas? ou 100% faltas?) devem gerar boleto se a turma for de mensalidade fixa.
     students.forEach(student => {
       const studentClass = classes.find(c => c.id === student.classId);
       if (!studentClass) return;
@@ -137,32 +167,48 @@ export default function MonthlyProcessing() {
       let personalDiscountAmount = 0;
       let netAmount = 0;
       
-      // Calculate based on billing mode
       if (studentClass.billingMode === 'POSTPAID_CONSUMPTION') {
-        // Cobra exatamente os itens consumidos multiplicados pelos preços da tabela
+        // Sum consumed items × prices from service table
         if (consumption && consumption.items) {
           Object.entries(consumption.items).forEach(([snackName, qty]) => {
-            const snackObj = snacks.find(s => s.name.toLowerCase() === snackName.toLowerCase());
-            const price = snackObj ? snackObj.unitPrice : 0;
-            grossAmount += (price * qty);
+            // Find service price by matching name and segment
+            const svc = services.find(s => s.name.toLowerCase() === snackName.toLowerCase());
+            if (svc) {
+              // Build price key from segment + ageRange
+              const ageRange = studentClass.ageRange;
+              const priceKey = ageRange ? `${studentClass.segment}|${ageRange}` : studentClass.segment;
+              const price = svc.priceByKey[priceKey] || 0;
+              grossAmount += (price * qty);
+            }
           });
         }
         netAmount = grossAmount;
       } 
-      else {
-        // ANTICIPATED_FIXED or ANTICIPATED_DAYS
-        grossAmount = studentClass.basePrice;
+      else if (studentClass.billingMode === 'ANTICIPATED_DAYS') {
+        // basePrice is per-day × scholastic days
+        grossAmount = studentClass.basePrice * businessDays;
         
-        // Desconto por Falta
-        if (studentClass.applyAbsenceDiscount) {
+        if (studentClass.applyAbsenceDiscount && businessDays > 0) {
           const absences = Math.max(0, businessDays - daysConsumed);
-          // O valor de desconto por falta pode vir da tabela de lanches (lanche padrão?) ou um campo na turma.
-          // Para simplificar, vamos assumir que o "basePrice" / "businessDays" é a diária, se não houver um valor fixo estipulado.
-          const dailyRate = grossAmount / businessDays; 
-          absenceDiscountAmount = absences * dailyRate;
+          absenceDiscountAmount = absences * studentClass.discountPerAbsence;
         }
 
-        // Desconto Pessoal
+        const baseAfterAbsence = grossAmount - absenceDiscountAmount;
+        if (student.personalDiscount > 0) {
+          personalDiscountAmount = baseAfterAbsence * (student.personalDiscount / 100);
+        }
+
+        netAmount = grossAmount - absenceDiscountAmount - personalDiscountAmount;
+      }
+      else {
+        // ANTICIPATED_FIXED
+        grossAmount = studentClass.basePrice;
+        
+        if (studentClass.applyAbsenceDiscount && businessDays > 0) {
+          const absences = Math.max(0, businessDays - daysConsumed);
+          absenceDiscountAmount = absences * studentClass.discountPerAbsence;
+        }
+
         const baseAfterAbsence = grossAmount - absenceDiscountAmount;
         if (student.personalDiscount > 0) {
           personalDiscountAmount = baseAfterAbsence * (student.personalDiscount / 100);
@@ -171,27 +217,34 @@ export default function MonthlyProcessing() {
         netAmount = grossAmount - absenceDiscountAmount - personalDiscountAmount;
       }
 
-      // Evita valores negativos
       netAmount = Math.max(0, netAmount);
 
-      // Só gera boleto se tiver algo a cobrar, ou se for turma fixa
+      // Calculate college share
+      const collegeShareAmount = Math.max(0, (netAmount - boletoFee) * (studentClass.collegeSharePercent / 100));
+
       if (netAmount > 0 || studentClass.billingMode !== 'POSTPAID_CONSUMPTION') {
         const nextMonthDate = new Date();
         nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-        nextMonthDate.setDate(10); // Vencimento dia 10 padrão
+        nextMonthDate.setDate(10);
 
         newInvoices.push({
           id: crypto.randomUUID(),
           studentId: student.id,
+          classId: studentClass.id,
           monthYear: monthYear,
+          dueDate: format(nextMonthDate, 'yyyy-MM-dd'),
+          billingMode: studentClass.billingMode,
           grossAmount,
           absenceDays: Math.max(0, businessDays - daysConsumed),
           absenceDiscountAmount,
           personalDiscountAmount,
           netAmount,
-          dueDate: format(nextMonthDate, 'yyyy-MM-dd'),
+          nossoNumero: '',
+          filename: student.filenameSuffix || '',
           paymentStatus: 'PENDING',
-          ticketNumber: '' // Será preenchido na emissão do ERP se houver
+          collegeSharePercent: studentClass.collegeSharePercent,
+          boletoEmissionFee: boletoFee,
+          collegeShareAmount,
         });
       }
     });
@@ -200,12 +253,12 @@ export default function MonthlyProcessing() {
   };
 
   const handleSaveInvoices = async () => {
-    if (!confirm(`Deseja gerar e salvar ${previewInvoices.length} boletos para o mês de ${monthYear}?`)) return;
-
+    setShowSaveConfirm(false);
     setIsLoading(true);
     try {
-      const promises = previewInvoices.map(inv => finance.saveInvoice(inv));
-      await Promise.all(promises);
+      await Promise.all(previewInvoices.map(inv => finance.saveInvoice(inv)));
+      // Also persist scholastic days
+      await saveScholasticDays();
       alert('Boletos gerados com sucesso!');
       setPreviewInvoices([]);
       setParsedData([]);
@@ -217,52 +270,95 @@ export default function MonthlyProcessing() {
     }
   };
 
+  const totalGross = previewInvoices.reduce((a, i) => a + i.grossAmount, 0);
+  const totalNet = previewInvoices.reduce((a, i) => a + i.netAmount, 0);
+  const totalCollege = previewInvoices.reduce((a, i) => a + (i.collegeShareAmount || 0), 0);
+
   return (
     <div className="p-8 pb-24 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
+          <div className="w-12 h-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
             <Calculator size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800">Processamento Mensal</h1>
-            <p className="text-slate-500 font-medium">Cálculo automático de consumo e faltas</p>
+            <h1 className="text-2xl font-black text-slate-800">Fechamento Mensal</h1>
+            <p className="text-slate-500 font-medium">Cálculo automático de consumo e geração de boletos</p>
           </div>
         </div>
       </motion.div>
 
-      {/* Configurações Iniciais */}
+      {/* Step 1: Scholastic Days */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <Settings className="text-brand-orange" size={24} />
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Configurar Parâmetros</h2>
+          <Calendar className="text-brand-orange" size={24} />
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Dias Letivos — {CURRENT_YEAR}</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Banner */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[180px] bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Meses Configurados</p>
+            <p className="text-2xl font-black text-emerald-700">{configuredMonths} <span className="text-sm font-bold">de 12</span></p>
+          </div>
+          <div className={`flex-1 min-w-[180px] ${missingMonths > 0 ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} rounded-2xl p-4 border`}>
+            <p className={`text-[9px] font-black ${missingMonths > 0 ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-widest mb-1`}>Meses Faltando</p>
+            <p className={`text-2xl font-black ${missingMonths > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{missingMonths}</p>
+          </div>
+          <div className="flex-1 min-w-[180px] bg-sky-50 rounded-2xl p-4 border border-sky-100">
+            <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Total Dias Letivos</p>
+            <p className="text-2xl font-black text-sky-700">{totalDays} <span className="text-sm font-bold">dias</span></p>
+          </div>
+        </div>
+
+        {/* Grid of 12 months */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {MONTHS.map((m, i) => {
+            const key = getMonthKey(i);
+            const val = scholasticDays[key] || 0;
+            return (
+              <div key={i} className={`rounded-2xl p-3 text-center border ${val > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{m}</p>
+                <input type="number" value={val || ''} onChange={e => updateDay(i, e.target.value)}
+                  onBlur={saveScholasticDays}
+                  className="w-full text-center font-black text-brand-blue bg-transparent focus:outline-none text-lg" min={0} max={31}
+                  placeholder="0" />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+          <Info size={12} />
+          <span>Os dias letivos podem ser atualizados a qualquer momento. Apenas turmas "Antecipado por Dias Letivos" usam este valor.</span>
+        </div>
+
+        {/* Processing month + boleto fee */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Mês/Ano de Referência</label>
-            <input 
-              type="text" 
-              value={monthYear}
-              onChange={(e) => setMonthYear(e.target.value)}
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Mês/Ano de Referência</label>
+            <input type="text" value={monthYear} onChange={e => setMonthYear(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
-              placeholder="MM/AAAA"
-            />
+              placeholder="MM/AAAA" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Total de Dias Úteis (Aulas no mês)</label>
-            <input 
-              type="number" 
-              value={businessDays}
-              onChange={(e) => setBusinessDays(Number(e.target.value))}
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
+            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700">
+              {getCurrentMonthDays()} dias
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Taxa Boleto (R$)</label>
+            <input type="number" value={boletoFee} onChange={e => setBoletoFee(parseFloat(e.target.value) || 0)}
+              onBlur={saveScholasticDays}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none"
-            />
+              min={0} step={0.01} />
           </div>
         </div>
       </motion.div>
 
-      {/* Importação */}
+      {/* Step 2: Import */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <Upload className="text-brand-blue" size={24} />
@@ -270,25 +366,16 @@ export default function MonthlyProcessing() {
         </div>
 
         <div className="text-center py-8">
-          <input 
-            type="file" 
-            accept=".xls, .xlsx" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            className="hidden" 
-          />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50"
-          >
+          <input type="file" accept=".xls, .xlsx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} disabled={isLoading}
+            className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50">
             {isLoading ? 'Processando...' : 'Selecionar Arquivo Excel'}
           </button>
           <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do "Relatório Cardápios Consumidos.xls" extraído do sistema da catraca.</p>
         </div>
       </motion.div>
 
-      {/* Preview */}
+      {/* Step 3: Preview */}
       {previewInvoices.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -296,14 +383,27 @@ export default function MonthlyProcessing() {
               <CheckCircle2 className="text-emerald-500" size={24} />
               <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 3: Revisão de Boletos</h2>
             </div>
-            <button 
-              onClick={handleSaveInvoices}
-              disabled={isLoading}
-              className="flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors"
-            >
+            <button onClick={() => setShowSaveConfirm(true)} disabled={isLoading}
+              className="flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
               <Save size={20} />
-              Salvar e Gerar {previewInvoices.length} Boletos
+              Gerar {previewInvoices.length} Boletos
             </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Bruto</p>
+              <p className="text-xl font-black text-slate-700">R$ {totalGross.toFixed(2)}</p>
+            </div>
+            <div className="bg-emerald-50 rounded-2xl p-4">
+              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Líquido</p>
+              <p className="text-xl font-black text-emerald-700">R$ {totalNet.toFixed(2)}</p>
+            </div>
+            <div className="bg-sky-50 rounded-2xl p-4">
+              <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Repasse Colégio</p>
+              <p className="text-xl font-black text-sky-700">R$ {totalCollege.toFixed(2)}</p>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -311,6 +411,8 @@ export default function MonthlyProcessing() {
               <thead>
                 <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-widest">
                   <th className="pb-3 pr-4">Aluno</th>
+                  <th className="pb-3 pr-4">Turma</th>
+                  <th className="pb-3 pr-4">Modelo</th>
                   <th className="pb-3 pr-4">Base (R$)</th>
                   <th className="pb-3 pr-4">Faltas</th>
                   <th className="pb-3 pr-4">Desc. Faltas</th>
@@ -321,14 +423,21 @@ export default function MonthlyProcessing() {
               <tbody className="divide-y divide-slate-50">
                 {previewInvoices.map((inv, idx) => {
                   const s = students.find(x => x.id === inv.studentId);
+                  const cls = classes.find(x => x.id === inv.classId);
+                  const modeLabel = inv.billingMode === 'POSTPAID_CONSUMPTION' ? 'Pós' : inv.billingMode === 'ANTICIPATED_DAYS' ? 'Dias' : 'Fixo';
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-3 pr-4 font-bold text-slate-800">{s?.name || 'Desconhecido'}</td>
+                      <td className="py-3 pr-4 text-sm text-slate-500">{cls?.name || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                          inv.billingMode === 'POSTPAID_CONSUMPTION' ? 'bg-amber-100 text-amber-700' :
+                          inv.billingMode === 'ANTICIPATED_DAYS' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
+                        }`}>{modeLabel}</span>
+                      </td>
                       <td className="py-3 pr-4 text-slate-500">R$ {inv.grossAmount.toFixed(2)}</td>
                       <td className="py-3 pr-4">
-                        <span className="bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded">
-                          {inv.absenceDays} d
-                        </span>
+                        <span className="bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded">{inv.absenceDays} d</span>
                       </td>
                       <td className="py-3 pr-4 text-red-500 font-medium">- R$ {inv.absenceDiscountAmount.toFixed(2)}</td>
                       <td className="py-3 pr-4 text-emerald-500 font-medium">- R$ {inv.personalDiscountAmount.toFixed(2)}</td>
@@ -341,6 +450,16 @@ export default function MonthlyProcessing() {
           </div>
         </motion.div>
       )}
+
+      <ConfirmDialog
+        isOpen={showSaveConfirm}
+        title="Gerar Boletos"
+        message={`Deseja gerar e salvar ${previewInvoices.length} boletos para ${monthYear}?\n\nTotal Líquido: R$ ${totalNet.toFixed(2)}`}
+        confirmLabel="Gerar Boletos"
+        variant="info"
+        onConfirm={handleSaveInvoices}
+        onCancel={() => setShowSaveConfirm(false)}
+      />
     </div>
   );
 }
