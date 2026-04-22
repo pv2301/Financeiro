@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info } from 'lucide-react';
+import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Student, ClassInfo, ServiceItem, Invoice, BillingMode } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
@@ -63,6 +63,17 @@ export default function MonthlyProcessing() {
   const [activeTab, setActiveTab] = useState<'fixed' | 'consumption'>('fixed');
   const [manualAbsences, setManualAbsences] = useState<Record<string, number>>({});
   const [consumptionFilter, setConsumptionFilter] = useState<'all' | 'imported' | 'pending'>('all');
+  const [studentSearch, setStudentSearch] = useState('');
+  
+  const [stepStates, setStepStates] = useState({
+    step1: true,
+    step2: true,
+    step3: true
+  });
+
+  const toggleStep = (step: keyof typeof stepStates) => {
+    setStepStates(prev => ({ ...prev, [step]: !prev[step] }));
+  };
 
   useEffect(() => {
     async function load() {
@@ -251,133 +262,189 @@ export default function MonthlyProcessing() {
       </motion.div>
 
       {/* Step 1: Processing Month Selection */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <Calendar className="text-brand-orange" size={24} />
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Referência — {CURRENT_YEAR}</h2>
-        </div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <button onClick={() => toggleStep('step1')} className="w-full flex items-center justify-between p-8 bg-slate-50/50 hover:bg-slate-100/50 transition-colors">
+          <div className="flex items-center gap-3">
+            <Calendar className="text-brand-orange" size={24} />
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 1: Referência — {CURRENT_YEAR}</h2>
+          </div>
+          <div className="text-slate-400">
+            {stepStates.step1 ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+          </div>
+        </button>
 
-        {getCurrentMonthDays() === 0 && (
-          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
-            <div className="text-amber-500 mt-0.5">⚠️</div>
-            <div>
-              <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
-              <p className="text-sm text-amber-700">O mês selecionado possui 0 dias letivos configurados. Acesse as Configurações para definir.</p>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {stepStates.step1 && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="p-8 border-t border-slate-100 space-y-6"
+            >
+              {getCurrentMonthDays() === 0 && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+                  <div className="text-amber-500 mt-0.5">⚠️</div>
+                  <div>
+                    <h4 className="font-bold text-amber-800">Dias letivos não configurados</h4>
+                    <p className="text-sm text-amber-700">O mês selecionado possui 0 dias letivos configurados. Acesse as Configurações para definir.</p>
+                  </div>
+                </div>
+              )}
 
-        <div className="space-y-5">
-          <div>
-            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Mês/Ano de Referência — Clique para selecionar</label>
-            <div className="flex flex-wrap gap-2">
-              {MONTHS_FULL.map((m, i) => {
-                const mmStr = String(i + 1).padStart(2, '0');
-                const label = `${mmStr}/${CURRENT_YEAR}`;
-                const isCurrent = i === CURRENT_MONTH_IDX;
-                const isSelected = monthYear === label;
-                return (
-                  <button key={i} onClick={() => { setMonthYear(label); setSelectedMonthIdx(i); }}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all border ${
-                      isSelected
-                        ? 'bg-brand-blue text-white border-brand-blue shadow-lg shadow-brand-blue/20'
-                        : isCurrent
-                        ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/30 hover:bg-brand-orange/20'
-                        : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'
-                    }`}>
-                    {MONTHS[i]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="pt-2">
-            <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
-            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700 flex items-center justify-between max-w-sm">
-              <span>{getCurrentMonthDays()} dias</span>
-              <span className="text-xs font-bold opacity-60">{MONTHS_FULL[selectedMonthIdx]} {CURRENT_YEAR}</span>
-            </div>
-          </div>
-        </div>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Mês/Ano de Referência — Clique para selecionar</label>
+                  <div className="flex flex-wrap gap-2">
+                    {MONTHS_FULL.map((m, i) => {
+                      const mmStr = String(i + 1).padStart(2, '0');
+                      const label = `${mmStr}/${CURRENT_YEAR}`;
+                      const isCurrent = i === CURRENT_MONTH_IDX;
+                      const isSelected = monthYear === label;
+                      return (
+                        <button key={i} onClick={() => { setMonthYear(label); setSelectedMonthIdx(i); }}
+                          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all border ${
+                            isSelected
+                              ? 'bg-brand-blue text-white border-brand-blue shadow-lg shadow-brand-blue/20'
+                              : isCurrent
+                              ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/30 hover:bg-brand-orange/20'
+                              : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'
+                          }`}>
+                          {MONTHS[i]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Dias Letivos neste Mês</label>
+                  <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 font-black text-emerald-700 flex items-center justify-between max-w-sm">
+                    <span>{getCurrentMonthDays()} dias</span>
+                    <span className="text-xs font-bold opacity-60">{MONTHS_FULL[selectedMonthIdx]} {CURRENT_YEAR}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Step 2: Import */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <Upload className="text-brand-blue" size={24} />
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 2: Importar Relatório de Consumo</h2>
-        </div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <button onClick={() => toggleStep('step2')} className="w-full flex items-center justify-between p-8 bg-slate-50/50 hover:bg-slate-100/50 transition-colors">
+          <div className="flex items-center gap-3">
+            <Upload className="text-brand-blue" size={24} />
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 2: Importar Relatório de Consumo</h2>
+          </div>
+          <div className="text-slate-400">
+            {stepStates.step2 ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+          </div>
+        </button>
 
-        <div className="text-center py-8">
-          <button onClick={() => setShowImportModal(true)} disabled={isLoading}
-            className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50">
-            {isLoading ? 'Carregando...' : 'Importar Consumo'}
-          </button>
-          <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx).</p>
-          
-          {dbConsumption.length > 0 && (
-            <div className="mt-6 flex items-center justify-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl inline-flex font-bold text-sm border border-emerald-100">
-              <CheckCircle2 size={18} />
-              Consumo do mês carregado ({dbConsumption.length} alunos)
-            </div>
+        <AnimatePresence>
+          {stepStates.step2 && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="p-8 border-t border-slate-100 space-y-6"
+            >
+              <div className="text-center py-8">
+                <button onClick={() => setShowImportModal(true)} disabled={isLoading}
+                  className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50">
+                  {isLoading ? 'Carregando...' : 'Importar Consumo'}
+                </button>
+                <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx).</p>
+                
+                {dbConsumption.length > 0 && (
+                  <div className="mt-6 flex items-center justify-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl inline-flex font-bold text-sm border border-emerald-100">
+                    <CheckCircle2 size={18} />
+                    Consumo do mês carregado ({dbConsumption.length} alunos)
+                  </div>
+                )}
+              </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </motion.div>
 
       {/* Step 3: Preview */}
       {previewInvoices.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <button onClick={() => toggleStep('step3')} className="w-full flex items-center justify-between p-8 bg-slate-50/50 hover:bg-slate-100/50 transition-colors">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="text-emerald-500" size={24} />
               <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 3: Revisão de Boletos</h2>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
-              <button
-                onClick={() => setActiveTab('fixed')}
-                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                  activeTab === 'fixed' 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Mensalidade Fixa
-              </button>
-              <button
-                onClick={() => setActiveTab('consumption')}
-                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                  activeTab === 'consumption' 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Consumo
-              </button>
+            <div className="text-slate-400">
+              {stepStates.step3 ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
             </div>
+          </button>
 
-            <button onClick={() => setShowSaveConfirm(true)} disabled={isLoading}
-              className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
-              <Save size={20} />
-              Gerar {previewInvoices.length} Boletos
-            </button>
-          </div>
+          <AnimatePresence>
+            {stepStates.step3 && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="p-8 border-t border-slate-100 space-y-6"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
+                    <button
+                      onClick={() => setActiveTab('fixed')}
+                      className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                        activeTab === 'fixed' 
+                          ? 'bg-white text-slate-800 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Mensalidade Fixa
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('consumption')}
+                      className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                        activeTab === 'consumption' 
+                          ? 'bg-white text-slate-800 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Consumo
+                    </button>
+                  </div>
 
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-50 rounded-2xl p-4">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Bruto</p>
-              <p className="text-xl font-black text-slate-700">R$ {totalGross.toFixed(2)}</p>
-            </div>
-            <div className="bg-emerald-50 rounded-2xl p-4">
-              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Líquido</p>
-              <p className="text-xl font-black text-emerald-700">R$ {totalNet.toFixed(2)}</p>
-            </div>
-            <div className="bg-sky-50 rounded-2xl p-4">
-              <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Repasse Colégio</p>
-              <p className="text-xl font-black text-sky-700">R$ {totalCollege.toFixed(2)}</p>
-            </div>
-          </div>
+                  <div className="flex-1 max-w-sm relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Filtrar por aluno..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-sm"
+                    />
+                  </div>
+
+                  <button onClick={() => setShowSaveConfirm(true)} disabled={isLoading}
+                    className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
+                    <Save size={20} />
+                    Gerar {previewInvoices.length} Boletos
+                  </button>
+                </div>
+
+                {/* Summary cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Bruto</p>
+                    <p className="text-xl font-black text-slate-700">R$ {totalGross.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-2xl p-4">
+                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Líquido</p>
+                    <p className="text-xl font-black text-emerald-700">R$ {totalNet.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-sky-50 rounded-2xl p-4">
+                    <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Repasse Colégio</p>
+                    <p className="text-xl font-black text-sky-700">R$ {totalCollege.toFixed(2)}</p>
+                  </div>
+                </div>
 
           <div className="overflow-x-auto mt-6">
             {activeTab === 'fixed' ? (
@@ -393,7 +460,14 @@ export default function MonthlyProcessing() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {previewInvoices.filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION').map((inv) => {
+                  {previewInvoices
+                    .filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION')
+                    .filter(inv => {
+                      if (!studentSearch) return true;
+                      const s = students.find(x => x.id === inv.studentId);
+                      return s?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                    })
+                    .map((inv) => {
                     const s = students.find(x => x.id === inv.studentId);
                     const cls = classes.find(x => x.id === inv.classId);
                     
@@ -456,9 +530,11 @@ export default function MonthlyProcessing() {
                       .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
                       .filter(inv => {
                         const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
-                        if (consumptionFilter === 'imported') return hasConsumption;
-                        if (consumptionFilter === 'pending') return !hasConsumption;
-                        return true;
+                        const matchesSearch = !studentSearch || students.find(x => x.id === inv.studentId)?.name.toLowerCase().includes(studentSearch.toLowerCase());
+                        
+                        if (consumptionFilter === 'imported') return hasConsumption && matchesSearch;
+                        if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
+                        return matchesSearch;
                       })
                       .map((inv) => {
                       const s = students.find(x => x.id === inv.studentId);
@@ -506,6 +582,9 @@ export default function MonthlyProcessing() {
           </div>
         </motion.div>
       )}
+    </AnimatePresence>
+  </motion.div>
+)}
 
       <ConfirmDialog
         isOpen={showSaveConfirm}
