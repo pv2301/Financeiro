@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check } from 'lucide-react';
+import { GraduationCap, Plus, Pencil, Trash2, Users, X, Check, LayoutGrid, List } from 'lucide-react';
 import { ClassInfo, BillingMode } from '../types';
 import { finance } from '../services/finance';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -39,6 +39,14 @@ export default function Classes() {
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
+    return (localStorage.getItem('classesViewMode') as 'cards' | 'list') || 'cards';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classesViewMode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -88,13 +96,23 @@ export default function Classes() {
             <p className="text-slate-500 font-medium">Modelos de cobrança e configuração por turma</p>
           </div>
         </div>
-        <button onClick={openNew}
-          className="flex items-center gap-2 bg-brand-blue text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-brand-blue/90 transition-all shadow-lg shadow-brand-blue/20">
-          <Plus size={18} /> Nova Turma
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button onClick={() => setViewMode('cards')} className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-white shadow-sm text-brand-blue' : 'text-slate-400 hover:text-slate-600'}`}>
+              <LayoutGrid size={18} />
+            </button>
+            <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-brand-blue' : 'text-slate-400 hover:text-slate-600'}`}>
+              <List size={18} />
+            </button>
+          </div>
+          <button onClick={openNew}
+            className="flex items-center gap-2 bg-brand-blue text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-brand-blue/90 transition-all shadow-lg shadow-brand-blue/20">
+            <Plus size={18} /> Nova Turma
+          </button>
+        </div>
       </motion.div>
 
-      {/* Grid */}
+      {/* Content */}
       {isLoading ? (
         <div className="text-center text-slate-400 py-16">Carregando turmas...</div>
       ) : classes.length === 0 ? (
@@ -104,44 +122,107 @@ export default function Classes() {
           <p className="text-sm mt-1">Crie manualmente ou importe alunos para gerar turmas automaticamente.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {classes.map((cls, i) => (
-            <motion.div key={cls.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4 hover:border-brand-blue/30 transition-colors">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{cls.segment || 'Segmento'}</p>
-                  <h3 className="text-xl font-black text-slate-800">{cls.name}</h3>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(cls)} className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-colors"><Pencil size={16} /></button>
-                  <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
-                </div>
-              </div>
+        <div className="space-y-12">
+          {SEGMENT_OPTIONS.map(seg => {
+            const segClasses = classes.filter(c => c.segment === seg);
+            if (segClasses.length === 0) return null;
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 rounded-2xl p-3">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Modelo</p>
-                  <p className="text-sm font-bold text-slate-700">{BILLING_LABELS[cls.billingMode]}</p>
+            return (
+              <div key={seg} className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">{seg}</h2>
+                  <div className="h-px bg-slate-200 flex-1"></div>
                 </div>
-                <div className="bg-slate-50 rounded-2xl p-3">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Valor Base</p>
-                  <p className="text-sm font-bold text-brand-blue">R$ {cls.basePrice.toFixed(2)}</p>
-                </div>
-                <div className="bg-slate-50 rounded-2xl p-3">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">% Colégio</p>
-                  <p className="text-sm font-bold text-slate-700">{cls.collegeSharePercent}%</p>
-                </div>
-                <div className="bg-emerald-50 rounded-2xl p-3 flex items-center gap-2">
-                  <Users size={14} className="text-emerald-600" />
-                  <div>
-                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Alunos</p>
-                    <p className="text-sm font-black text-emerald-700">{studentCounts[cls.id] || 0}</p>
+
+                {viewMode === 'cards' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {segClasses.map((cls, i) => (
+                      <motion.div key={cls.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                        className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4 hover:border-brand-blue/30 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-xl font-black text-slate-800">{cls.name}</h3>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openEdit(cls)} className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-colors"><Pencil size={16} /></button>
+                            <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-slate-50 rounded-2xl p-3">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Modelo</p>
+                            <p className="text-sm font-bold text-slate-700">{BILLING_LABELS[cls.billingMode]}</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Valor Base</p>
+                            <p className="text-sm font-bold text-brand-blue">R$ {cls.basePrice.toFixed(2)}</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">% Colégio</p>
+                            <p className="text-sm font-bold text-slate-700">{cls.collegeSharePercent}%</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-2xl p-3 flex items-center gap-2">
+                            <Users size={14} className="text-emerald-600" />
+                            <div>
+                              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Alunos</p>
+                              <p className="text-sm font-black text-emerald-700">{studentCounts[cls.id] || 0}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-slate-50/50">
+                            <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Turma</th>
+                            <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Alunos</th>
+                            <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Modelo de Cobrança</th>
+                            <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Valor Base</th>
+                            <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">% Repasse</th>
+                            <th className="px-6 py-4 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {segClasses.map((cls) => (
+                            <tr key={cls.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <span className="font-bold text-slate-800">{cls.name}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-100">
+                                  <Users size={12} /> {studentCounts[cls.id] || 0}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-bold text-slate-600">{BILLING_LABELS[cls.billingMode]}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-bold text-brand-blue">R$ {cls.basePrice.toFixed(2)}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-bold text-slate-600">{cls.collegeSharePercent}%</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button onClick={() => openEdit(cls)} className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-colors"><Pencil size={18} /></button>
+                                  <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -121,8 +121,12 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
         const cls = classLookup.get(className.toLowerCase());
         if (!name || !cls) return null;
         const cpf = String(r['CPF_RESP_FIN'] || '').trim();
+        const cleanCpf = cpf.replace(/\D/g, '');
+        const fallbackId = generateFilenameSuffix(name).replace(/[^a-zA-Z0-9]/g, '') + '_' + cls.id;
+        const studentId = cleanCpf ? cleanCpf + '_' + fallbackId.substring(0, 5) : fallbackId;
+        
         const s: Student = {
-          id: cpf || crypto.randomUUID(),
+          id: studentId,
           name,
           classId: cls.id,
           segment: String(r['car'] || '').trim(),

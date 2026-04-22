@@ -142,8 +142,11 @@ export default function Snacks() {
                   <tbody className="divide-y divide-slate-200/30">
                     {services.map(svc => {
                       const hasAnyPrice = seg.subKeys.some(sk => (svc.priceByKey[sk.key] || 0) > 0);
-                      // Show service in this segment if it has prices
-                      if (!hasAnyPrice) return null;
+                      const isBrandNew = !Object.values(svc.priceByKey || {}).some(val => val > 0);
+                      const isFirstSegment = seg.key === ALL_SEGMENTS[0].key;
+                      
+                      // Show service in this segment if it has prices, or if it's completely new (show in first segment only)
+                      if (!hasAnyPrice && !(isBrandNew && isFirstSegment)) return null;
                       return (
                         <tr key={svc.id} className="hover:bg-white/50 transition-colors">
                           <td className="px-6 py-3 font-bold text-slate-800">
