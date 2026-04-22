@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info, ChevronDown, ChevronUp, Search, X as XIcon, Clock } from 'lucide-react';
 import { Student, ClassInfo, ServiceItem, Invoice, BillingMode } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
@@ -59,12 +59,16 @@ export default function MonthlyProcessing() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // New UI states
+  // UI states
   const [activeTab, setActiveTab] = useState<'fixed' | 'consumption'>('fixed');
   const [manualAbsences, setManualAbsences] = useState<Record<string, number>>({});
-  const [consumptionFilter, setConsumptionFilter] = useState<'all' | 'imported' | 'pending'>('all');
+  const [consumptionFilter, setConsumptionFilter] = useState<'all' | 'imported' | 'pending' | 'recent'>('all');
+  const [recentlyImportedIds, setRecentlyImportedIds] = useState<string[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
-  
+  const [classFilter, setClassFilter] = useState('all');
+  const [toast, setToast] = useState<{ message: string; count: number } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [stepStates, setStepStates] = useState({
     step1: true,
     step2: true,
@@ -74,6 +78,12 @@ export default function MonthlyProcessing() {
   const toggleStep = (step: keyof typeof stepStates) => {
     setStepStates(prev => ({ ...prev, [step]: !prev[step] }));
   };
+
+  const showToast = useCallback((count: number) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message: 'Consumo importado com sucesso', count });
+    toastTimerRef.current = setTimeout(() => setToast(null), 10000);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -247,7 +257,24 @@ export default function MonthlyProcessing() {
   const totalCollege = previewInvoices.reduce((a, i) => a + (i.collegeShareAmount || 0), 0);
 
   return (
-    <div className="p-8 pb-24 max-w-7xl mx-auto space-y-8">
+    <div className="p-6 pb-24 max-w-full mx-auto space-y-6">
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-emerald-600 text-white px-5 py-3.5 rounded-2xl shadow-xl font-bold text-sm"
+          >
+            <CheckCircle2 size={18} />
+            {toast.message} — {toast.count} {toast.count === 1 ? 'aluno' : 'alunos'}
+            <button onClick={() => setToast(null)} className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors">
+              <XIcon size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
         <div className="flex items-center gap-4">
@@ -356,9 +383,9 @@ export default function MonthlyProcessing() {
                 <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx).</p>
                 
                 {dbConsumption.length > 0 && (
-                  <div className="mt-6 flex items-center justify-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl inline-flex font-bold text-sm border border-emerald-100">
+                  <div className="mt-6 inline-flex items-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl font-bold text-sm border border-emerald-100">
                     <CheckCircle2 size={18} />
-                    Consumo do mês carregado ({dbConsumption.length} alunos)
+                    {dbConsumption.length} {dbConsumption.length === 1 ? 'aluno' : 'alunos'} com consumo no mês
                   </div>
                 )}
               </div>
@@ -388,45 +415,58 @@ export default function MonthlyProcessing() {
                 exit={{ height: 0, opacity: 0 }}
                 className="p-8 border-t border-slate-100 space-y-6"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  {/* Tab switcher */}
                   <div className="flex flex-wrap items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
                     <button
                       onClick={() => setActiveTab('fixed')}
-                      className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                        activeTab === 'fixed' 
-                          ? 'bg-white text-slate-800 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700'
+                      className={`px-5 py-2 rounded-lg font-bold text-sm transition-all ${
+                        activeTab === 'fixed' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
                       Mensalidade Fixa
                     </button>
                     <button
                       onClick={() => setActiveTab('consumption')}
-                      className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                        activeTab === 'consumption' 
-                          ? 'bg-white text-slate-800 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700'
+                      className={`px-5 py-2 rounded-lg font-bold text-sm transition-all ${
+                        activeTab === 'consumption' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
                       Consumo
                     </button>
                   </div>
 
-                  <div className="flex-1 max-w-sm relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Filtrar por aluno..."
-                      value={studentSearch}
-                      onChange={(e) => setStudentSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-sm"
-                    />
+                  {/* Filters row */}
+                  <div className="flex flex-wrap gap-2 flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Buscar aluno..."
+                        value={studentSearch}
+                        onChange={(e) => setStudentSearch(e.target.value)}
+                        className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/20 font-medium text-sm w-44"
+                      />
+                    </div>
+                    <select
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 text-slate-600"
+                    >
+                      <option value="all">Todas as turmas</option>
+                      {classes.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
                   </div>
 
-                  <button onClick={() => setShowSaveConfirm(true)} disabled={isLoading}
-                    className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
-                    <Save size={20} />
-                    Gerar {previewInvoices.length} Boletos
+                  <button
+                    onClick={() => setShowSaveConfirm(true)}
+                    disabled={isLoading}
+                    className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-black hover:bg-emerald-100 transition-colors text-sm whitespace-nowrap"
+                  >
+                    <Save size={18} />
+                    Gerar {previewInvoices.filter(inv => inv.netAmount > 0).length} Boletos
                   </button>
                 </div>
 
@@ -462,6 +502,7 @@ export default function MonthlyProcessing() {
                       <tbody className="divide-y divide-slate-50">
                         {previewInvoices
                           .filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION')
+                          .filter(inv => classFilter === 'all' || inv.classId === classFilter)
                           .filter(inv => {
                             if (!studentSearch) return true;
                             const s = students.find(x => x.id === inv.studentId);
@@ -510,10 +551,15 @@ export default function MonthlyProcessing() {
                     </table>
                   ) : (
                     <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <button onClick={() => setConsumptionFilter('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
-                        <button onClick={() => setConsumptionFilter('imported')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
-                        <button onClick={() => setConsumptionFilter('pending')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => setConsumptionFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
+                        <button onClick={() => setConsumptionFilter('imported')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
+                        <button onClick={() => setConsumptionFilter('pending')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
+                        {recentlyImportedIds.length > 0 && (
+                          <button onClick={() => setConsumptionFilter('recent')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${consumptionFilter === 'recent' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-sky-50'}`}>
+                            <Clock size={11} /> Recentes ({recentlyImportedIds.length})
+                          </button>
+                        )}
                       </div>
 
                       <table className="w-full text-left">
@@ -528,13 +574,16 @@ export default function MonthlyProcessing() {
                         <tbody className="divide-y divide-slate-50">
                           {previewInvoices
                             .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
+                            .filter(inv => classFilter === 'all' || inv.classId === classFilter)
                             .filter(inv => {
                               const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
+                              const isRecent = recentlyImportedIds.includes(inv.studentId);
                               const studentName = students.find(x => x.id === inv.studentId)?.name;
                               const matchesSearch = !studentSearch || (studentName?.toLowerCase().includes(studentSearch.toLowerCase()) ?? false);
-                              
+
                               if (consumptionFilter === 'imported') return hasConsumption && matchesSearch;
                               if (consumptionFilter === 'pending') return !hasConsumption && matchesSearch;
+                              if (consumptionFilter === 'recent') return isRecent && matchesSearch;
                               return matchesSearch;
                             })
                             .map((inv) => {
@@ -603,7 +652,11 @@ export default function MonthlyProcessing() {
         students={students}
         classes={classes}
         monthYear={monthYear}
-        onSuccess={() => loadConsumption(monthYear)}
+        onSuccess={(importedIds) => {
+          setRecentlyImportedIds(importedIds);
+          showToast(importedIds.length);
+          loadConsumption(monthYear);
+        }}
       />
     </div>
   );
