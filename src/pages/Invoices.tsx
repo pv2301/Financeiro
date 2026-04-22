@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Receipt, Search, CheckCircle2, AlertCircle, Trash2, Phone, Clock, Upload } from 'lucide-react';
+import { Receipt, Search, CheckCircle2, AlertCircle, Trash2, Phone, Clock, Upload, ArrowUpDown } from 'lucide-react';
 import { Invoice, Student } from '../types';
 import { finance } from '../services/finance';
 import { format } from 'date-fns';
@@ -19,6 +19,11 @@ export default function Invoices() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [payTarget, setPayTarget] = useState<{ id: string; name: string } | null>(null);
   const [boletoFee, setBoletoFee] = useState(3.50);
+
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkPayConfirm, setShowBulkPayConfirm] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -62,6 +67,63 @@ export default function Invoices() {
     await loadData();
   };
 
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (current?.key === key) {
+        if (current.direction === 'asc') return { key, direction: 'desc' };
+        return null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedInvoices.size === sortedInvoices.length && sortedInvoices.length > 0) {
+      setSelectedInvoices(new Set());
+    } else {
+      setSelectedInvoices(new Set(sortedInvoices.map(i => i.id!)));
+    }
+  };
+
+  const toggleSelectInvoice = (id: string) => {
+    const newSet = new Set(selectedInvoices);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedInvoices(newSet);
+  };
+
+  const handleBulkMarkAsPaid = async () => {
+    setIsLoading(true);
+    try {
+      const promises = Array.from(selectedInvoices).map(id => {
+        const inv = invoices.find(i => i.id === id);
+        if (inv && inv.paymentStatus === 'PENDING') {
+          return finance.saveInvoice({ ...inv, paymentStatus: 'PAID' });
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(promises);
+      setSelectedInvoices(new Set());
+      setShowBulkPayConfirm(false);
+      await loadData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setIsLoading(true);
+    try {
+      const promises = Array.from(selectedInvoices).map(id => finance.deleteInvoice(id));
+      await Promise.all(promises);
+      setSelectedInvoices(new Set());
+      setShowBulkDeleteConfirm(false);
+      await loadData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Extract unique months for filter
   const uniqueMonths = Array.from(new Set(invoices.map(i => i.monthYear))).sort().reverse();
 
@@ -73,8 +135,48 @@ export default function Invoices() {
     return matchesSearch && matchesStatus && matchesMonth;
   });
 
+  const sortedInvoices = React.useMemo(() => {
+    let sortable = [...filteredInvoices];
+    if (sortConfig !== null) {
+      sortable.sort((a, b) => {
+        let aVal: any = '';
+        let bVal: any = '';
+        if (sortConfig.key === 'status') {
+          aVal = a.paymentStatus;
+          bVal = b.paymentStatus;
+        } else if (sortConfig.key === 'student') {
+          aVal = getStudentName(a.studentId);
+          bVal = getStudentName(b.studentId);
+        } else if (sortConfig.key === 'monthYear') {
+          aVal = a.monthYear;
+          bVal = b.monthYear;
+        } else if (sortConfig.key === 'netAmount') {
+          aVal = a.netAmount;
+          bVal = b.netAmount;
+        } else if (sortConfig.key === 'dueDate') {
+          aVal = new Date(a.dueDate).getTime();
+          bVal = new Date(b.dueDate).getTime();
+        }
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortable;
+  }, [filteredInvoices, sortConfig, students]);
+
   const totalAmount = filteredInvoices.reduce((acc, curr) => acc + curr.netAmount, 0);
   const pendingAmount = filteredInvoices.filter(i => i.paymentStatus === 'PENDING').reduce((acc, curr) => acc + curr.netAmount, 0);
+
+  const renderSortHeader = (label: string, key: string, align: 'left' | 'right' | 'center' = 'left') => (
+    <th className={`px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`} onClick={() => handleSort(key)}>
+      <div className={`flex items-center gap-2 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+        {label}
+        <ArrowUpDown size={12} className={sortConfig?.key === key ? 'text-brand-blue' : 'text-slate-300'} />
+      </div>
+    </th>
+  );
 
   return (
     <div className="p-8 pb-24 max-w-7xl mx-auto space-y-8">
@@ -153,39 +255,72 @@ export default function Invoices() {
       </motion.div>
 
       {/* List */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 text-center text-slate-400 font-medium">Carregando faturas...</div>
-        ) : filteredInvoices.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center gap-4">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
-              <Receipt size={32} />
+      <div className="space-y-4">
+        {selectedInvoices.size > 0 && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-brand-blue text-white p-4 rounded-2xl shadow-lg flex items-center justify-between sticky top-4 z-30">
+            <div className="font-bold">
+              {selectedInvoices.size} {selectedInvoices.size === 1 ? 'boleto selecionado' : 'boletos selecionados'}
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-700">Nenhum boleto encontrado</h3>
-              <p className="text-slate-500 font-medium max-w-md mx-auto mt-1">Não há boletos para os filtros selecionados. Vá em <span className="text-brand-blue font-bold">Fechamento Mensal</span> para gerar novos boletos.</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowBulkPayConfirm(true)} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl font-bold transition-colors flex items-center gap-2 text-sm">
+                <CheckCircle2 size={16} /> Receber
+              </button>
+              <button onClick={() => setShowBulkDeleteConfirm(true)} className="bg-red-500/80 hover:bg-red-500 px-4 py-2 rounded-xl font-bold transition-colors flex items-center gap-2 text-sm">
+                <Trash2 size={16} /> Excluir
+              </button>
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-widest">
-                  <th className="px-6 py-4">Status / Vencimento</th>
-                  <th className="px-6 py-4">Aluno</th>
-                  <th className="px-6 py-4">Referência</th>
-                  <th className="px-6 py-4">Descontos</th>
-                  <th className="px-6 py-4">Valor Líquido</th>
-                  <th className="px-6 py-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredInvoices.map(inv => {
-                  const isOverdue = inv.paymentStatus === 'PENDING' && new Date(inv.dueDate) < new Date();
-                  
-                  return (
-                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
+          </motion.div>
+        )}
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          {isLoading ? (
+            <div className="p-12 text-center text-slate-400 font-medium">Carregando faturas...</div>
+          ) : filteredInvoices.length === 0 ? (
+            <div className="p-12 text-center flex flex-col items-center justify-center gap-4">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                <Receipt size={32} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-700">Nenhum boleto encontrado</h3>
+                <p className="text-slate-500 font-medium max-w-md mx-auto mt-1">Não há boletos para os filtros selecionados. Vá em <span className="text-brand-blue font-bold">Fechamento Mensal</span> para gerar novos boletos.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-widest select-none">
+                    <th className="px-6 py-4 w-12">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedInvoices.size === sortedInvoices.length && sortedInvoices.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded text-brand-blue focus:ring-brand-blue/20 w-4 h-4 cursor-pointer"
+                      />
+                    </th>
+                    {renderSortHeader('Vencimento', 'dueDate')}
+                    {renderSortHeader('Aluno', 'student')}
+                    {renderSortHeader('Referência', 'monthYear')}
+                    <th className="px-6 py-4">Descontos</th>
+                    {renderSortHeader('Valor Líquido', 'netAmount', 'right')}
+                    <th className="px-6 py-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sortedInvoices.map(inv => {
+                    const isOverdue = inv.paymentStatus === 'PENDING' && new Date(inv.dueDate) < new Date();
+                    
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedInvoices.has(inv.id!)}
+                            onChange={() => toggleSelectInvoice(inv.id!)}
+                            className="rounded text-brand-blue focus:ring-brand-blue/20 w-4 h-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">
                           {inv.paymentStatus === 'PAID' ? (
                             <span className="inline-flex w-fit items-center gap-1 bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase tracking-widest">
@@ -261,7 +396,8 @@ export default function Invoices() {
             </table>
           </div>
         )}
-      </motion.div>
+        </motion.div>
+      </div>
 
       {showImportModal && (
         <ImportPaymentsModal
@@ -289,6 +425,26 @@ export default function Invoices() {
         variant="info"
         onConfirm={handleMarkAsPaid}
         onCancel={() => setPayTarget(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkDeleteConfirm}
+        title="Excluir Boletos em Massa"
+        message={`Tem certeza que deseja excluir ${selectedInvoices.size} boletos permanentemente? Essa ação não pode ser desfeita.`}
+        confirmLabel="Excluir Boletos"
+        variant="danger"
+        onConfirm={handleBulkDelete}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkPayConfirm}
+        title="Receber Boletos em Massa"
+        message={`Deseja marcar ${selectedInvoices.size} boletos como pagos?`}
+        confirmLabel="Confirmar Pagamento"
+        variant="info"
+        onConfirm={handleBulkMarkAsPaid}
+        onCancel={() => setShowBulkPayConfirm(false)}
       />
     </div>
   );
