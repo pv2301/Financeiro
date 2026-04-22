@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Save, Image as ImageIcon, CheckCircle2, ChevronDown, ChevronUp, Upload, Trash2, Calendar, DollarSign, Activity, FileText
+  Save, Image as ImageIcon, CheckCircle2, ChevronDown, ChevronUp, Upload, Trash2, Calendar, DollarSign, Activity, FileText, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { storage } from '../services/storage';
@@ -8,10 +8,12 @@ import { finance } from '../services/finance';
 import { storage as firebaseStorage } from '../firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import * as XLSX from 'xlsx';
+import DeleteDataModal from '../components/DeleteDataModal';
 
 export default function Config() {
   const [logo, setLogo] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   
   // Sections state
@@ -382,7 +384,39 @@ export default function Config() {
           </AnimatePresence>
         </div>
 
+        {/* SEC 5: ZONA DE PERIGO */}
+        <div className="pt-8 border-t border-slate-100">
+          <div className="bg-red-50 border border-red-100 rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4 text-center md:text-left">
+              <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 shrink-0">
+                <AlertTriangle size={32} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-red-900">Zona de Perigo</h2>
+                <p className="text-red-700/70 font-medium">Limpeza de dados, exclusão de alunos, turmas e registros financeiros.</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-red-200 flex items-center gap-2 whitespace-nowrap"
+            >
+              <Trash2 size={20} />
+              Excluir Dados
+            </button>
+          </div>
+        </div>
+
       </div>
+
+      <DeleteDataModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onSuccess={() => {
+          loadData();
+          showToast('Dados removidos com sucesso');
+        }}
+      />
     </div>
   );
 }

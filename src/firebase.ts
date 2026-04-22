@@ -33,6 +33,7 @@ export enum OperationType {
   LIST = 'list',
   GET = 'get',
   WRITE = 'write',
+  ADD = 'add',
 }
 
 export interface FirestoreErrorInfo {

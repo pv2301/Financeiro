@@ -19,7 +19,8 @@ import {
   ServiceItem,
   Invoice,
   UserPresence,
-  PaymentImportResult
+  PaymentImportResult,
+  ConsumptionRecord
 } from '../types';
 
 // ─── Collection names ─────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ const C = {
   INVOICES:  'fin_invoices',
   CONFIG:    'fin_config',
   PRESENCE:  'fin_presence',
+  CONSUMPTION: 'fin_consumption',
 };
 
 // ─── Generic helpers ──────────────────────────────────────────────────────
@@ -213,7 +215,7 @@ export const finance = {
   },
 
   // ── Global Config (typed) ───────────────────────────────────────────────
-  getGlobalConfig: async (): Promise<{ scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay: number } | null> => {
+  getGlobalConfig: async (): Promise<{ scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay: number; defaultCollegeSharePercent: number } | null> => {
     try {
       const snap = await getDoc(doc(db, C.CONFIG, 'global'));
       if (!snap.exists()) return null;
@@ -235,6 +237,111 @@ export const finance = {
       handleFirestoreError(error, OperationType.WRITE, C.CONFIG);
     }
   },
+
+  // ─── CONSUMPTION ──────────────────────────────────────────────────────────
+  getConsumptionByMonth: async (monthYear: string): Promise<ConsumptionRecord[]> => {
+    try {
+      const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as ConsumptionRecord);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, C.CONSUMPTION);
+      return [];
+    }
+  },
+
+  saveConsumptionRecords: async (records: ConsumptionRecord[]) => {
+    try {
+      const batch = writeBatch(db);
+      for (const record of records) {
+        const docRef = doc(db, C.CONSUMPTION, record.id);
+        batch.set(docRef, record, { merge: true });
+      }
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.ADD, C.CONSUMPTION);
+      throw error;
+    }
+  },
+
+  // ─── DATA DELETION (Danger Zone) ──────────────────────────────────────────
+  
+  /** Deleta alunos e todos os seus vínculos (boletos e consumos) */
+  deleteStudents: async (ids: string[]) => {
+    const batch = writeBatch(db);
+    for (const id of ids) {
+      // Delete student doc
+      batch.delete(doc(db, C.STUDENTS, id));
+      
+      // Delete related invoices
+      const invSnap = await getDocs(query(collection(db, C.INVOICES), where("studentId", "==", id)));
+      invSnap.forEach(d => batch.delete(d.ref));
+      
+      // Delete related consumption
+      const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("studentId", "==", id)));
+      consSnap.forEach(d => batch.delete(d.ref));
+    }
+    await batch.commit();
+  },
+
+  /** Deleta turmas e todos os alunos vinculados a elas */
+  deleteClasses: async (ids: string[]) => {
+    for (const classId of ids) {
+      // Find students in this class
+      const q = query(collection(db, C.STUDENTS), where("classId", "==", classId));
+      const snap = await getDocs(q);
+      const studentIds = snap.docs.map(d => d.id);
+      
+      // Delete students (recursive cascade)
+      if (studentIds.length > 0) {
+        await finance.deleteStudents(studentIds);
+      }
+      
+      // Delete the class itself
+      await deleteDoc(doc(db, C.CLASSES, classId));
+    }
+  },
+
+  /** Deleta todos os dados financeiros (boletos e consumos) de um mês específico */
+  deleteMonthlyData: async (monthYear: string) => {
+    const batch = writeBatch(db);
+    
+    const formattedMonth = monthYear.replace('/', '-'); // Standard used in DB
+    
+    // Invoices
+    const invSnap = await getDocs(query(collection(db, C.INVOICES), where("monthYear", "==", monthYear)));
+    invSnap.forEach(d => batch.delete(d.ref));
+    
+    // Consumption
+    const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", formattedMonth)));
+    consSnap.forEach(d => batch.delete(d.ref));
+    
+    await batch.commit();
+  },
+
+  /** Limpa absolutamente tudo das coleções principais */
+  deleteAllData: async (categories: { students?: boolean, classes?: boolean, financial?: boolean }) => {
+    const batch = writeBatch(db);
+    
+    if (categories.financial) {
+      const invs = await getDocs(collection(db, C.INVOICES));
+      invs.forEach(d => batch.delete(d.ref));
+      const cons = await getDocs(collection(db, C.CONSUMPTION));
+      cons.forEach(d => batch.delete(d.ref));
+    }
+    
+    if (categories.students) {
+      const stds = await getDocs(collection(db, C.STUDENTS));
+      stds.forEach(d => batch.delete(d.ref));
+    }
+    
+    if (categories.classes) {
+      const clss = await getDocs(collection(db, C.CLASSES));
+      clss.forEach(d => batch.delete(d.ref));
+    }
+    
+    await batch.commit();
+  }
 };
 
 // ─── Presence Service ─────────────────────────────────────────────────────

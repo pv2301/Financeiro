@@ -127,7 +127,10 @@ export const storage = {
   saveCategorySubcategories: (data: CategorySubcategories) => setConfigValue('categorySubcategories', data),
 
   getLogo: () => getConfigValue<string | null>('logo', null),
-  saveLogo: (logo: string | null) => setConfigValue('logo', logo),
+  saveLogo: async (logo: string | null) => {
+    await setConfigValue('logo', logo);
+    window.dispatchEvent(new CustomEvent('cardapio:logoUpdated', { detail: logo }));
+  },
 
   getNutricionista: () => getConfigValue<{nome: string, crn: string}>('nutricionista', {nome: '', crn: ''}),
   saveNutricionista: (data: {nome: string, crn: string}) => setConfigValue('nutricionista', data),

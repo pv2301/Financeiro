@@ -17,6 +17,24 @@ export interface ClassInfo {
   discountPerAbsence: number;       // Valor descontado por falta (R$)
   collegeSharePercent: number;      // % do líquido que vai para o colégio
   ageRange?: string;                // Faixa etária para Berçário: "6-9m", "10-12m", "13-24m"
+  globalDiscountParams?: {
+    discountPercent: number; // Porcentagem que o colégio desconta do bruto do Canteen
+  };
+}
+
+// ─── ConsumptionRecord (Consumo de Catraca) ────────────────────────────────
+export interface ConsumptionRecord {
+  id: string; // "studentId_YYYY-MM"
+  studentId: string;
+  monthYear: string; // ex: "04-2026"
+  periodLabel: string; // "De 01/04/2026 até 30/04/2026"
+  summary: { 
+    [serviceName: string]: number 
+  };
+  dailyDetails: {
+    date: string; // "01/04/2026"
+    items: { serviceName: string, quantity: number }[]
+  }[];
 }
 
 // ─── Student (Aluno) ───────────────────────────────────────────────────────

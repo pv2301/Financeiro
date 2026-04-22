@@ -6,6 +6,7 @@ import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ImportConsumptionModal from '../components/ImportConsumptionModal';
 
 function getPriceKey(studentClass: ClassInfo): string {
   const seg = studentClass.segment;
@@ -38,13 +39,6 @@ function getPriceKey(studentClass: ClassInfo): string {
   return studentClass.segment;
 }
 
-interface ParsedConsumption {
-  studentName: string;
-  className: string;
-  daysConsumed: number;
-  items: Record<string, number>;
-}
-
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -60,10 +54,15 @@ export default function MonthlyProcessing() {
   const [scholasticDays, setScholasticDays] = useState<Record<string, number>>({});
   const [boletoFee, setBoletoFee] = useState(3.50);
   const [isLoading, setIsLoading] = useState(false);
-  const [parsedData, setParsedData] = useState<ParsedConsumption[]>([]);
+  const [dbConsumption, setDbConsumption] = useState<import('../types').ConsumptionRecord[]>([]);
   const [previewInvoices, setPreviewInvoices] = useState<Invoice[]>([]);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // New UI states
+  const [activeTab, setActiveTab] = useState<'fixed' | 'consumption'>('fixed');
+  const [manualAbsences, setManualAbsences] = useState<Record<string, number>>({});
+  const [consumptionFilter, setConsumptionFilter] = useState<'all' | 'imported' | 'pending'>('all');
 
   useEffect(() => {
     async function load() {
@@ -92,79 +91,31 @@ export default function MonthlyProcessing() {
     return scholasticDays[key] || 0;
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const loadConsumption = async (targetMonthYear: string) => {
     setIsLoading(true);
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-
-      let headerRowIndex = -1;
-      for (let i = 0; i < Math.min(20, json.length); i++) {
-        const row = json[i];
-        if (row && row.length > 0 && String(row[0]).includes('Aluno (Turma)')) {
-          headerRowIndex = i;
-          break;
-        }
-      }
-
-      if (headerRowIndex === -1) {
-        throw new Error('Formato inválido. Coluna "Aluno (Turma)" não encontrada.');
-      }
-
-      const headers = json[headerRowIndex];
-      const consumptionMap: Record<string, ParsedConsumption> = {};
-
-      for (let i = headerRowIndex + 1; i < json.length; i++) {
-        const row = json[i];
-        if (!row || row.length < 2) continue;
-        
-        const rawName = String(row[0]);
-        if (rawName.startsWith('Total ') || rawName === 'undefined' || !rawName) continue;
-
-        const match = rawName.match(/^(.*?)\s*\((.*?)\)$/);
-        let studentName = rawName.trim();
-        let className = '';
-        if (match) {
-          studentName = match[1].trim();
-          className = match[2].trim();
-        }
-
-        const dateStr = String(row[1]);
-        if (!dateStr || dateStr === 'undefined' || dateStr.trim() === '') continue;
-
-        const mapKey = `${studentName}-${className}`;
-        if (!consumptionMap[mapKey]) {
-          consumptionMap[mapKey] = { studentName, className, daysConsumed: 0, items: {} };
-        }
-
-        consumptionMap[mapKey].daysConsumed += 1;
-
-        for (let col = 2; col < headers.length - 1; col++) {
-          const snackName = String(headers[col]).trim();
-          const quantity = Number(row[col]) || 0;
-          if (quantity > 0) {
-            consumptionMap[mapKey].items[snackName] = (consumptionMap[mapKey].items[snackName] || 0) + quantity;
-          }
-        }
-      }
-
-      setParsedData(Object.values(consumptionMap));
-      generatePreview(Object.values(consumptionMap));
-      
-    } catch (error: any) {
-      alert(`Erro ao processar arquivo: ${error.message}`);
+      const formattedMonth = targetMonthYear.replace('/', '-');
+      const records = await finance.getConsumptionByMonth(formattedMonth);
+      setDbConsumption(records);
+      generatePreview(records);
+    } catch (error) {
+      console.error(error);
     } finally {
       setIsLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const generatePreview = (data: ParsedConsumption[]) => {
+  useEffect(() => {
+    if (students.length > 0 && classes.length > 0) {
+      loadConsumption(monthYear);
+    }
+  }, [monthYear, students.length, classes.length]);
+
+  useEffect(() => {
+    generatePreview(dbConsumption);
+  }, [dbConsumption, manualAbsences, students, classes, scholasticDays]);
+
+  const generatePreview = (data: import('../types').ConsumptionRecord[]) => {
     const newInvoices: Invoice[] = [];
     const businessDays = getCurrentMonthDays();
 
@@ -172,11 +123,10 @@ export default function MonthlyProcessing() {
       const studentClass = classes.find(c => c.id === student.classId);
       if (!studentClass) return;
 
-      const consumption = data.find(d => 
-        d.studentName.toLowerCase() === student.name.toLowerCase()
-      );
+      const consumption = data.find(d => d.studentId === student.id);
 
-      const daysConsumed = consumption?.daysConsumed || 0;
+      // Quantidade de dias únicos que o aluno consumiu no mês
+      const daysConsumed = consumption ? new Set(consumption.dailyDetails.map(dd => dd.date)).size : 0;
       
       let grossAmount = 0;
       let absenceDiscountAmount = 0;
@@ -185,8 +135,8 @@ export default function MonthlyProcessing() {
       
       if (studentClass.billingMode === 'POSTPAID_CONSUMPTION') {
         // Sum consumed items × prices from service table
-        if (consumption && consumption.items) {
-          Object.entries(consumption.items).forEach(([snackName, qty]) => {
+        if (consumption && consumption.summary) {
+          Object.entries(consumption.summary).forEach(([snackName, qty]) => {
             // Find service price by matching name and segment
             const svc = services.find(s => s.name.toLowerCase() === snackName.toLowerCase());
             if (svc) {
@@ -203,7 +153,7 @@ export default function MonthlyProcessing() {
         grossAmount = studentClass.basePrice * businessDays;
         
         if (studentClass.applyAbsenceDiscount && businessDays > 0) {
-          const absences = Math.max(0, businessDays - daysConsumed);
+          const absences = manualAbsences[student.id] || 0;
           absenceDiscountAmount = absences * studentClass.discountPerAbsence;
         }
 
@@ -219,7 +169,7 @@ export default function MonthlyProcessing() {
         grossAmount = studentClass.basePrice;
         
         if (studentClass.applyAbsenceDiscount && businessDays > 0) {
-          const absences = Math.max(0, businessDays - daysConsumed);
+          const absences = manualAbsences[student.id] || 0;
           absenceDiscountAmount = absences * studentClass.discountPerAbsence;
         }
 
@@ -236,31 +186,30 @@ export default function MonthlyProcessing() {
       // Calculate college share
       const collegeShareAmount = Math.max(0, (netAmount - boletoFee) * (studentClass.collegeSharePercent / 100));
 
-      if (netAmount > 0 || studentClass.billingMode !== 'POSTPAID_CONSUMPTION') {
-        const nextMonthDate = new Date();
-        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-        nextMonthDate.setDate(10);
+      // Always push to preview so they appear in the UI (e.g. as Pending in Consumption tab)
+      const nextMonthDate = new Date();
+      nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+      nextMonthDate.setDate(10);
 
-        newInvoices.push({
-          id: crypto.randomUUID(),
-          studentId: student.id,
-          classId: studentClass.id,
-          monthYear: monthYear,
-          dueDate: format(nextMonthDate, 'yyyy-MM-dd'),
-          billingMode: studentClass.billingMode,
-          grossAmount,
-          absenceDays: Math.max(0, businessDays - daysConsumed),
-          absenceDiscountAmount,
-          personalDiscountAmount,
-          netAmount,
-          nossoNumero: '',
-          filename: student.filenameSuffix || '',
-          paymentStatus: 'PENDING',
-          collegeSharePercent: studentClass.collegeSharePercent,
-          boletoEmissionFee: boletoFee,
-          collegeShareAmount,
-        });
-      }
+      newInvoices.push({
+        id: crypto.randomUUID(),
+        studentId: student.id,
+        classId: studentClass.id,
+        monthYear: monthYear,
+        dueDate: format(nextMonthDate, 'yyyy-MM-dd'),
+        billingMode: studentClass.billingMode,
+        grossAmount,
+        absenceDays: manualAbsences[student.id] || 0,
+        absenceDiscountAmount,
+        personalDiscountAmount,
+        netAmount,
+        nossoNumero: '',
+        filename: student.filenameSuffix || '',
+        paymentStatus: 'PENDING',
+        collegeSharePercent: studentClass.collegeSharePercent,
+        boletoEmissionFee: boletoFee,
+        collegeShareAmount,
+      });
     });
 
     setPreviewInvoices(newInvoices);
@@ -270,12 +219,10 @@ export default function MonthlyProcessing() {
     setShowSaveConfirm(false);
     setIsLoading(true);
     try {
-      await Promise.all(previewInvoices.map(inv => finance.saveInvoice(inv)));
-      // Also persist scholastic days
-      await saveScholasticDays();
+      // Filter out postpaid consumption invoices that have 0 amount, unless we want to generate 0.00 boletos
+      const invoicesToSave = previewInvoices.filter(inv => inv.netAmount > 0 || inv.billingMode !== 'POSTPAID_CONSUMPTION');
+      await Promise.all(invoicesToSave.map(inv => finance.saveInvoice(inv)));
       alert('Boletos gerados com sucesso!');
-      setPreviewInvoices([]);
-      setParsedData([]);
     } catch (e) {
       console.error(e);
       alert('Erro ao salvar boletos.');
@@ -362,25 +309,55 @@ export default function MonthlyProcessing() {
         </div>
 
         <div className="text-center py-8">
-          <input type="file" accept=".xls, .xlsx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={isLoading}
+          <button onClick={() => setShowImportModal(true)} disabled={isLoading}
             className="bg-brand-blue text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50">
-            {isLoading ? 'Processando...' : 'Selecionar Arquivo Excel'}
+            {isLoading ? 'Carregando...' : 'Importar Consumo'}
           </button>
-          <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx) extraído do sistema.</p>
+          <p className="text-slate-400 font-medium text-sm mt-4">Faça o upload do relatório de consumo (.xls ou .xlsx).</p>
+          
+          {dbConsumption.length > 0 && (
+            <div className="mt-6 flex items-center justify-center gap-2 text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl inline-flex font-bold text-sm border border-emerald-100">
+              <CheckCircle2 size={18} />
+              Consumo do mês carregado ({dbConsumption.length} alunos)
+            </div>
+          )}
         </div>
       </motion.div>
 
       {/* Step 3: Preview */}
       {previewInvoices.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-4">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="text-emerald-500" size={24} />
               <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Passo 3: Revisão de Boletos</h2>
             </div>
+            
+            <div className="flex flex-wrap items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
+              <button
+                onClick={() => setActiveTab('fixed')}
+                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                  activeTab === 'fixed' 
+                    ? 'bg-white text-slate-800 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Mensalidade Fixa
+              </button>
+              <button
+                onClick={() => setActiveTab('consumption')}
+                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                  activeTab === 'consumption' 
+                    ? 'bg-white text-slate-800 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Consumo
+              </button>
+            </div>
+
             <button onClick={() => setShowSaveConfirm(true)} disabled={isLoading}
-              className="flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
+              className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-6 py-3 rounded-xl font-black hover:bg-emerald-100 transition-colors">
               <Save size={20} />
               Gerar {previewInvoices.length} Boletos
             </button>
@@ -402,47 +379,130 @@ export default function MonthlyProcessing() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-widest">
-                  <th className="pb-3 pr-4">Aluno</th>
-                  <th className="pb-3 pr-4">Turma</th>
-                  <th className="pb-3 pr-4">Modelo</th>
-                  <th className="pb-3 pr-4">Base (R$)</th>
-                  <th className="pb-3 pr-4">Faltas</th>
-                  <th className="pb-3 pr-4">Desc. Faltas</th>
-                  <th className="pb-3 pr-4">Desc. Pessoal</th>
-                  <th className="pb-3">Líquido Final</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {previewInvoices.map((inv, idx) => {
-                  const s = students.find(x => x.id === inv.studentId);
-                  const cls = classes.find(x => x.id === inv.classId);
-                  const modeLabel = inv.billingMode === 'POSTPAID_CONSUMPTION' ? 'Pós' : inv.billingMode === 'ANTICIPATED_DAYS' ? 'Dias' : 'Fixo';
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-3 pr-4 font-bold text-slate-800">{s?.name || 'Desconhecido'}</td>
-                      <td className="py-3 pr-4 text-sm text-slate-500">{cls?.name || '—'}</td>
-                      <td className="py-3 pr-4">
-                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
-                          inv.billingMode === 'POSTPAID_CONSUMPTION' ? 'bg-amber-100 text-amber-700' :
-                          inv.billingMode === 'ANTICIPATED_DAYS' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
-                        }`}>{modeLabel}</span>
-                      </td>
-                      <td className="py-3 pr-4 text-slate-500">R$ {inv.grossAmount.toFixed(2)}</td>
-                      <td className="py-3 pr-4">
-                        <span className="bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded">{inv.absenceDays} d</span>
-                      </td>
-                      <td className="py-3 pr-4 text-red-500 font-medium">- R$ {inv.absenceDiscountAmount.toFixed(2)}</td>
-                      <td className="py-3 pr-4 text-emerald-500 font-medium">- R$ {inv.personalDiscountAmount.toFixed(2)}</td>
-                      <td className="py-3 font-black text-brand-blue">R$ {inv.netAmount.toFixed(2)}</td>
+          <div className="overflow-x-auto mt-6">
+            {activeTab === 'fixed' ? (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <th className="pb-3 pr-4">Aluno / Turma</th>
+                    <th className="pb-3 pr-4 text-right">Base (R$)</th>
+                    <th className="pb-3 pr-4 text-center">Faltas</th>
+                    <th className="pb-3 pr-4 text-right">Desc. Faltas</th>
+                    <th className="pb-3 pr-4 text-right">Desc. Pessoal</th>
+                    <th className="pb-3 text-right">Líquido Final</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {previewInvoices.filter(inv => inv.billingMode !== 'POSTPAID_CONSUMPTION').map((inv) => {
+                    const s = students.find(x => x.id === inv.studentId);
+                    const cls = classes.find(x => x.id === inv.classId);
+                    
+                    return (
+                      <tr key={inv.studentId} className="hover:bg-slate-50 group">
+                        <td className="py-4 pr-4">
+                          <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
+                          <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
+                        </td>
+                        <td className="py-4 pr-4 text-right text-sm text-slate-500">R$ {inv.grossAmount.toFixed(2)}</td>
+                        <td className="py-4 pr-4 text-center">
+                          {cls?.applyAbsenceDiscount ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max={getCurrentMonthDays()}
+                              value={manualAbsences[inv.studentId] || ''}
+                              onChange={(e) => setManualAbsences(prev => ({
+                                ...prev,
+                                [inv.studentId]: parseInt(e.target.value) || 0
+                              }))}
+                              placeholder="0"
+                              className="w-16 px-2 py-1.5 text-center text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-1 rounded-md">N/A</span>
+                          )}
+                        </td>
+                        <td className="py-4 pr-4 text-right text-sm text-red-500 font-medium">
+                          {inv.absenceDiscountAmount > 0 ? `- R$ ${inv.absenceDiscountAmount.toFixed(2)}` : '—'}
+                        </td>
+                        <td className="py-4 pr-4 text-right text-sm text-emerald-500 font-medium">
+                          {inv.personalDiscountAmount > 0 ? `- R$ ${inv.personalDiscountAmount.toFixed(2)}` : '—'}
+                        </td>
+                        <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <button onClick={() => setConsumptionFilter('all')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
+                  <button onClick={() => setConsumptionFilter('imported')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'imported' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50'}`}>Importados</button>
+                  <button onClick={() => setConsumptionFilter('pending')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${consumptionFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-50'}`}>Pendentes</button>
+                </div>
+
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <th className="pb-3 pr-4">Aluno / Turma</th>
+                      <th className="pb-3 pr-4">Status</th>
+                      <th className="pb-3 pr-4">Itens Consumidos (Resumo)</th>
+                      <th className="pb-3 text-right">Líquido Final</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {previewInvoices
+                      .filter(inv => inv.billingMode === 'POSTPAID_CONSUMPTION')
+                      .filter(inv => {
+                        const hasConsumption = dbConsumption.some(d => d.studentId === inv.studentId);
+                        if (consumptionFilter === 'imported') return hasConsumption;
+                        if (consumptionFilter === 'pending') return !hasConsumption;
+                        return true;
+                      })
+                      .map((inv) => {
+                      const s = students.find(x => x.id === inv.studentId);
+                      const cls = classes.find(x => x.id === inv.classId);
+                      const consumption = dbConsumption.find(d => d.studentId === inv.studentId);
+                      
+                      return (
+                        <tr key={inv.studentId} className="hover:bg-slate-50 group">
+                          <td className="py-4 pr-4">
+                            <p className="font-bold text-slate-800 text-sm">{s?.name || 'Desconhecido'}</p>
+                            <p className="text-xs text-slate-500">{cls?.name || '—'}</p>
+                          </td>
+                          <td className="py-4 pr-4">
+                            {consumption ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                                <CheckCircle2 size={12} /> Importado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700">
+                                Pendente
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 pr-4">
+                            {consumption && consumption.summary && Object.keys(consumption.summary).length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(consumption.summary).map(([item, qty]) => (
+                                  <span key={item} className="text-xs font-medium text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
+                                    {qty}x <span className="font-bold text-slate-800">{item}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">Nenhum consumo registrado</span>
+                            )}
+                          </td>
+                          <td className="py-4 text-right font-black text-brand-blue text-sm">R$ {inv.netAmount.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
@@ -455,6 +515,15 @@ export default function MonthlyProcessing() {
         variant="info"
         onConfirm={handleSaveInvoices}
         onCancel={() => setShowSaveConfirm(false)}
+      />
+
+      <ImportConsumptionModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        students={students}
+        classes={classes}
+        monthYear={monthYear}
+        onSuccess={() => loadConsumption(monthYear)}
       />
     </div>
   );

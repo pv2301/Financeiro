@@ -37,5 +37,9 @@ service cloud.firestore {
     match /fin_config/{configId} {
       allow read, write: if isAuthenticated();
     }
+
+    match /fin_consumption/{consumptionId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
