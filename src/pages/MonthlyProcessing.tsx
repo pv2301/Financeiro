@@ -584,10 +584,6 @@ export default function MonthlyProcessing() {
             </p>
           </div>
         </div>
-
-          
-          {/* Action buttons could go here in the future */}
-        </div>
       </motion.div>
 
       <motion.div
