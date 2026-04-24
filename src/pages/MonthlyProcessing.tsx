@@ -99,6 +99,9 @@ export default function MonthlyProcessing() {
   const [previewInvoices, setPreviewInvoices] = useState<Invoice[]>([]);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "idle">(
+    "idle",
+  );
 
   // UI states
   const [activeTab, setActiveTab] = useState<
@@ -291,6 +294,60 @@ export default function MonthlyProcessing() {
     }
   }, [monthYear, students.length, classes.length]);
 
+  // Load Draft
+  useEffect(() => {
+    async function loadDraft() {
+      const draft = await finance.getBillingDraft(monthYear);
+      if (draft) {
+        setManualAbsences(draft.manualAbsences || {});
+        setBankSlipNumbers(draft.bankSlipNumbers || {});
+        setManualDueDates(draft.manualDueDates || {});
+        setInvoiceNotes(draft.invoiceNotes || {});
+        setIntegralItems(draft.integralItems || {});
+      } else {
+        setManualAbsences({});
+        setBankSlipNumbers({});
+        setManualDueDates({});
+        setInvoiceNotes({});
+        setIntegralItems({});
+      }
+    }
+    loadDraft();
+  }, [monthYear]);
+
+  // Auto-save Draft
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSaveStatus("saving");
+      await finance.saveBillingDraft({
+        id: monthYear,
+        manualAbsences,
+        bankSlipNumbers,
+        manualDueDates,
+        invoiceNotes,
+        integralItems,
+        lastUpdated: new Date().toISOString(),
+      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [
+    monthYear,
+    manualAbsences,
+    bankSlipNumbers,
+    manualDueDates,
+    invoiceNotes,
+    integralItems,
+  ]);
+
   useEffect(() => {
     generatePreview(dbConsumption);
   }, [
@@ -466,6 +523,7 @@ export default function MonthlyProcessing() {
       }
 
       await Promise.all(invoicesToSave.map((inv) => finance.saveInvoice(inv)));
+      await finance.clearBillingDraft(monthYear);
       showToast(`${invoicesToSave.length} boletos gerados com sucesso!`);
     } catch (e) {
       console.error(e);
@@ -525,6 +583,37 @@ export default function MonthlyProcessing() {
               Cálculo automático de consumo e geração de boletos.
             </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <AnimatePresence mode="wait">
+            {saveStatus !== "idle" && (
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-sm border ${
+                  saveStatus === "saving"
+                    ? "bg-amber-50 text-amber-600 border-amber-100"
+                    : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                }`}
+              >
+                {saveStatus === "saving" ? (
+                  <>
+                    <Clock size={14} className="animate-spin" />
+                    SALVANDO RASCUNHO...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} />
+                    RASCUNHO SALVO
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* Action buttons could go here in the future */}
         </div>
       </motion.div>
 

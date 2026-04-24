@@ -12,15 +12,12 @@ import {
   where,
   Unsubscribe
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
-  Student,
-  ClassInfo,
-  ServiceItem,
-  Invoice,
-  UserPresence,
-  PaymentImportResult,
-  ConsumptionRecord
+  ConsumptionRecord,
+  AuditLog,
+  GlobalConfig
 } from '../types';
 
 // ─── Collection names ─────────────────────────────────────────────────────
@@ -32,32 +29,164 @@ const C = {
   CONFIG:    'fin_config',
   PRESENCE:  'fin_presence',
   CONSUMPTION: 'fin_consumption',
+  AUDIT_LOGS: 'fin_audit_logs',
+  BILLING_DRAFTS: 'fin_billing_drafts',
 };
 
-// ─── Generic helpers ──────────────────────────────────────────────────────
-async function getAllFromCollection<T>(col: string): Promise<T[]> {
+// ─── Cache Helpers ────────────────────────────────────────────────────────
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData<T>(key: string): T[] | null {
+  const cached = localStorage.getItem(`fin_cache_${key}`);
+  if (!cached) return null;
+  try {
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_TTL) {
+      localStorage.removeItem(`fin_cache_${key}`);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T[]) {
+  localStorage.setItem(`fin_cache_${key}`, JSON.stringify({
+    data,
+    timestamp: Date.now()
+  }));
+}
+
+function invalidateCache(key?: string) {
+  if (key) {
+    localStorage.removeItem(`fin_cache_${key}`);
+  } else {
+    // Invalidate all
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('fin_cache_')) localStorage.removeItem(k);
+    });
+  }
+}
+
+async function getAllFromCollection<T extends { deletedAt?: string | null }>(col: string): Promise<T[]> {
+  // Try cache first
+  const cached = getCachedData<T>(col);
+  if (cached) return cached;
+
   try {
     const snap = await getDocs(collection(db, col));
-    return snap.docs.map(d => d.data() as T);
+    const data = snap.docs.map(d => {
+      const item = d.data() as any;
+      if (item.billingMode === 'ANTICIPATED_FIXED') item.billingMode = 'PREPAID_FIXED';
+      if (item.billingMode === 'ANTICIPATED_DAYS') item.billingMode = 'PREPAID_DAYS';
+      return item as T;
+    }).filter(item => !item.deletedAt);
+    
+    setCachedData(col, data);
+    return data;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, col);
     return [];
   }
 }
 
+async function createAuditLog(
+  action: string,
+  col: string,
+  docId: string,
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null
+): Promise<void> {
+  try {
+    const authInstance = getAuth();
+    const user = authInstance.currentUser;
+    const logId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await setDoc(doc(db, 'fin_audit_logs', logId), {
+      id: logId,
+      action,
+      collection: col,
+      docId,
+      before: before ?? null,
+      after: after ?? null,
+      performedBy: user?.email ?? 'sistema',
+      performedAt: new Date().toISOString(),
+    });
+  } catch {
+    // Audit log failures are non-fatal — never block the main operation
+  }
+}
+
 async function saveItem<T extends { id: string }>(col: string, item: T): Promise<void> {
   try {
-    await setDoc(doc(db, col, item.id), JSON.parse(JSON.stringify(item)));
+    const docRef = doc(db, col, item.id);
+    const existingSnap = await getDoc(docRef);
+    const existing = existingSnap.exists() ? existingSnap.data() : null;
+    const action = existing ? 'UPDATE' : 'CREATE';
+
+    const itemToSave = JSON.parse(JSON.stringify(item));
+    await setDoc(docRef, itemToSave);
+    await createAuditLog(action, col, item.id, existing, itemToSave);
+    invalidateCache(col);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
   }
 }
 
-async function deleteItem(col: string, id: string): Promise<void> {
+async function softDeleteItem(col: string, id: string): Promise<void> {
   try {
-    await deleteDoc(doc(db, col, id));
+    const docRef = doc(db, col, id);
+    const existingSnap = await getDoc(docRef);
+    if (!existingSnap.exists()) return;
+    
+    const existing = existingSnap.data();
+    if (existing.deletedAt) return; // Already soft-deleted
+    
+    const auth = getAuth();
+    const userEmail = auth.currentUser?.email || 'sistema@financeiro.com';
+
+    const updated = { ...existing, deletedAt: new Date().toISOString(), deletedBy: userEmail };
+    
+    await setDoc(docRef, updated);
+    await createAuditLog('SOFT_DELETE', col, id, existing, updated);
+    invalidateCache(col);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, col);
+  }
+}
+
+async function deleteItem(col: string, id: string): Promise<void> {
+  try {
+    const docRef = doc(db, col, id);
+    const existingSnap = await getDoc(docRef);
+    const existing = existingSnap.exists() ? existingSnap.data() : null;
+
+    await deleteDoc(docRef);
+    if (existing) {
+      await createAuditLog('HARD_DELETE', col, id, existing, null);
+    }
+    invalidateCache(col);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, col);
+  }
+}
+
+async function restoreDocument(col: string, id: string): Promise<void> {
+  try {
+    const docRef = doc(db, col, id);
+    const existingSnap = await getDoc(docRef);
+    if (!existingSnap.exists()) return;
+    
+    const existing = existingSnap.data();
+    const updated = { ...existing };
+    delete updated.deletedAt;
+    delete updated.deletedBy;
+    
+    await setDoc(docRef, updated);
+    await createAuditLog('UPDATE', col, id, existing, updated);
+    invalidateCache(col);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, col);
   }
 }
 
@@ -68,6 +197,7 @@ async function saveAllToCollection<T extends { id: string }>(col: string, items:
     existing.forEach(d => batch.delete(d.ref));
     items.forEach(item => batch.set(doc(db, col, item.id), JSON.parse(JSON.stringify(item))));
     await batch.commit();
+    invalidateCache(col);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
   }
@@ -80,6 +210,7 @@ async function mergeBatchToCollection<T extends { id: string }>(col: string, ite
       batch.set(doc(db, col, item.id), JSON.parse(JSON.stringify(item)), { merge: true })
     );
     await batch.commit();
+    invalidateCache(col);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
   }
@@ -90,32 +221,36 @@ export const finance = {
   // ── Classes ──────────────────────────────────────────────────────────────
   getClasses:       ()                 => getAllFromCollection<ClassInfo>(C.CLASSES),
   saveClass:        (c: ClassInfo)     => saveItem(C.CLASSES, c),
-  deleteClass:      (id: string)       => deleteItem(C.CLASSES, id),
+  deleteClass:      (id: string)       => softDeleteItem(C.CLASSES, id),
   saveAllClasses:   (cs: ClassInfo[])  => saveAllToCollection(C.CLASSES, cs),
   mergeBatchClasses:(cs: ClassInfo[])  => mergeBatchToCollection(C.CLASSES, cs),
 
   // ── Students ─────────────────────────────────────────────────────────────
   getStudents:       ()                 => getAllFromCollection<Student>(C.STUDENTS),
   saveStudent:       (s: Student)       => saveItem(C.STUDENTS, s),
-  deleteStudent:     (id: string)       => deleteItem(C.STUDENTS, id),
+  deleteStudent:     (id: string)       => softDeleteItem(C.STUDENTS, id),
   mergeBatchStudents:(ss: Student[])    => mergeBatchToCollection(C.STUDENTS, ss),
 
   // ── Services (ex-Snacks) ──────────────────────────────────────────────────
   getServices:       ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
   saveService:       (s: ServiceItem)      => saveItem(C.SERVICES, s),
-  deleteService:     (id: string)          => deleteItem(C.SERVICES, id),
+  deleteService:     (id: string)          => softDeleteItem(C.SERVICES, id),
   saveAllServices:   (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
   // Legacy aliases
   getSnacks:         ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
   saveSnack:         (s: ServiceItem)      => saveItem(C.SERVICES, s),
-  deleteSnack:       (id: string)          => deleteItem(C.SERVICES, id),
+  deleteSnack:       (id: string)          => softDeleteItem(C.SERVICES, id),
   saveAllSnacks:     (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
 
   // ── Invoices ─────────────────────────────────────────────────────────────
   getInvoices:       ()                 => getAllFromCollection<Invoice>(C.INVOICES),
   saveInvoice:       (inv: Invoice)     => saveItem(C.INVOICES, inv),
-  deleteInvoice:     (id: string)       => deleteItem(C.INVOICES, id),
+  deleteInvoice:     (id: string)       => softDeleteItem(C.INVOICES, id),
   saveBatchInvoices: (invs: Invoice[])  => mergeBatchToCollection(C.INVOICES, invs),
+
+  // ── Audit Logs ───────────────────────────────────────────────────────────
+  getAuditLogs:      ()                 => getAllFromCollection<AuditLog>(C.AUDIT_LOGS),
+
 
   /**
    * Importa planilha do banco (Cobrança Títulos) e dá baixa automática nos boletos.
@@ -194,6 +329,7 @@ export const finance = {
     }
 
     await batch.commit();
+    invalidateCache(C.INVOICES);
     return result;
   },
 
@@ -208,14 +344,20 @@ export const finance = {
   },
   saveConfig: async (data: Record<string, unknown>): Promise<void> => {
     try {
-      await setDoc(doc(db, C.CONFIG, 'global'), data, { merge: true });
+      const docRef = doc(db, C.CONFIG, 'global');
+      const existingSnap = await getDoc(docRef);
+      const existing = existingSnap.exists() ? existingSnap.data() : null;
+      
+      await setDoc(docRef, data, { merge: true });
+      await createAuditLog('UPDATE', C.CONFIG, 'global', existing, data);
+      invalidateCache(C.CONFIG);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, C.CONFIG);
     }
   },
 
   // ── Global Config (typed) ───────────────────────────────────────────────
-  getGlobalConfig: async (): Promise<{ scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay: number; defaultCollegeSharePercent: number } | null> => {
+  getGlobalConfig: async (): Promise<GlobalConfig | null> => {
     try {
       const snap = await getDoc(doc(db, C.CONFIG, 'global'));
       if (!snap.exists()) return null;
@@ -225,14 +367,31 @@ export const finance = {
         boletoEmissionFee: data.boletoEmissionFee ?? 3.50,
         defaultDueDay: data.defaultDueDay ?? 10,
         defaultCollegeSharePercent: data.defaultCollegeSharePercent ?? 20,
+        ageReferenceDay: data.ageReferenceDay ?? 5,
+        collegeShareBySegment: data.collegeShareBySegment || {
+          'Berçário': 20,
+          'Educação Infantil': 20,
+          'Ensino Fundamental I': 20
+        },
+        mandatorySnackBySegment: data.mandatorySnackBySegment || {
+          'Berçário': 'ALMOCO',
+          'Educação Infantil': 'LANCHE_COLETIVO',
+          'Ensino Fundamental I': 'LANCHE_COLETIVO'
+        }
       };
     } catch {
       return null;
     }
   },
-  saveGlobalConfig: async (data: { scholasticDays: Record<string, number>; boletoEmissionFee: number; defaultDueDay?: number; defaultCollegeSharePercent?: number }): Promise<void> => {
+   saveGlobalConfig: async (data: Partial<GlobalConfig>): Promise<void> => {
     try {
-      await setDoc(doc(db, C.CONFIG, 'global'), data, { merge: true });
+      const docRef = doc(db, C.CONFIG, 'global');
+      const existingSnap = await getDoc(docRef);
+      const existing = existingSnap.exists() ? existingSnap.data() : null;
+
+      await setDoc(docRef, data, { merge: true });
+      await createAuditLog('UPDATE', C.CONFIG, 'global', existing, data);
+      invalidateCache(C.CONFIG);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, C.CONFIG);
     }
@@ -243,7 +402,7 @@ export const finance = {
     try {
       const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as ConsumptionRecord);
+      return snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, C.CONSUMPTION);
       return [];
@@ -258,6 +417,7 @@ export const finance = {
         batch.set(docRef, record, { merge: true });
       }
       await batch.commit();
+      invalidateCache(C.CONSUMPTION);
     } catch (error) {
       handleFirestoreError(error, OperationType.ADD, C.CONSUMPTION);
       throw error;
@@ -268,55 +428,115 @@ export const finance = {
   
   /** Deleta alunos e todos os seus vínculos (boletos e consumos) */
   deleteStudents: async (ids: string[]) => {
-    const batch = writeBatch(db);
     for (const id of ids) {
-      // Delete student doc
-      batch.delete(doc(db, C.STUDENTS, id));
+      await softDeleteItem(C.STUDENTS, id);
       
-      // Delete related invoices
       const invSnap = await getDocs(query(collection(db, C.INVOICES), where("studentId", "==", id)));
-      invSnap.forEach(d => batch.delete(d.ref));
+      for (const d of invSnap.docs) {
+        await softDeleteItem(C.INVOICES, d.id);
+      }
       
-      // Delete related consumption
+      // Consumption remains a hard delete if necessary, or soft delete it
+      // Let's soft delete consumption too for consistency
       const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("studentId", "==", id)));
-      consSnap.forEach(d => batch.delete(d.ref));
+      for (const d of consSnap.docs) {
+        await softDeleteItem(C.CONSUMPTION, d.id);
+      }
     }
-    await batch.commit();
   },
 
   /** Deleta turmas e todos os alunos vinculados a elas */
   deleteClasses: async (ids: string[]) => {
     for (const classId of ids) {
-      // Find students in this class
       const q = query(collection(db, C.STUDENTS), where("classId", "==", classId));
       const snap = await getDocs(q);
       const studentIds = snap.docs.map(d => d.id);
       
-      // Delete students (recursive cascade)
       if (studentIds.length > 0) {
         await finance.deleteStudents(studentIds);
       }
       
-      // Delete the class itself
-      await deleteDoc(doc(db, C.CLASSES, classId));
+      await softDeleteItem(C.CLASSES, classId);
     }
   },
 
   /** Deleta todos os dados financeiros (boletos e consumos) de um mês específico */
   deleteMonthlyData: async (monthYear: string) => {
-    const batch = writeBatch(db);
-    
     const formattedMonth = monthYear.replace('/', '-'); // Standard used in DB
     
-    // Invoices
     const invSnap = await getDocs(query(collection(db, C.INVOICES), where("monthYear", "==", monthYear)));
-    invSnap.forEach(d => batch.delete(d.ref));
+    for (const d of invSnap.docs) {
+      await softDeleteItem(C.INVOICES, d.id);
+    }
     
-    // Consumption
     const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", formattedMonth)));
-    consSnap.forEach(d => batch.delete(d.ref));
+    for (const d of consSnap.docs) {
+      await softDeleteItem(C.CONSUMPTION, d.id);
+    }
+  },
+
+  /** Restaura um documento que estava na lixeira */
+  restoreItem: async (col: string, id: string) => {
+    await restoreDocument(col, id);
+  },
+
+  /** Limpeza definitiva (Hard Delete) de lixeira com mais de X dias */
+  purgeOldDeletedItems: async (days: number = 90) => {
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - days);
+    const thresholdISO = thresholdDate.toISOString();
+
+    const collectionsToCheck = [C.STUDENTS, C.CLASSES, C.INVOICES, C.SERVICES, C.CONSUMPTION];
+    const batch = writeBatch(db);
+    let count = 0;
+
+    for (const col of collectionsToCheck) {
+      const snap = await getDocs(collection(db, col));
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (data.deletedAt && data.deletedAt < thresholdISO) {
+          batch.delete(d.ref);
+          count++;
+          
+          // Delete audit logs related to this doc if we want, or keep them. 
+          // Keeping them is better for audit trail.
+        }
+      }
+    }
     
-    await batch.commit();
+    if (count > 0) {
+      await batch.commit();
+    }
+    return count;
+  },
+
+  /** Busca especificamente itens deletados de todas as coleções */
+  getDeletedItems: async () => {
+    const collectionsToCheck = [
+      { name: 'Alunos', col: C.STUDENTS },
+      { name: 'Turmas', col: C.CLASSES },
+      { name: 'Boletos', col: C.INVOICES },
+      { name: 'Consumo', col: C.CONSUMPTION },
+      { name: 'Serviços', col: C.SERVICES }
+    ];
+    
+    const results: any[] = [];
+    
+    for (const { name, col } of collectionsToCheck) {
+      const snap = await getDocs(collection(db, col));
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (data.deletedAt) {
+          results.push({
+            ...data,
+            _collection: col,
+            _collectionName: name
+          });
+        }
+      }
+    }
+    
+    return results.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   },
 
   /** Limpa absolutamente tudo das coleções principais */
@@ -341,6 +561,37 @@ export const finance = {
     }
     
     await batch.commit();
+    invalidateCache(); // Invalidate all since multiple collections were hit
+  },
+
+  // ── Billing Drafts ────────────────────────────────────────────────────────
+  getBillingDraft: async (monthYear: string): Promise<BillingDraft | null> => {
+    try {
+      const id = monthYear.replace('/', '-');
+      const snap = await getDoc(doc(db, C.BILLING_DRAFTS, id));
+      return snap.exists() ? snap.data() as BillingDraft : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveBillingDraft: async (draft: BillingDraft): Promise<void> => {
+    try {
+      const id = draft.id.replace('/', '-');
+      await setDoc(doc(db, C.BILLING_DRAFTS, id), {
+        ...draft,
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error saving billing draft:', error);
+    }
+  },
+
+  clearBillingDraft: async (monthYear: string): Promise<void> => {
+    try {
+      const id = monthYear.replace('/', '-');
+      await deleteDoc(doc(db, C.BILLING_DRAFTS, id));
+    } catch { /* silent */ }
   }
 };
 
