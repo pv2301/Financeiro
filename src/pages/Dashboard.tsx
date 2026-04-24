@@ -10,7 +10,9 @@ import {
   FileSpreadsheet,
   ChevronRight,
   Plus,
-  Apple
+  Apple,
+  Layers,
+  LayoutDashboard
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
@@ -49,13 +51,13 @@ export default function Dashboard() {
   const getStudentName = (id: string) => students.find(s => s.id === id)?.name || 'Aluno Excluído';
   const getStudentPhone = (id: string) => students.find(s => s.id === id)?.contactPhone || '';
 
-  const activeStudents = students.length;
-  const activeClasses = classes.length;
-  
   const currentMonthInvoices = invoices.filter(inv => inv.monthYear === format(new Date(), 'MM/yyyy'));
-  const projectedRevenue = currentMonthInvoices.reduce((acc, curr) => acc + curr.netAmount, 0);
-
+  const studentsServed = new Set(currentMonthInvoices.map(inv => inv.studentId)).size;
+  const classesServed = new Set(currentMonthInvoices.map(inv => inv.classId)).size;
+  
   const pendingInvoices = invoices.filter(inv => inv.paymentStatus === 'PENDING');
+  const totalServicesCount = currentMonthInvoices.reduce((acc, curr) => acc + ((curr as any).totalServices || 0), 0);
+  
   const overdueInvoices = pendingInvoices.filter(inv => new Date(inv.dueDate) < new Date());
 
   const displayOverdue = overdueInvoices.length > 0 ? overdueInvoices : [
@@ -77,8 +79,9 @@ export default function Dashboard() {
   const currentMonthName = format(new Date(), 'MMMM', { locale: ptBR });
 
   return (
-    <div className="p-6 w-full space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 pb-24 max-w-full mx-auto space-y-6">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
         <div>
           <h1 className="text-3xl font-black text-brand-blue uppercase tracking-tight">Visão Geral</h1>
           <p className="text-slate-500 font-medium">Acompanhe a saúde financeira da cantina.</p>
@@ -92,31 +95,31 @@ export default function Dashboard() {
             <p className="text-sm font-bold text-brand-blue capitalize">{currentMonthName} {format(new Date(), 'yyyy')}</p>
           </div>
         </div>
-      </header>
+      </motion.div>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-blue shadow-brand-blue/20">
-            <TrendingUp size={28} />
+            <Layers size={28} />
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Previsão {currentMonthName}</p>
-          <p className="text-3xl font-black text-brand-blue">R$ {projectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total de Serviços</p>
+          <p className="text-3xl font-black text-brand-blue">{totalServicesCount}</p>
         </div>
 
-        <Link to="/invoices" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-red-500/20 transition-all group cursor-pointer block">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-red-500 shadow-red-500/20">
+        <Link to="/invoices" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-orange/20 transition-all group cursor-pointer block">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-orange shadow-brand-orange/20">
             <AlertCircle size={28} />
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Inadimplência</p>
-          <p className="text-3xl font-black text-red-500">{overdueInvoices.length}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Boletos em Aberto</p>
+          <p className="text-3xl font-black text-brand-orange">{pendingInvoices.length}</p>
         </Link>
 
         <Link to="/students" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-lime/20 transition-all group cursor-pointer block">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg group-hover:scale-110 transition-transform bg-brand-lime shadow-brand-lime/20">
             <Users size={28} />
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Alunos Ativos</p>
-          <p className="text-3xl font-black text-brand-blue">{activeStudents}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Alunos Atendidos</p>
+          <p className="text-3xl font-black text-brand-blue">{studentsServed}</p>
         </Link>
 
         <Link to="/classes" className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-brand-orange/20 transition-all group cursor-pointer block">
@@ -124,7 +127,7 @@ export default function Dashboard() {
             <GraduationCap size={28} />
           </div>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Turmas Atendidas</p>
-          <p className="text-3xl font-black text-brand-blue">{activeClasses}</p>
+          <p className="text-3xl font-black text-brand-blue">{classesServed}</p>
         </Link>
       </div>
 
