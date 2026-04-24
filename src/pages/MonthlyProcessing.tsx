@@ -585,33 +585,6 @@ export default function MonthlyProcessing() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <AnimatePresence mode="wait">
-            {saveStatus !== "idle" && (
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-sm border ${
-                  saveStatus === "saving"
-                    ? "bg-amber-50 text-amber-600 border-amber-100"
-                    : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                }`}
-              >
-                {saveStatus === "saving" ? (
-                  <>
-                    <Clock size={14} className="animate-spin" />
-                    SALVANDO RASCUNHO...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={14} />
-                    RASCUNHO SALVO
-                  </>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
           
           {/* Action buttons could go here in the future */}
         </div>
@@ -698,7 +671,35 @@ export default function MonthlyProcessing() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
+                    <div className="flex items-center gap-2">
+                      <AnimatePresence mode="wait">
+                        {saveStatus !== "idle" && (
+                          <motion.div
+                            initial={{ opacity: 0, x: 5 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 5 }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black shadow-sm border ${
+                              saveStatus === "saving"
+                                ? "bg-amber-50 text-amber-600 border-amber-100"
+                                : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                            }`}
+                          >
+                            {saveStatus === "saving" ? (
+                              <>
+                                <Clock size={12} className="animate-spin" />
+                                SALVANDO...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 size={12} />
+                                SALVO
+                              </>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
                       <div className="flex flex-col items-end">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">
                           Dias Letivos
