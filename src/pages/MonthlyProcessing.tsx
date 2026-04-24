@@ -708,6 +708,7 @@ export default function MonthlyProcessing() {
                       </div>
                     </div>
                   </div>
+                </div>
 
                   {getCurrentMonthDays() === 0 && (
                     <motion.div
