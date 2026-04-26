@@ -172,108 +172,162 @@ export default function ClassesTest() {
       </AnimatePresence>
 
       {/* --- Header - Compact --- */}
+      {/* --- Header - Premium --- */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-3xl shadow-sm border border-slate-100 gap-6"
+        className="flex flex-col md:flex-row md:items-center justify-between bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 gap-8"
       >
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg">
-            <GraduationCap size={32} />
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 bg-slate-900 rounded-[2rem] flex items-center justify-center text-white shadow-2xl relative overflow-hidden group">
+            <GraduationCap size={40} />
+            <div className="absolute inset-0 bg-brand-blue/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Turmas</h1>
-            <p className="text-slate-500 font-medium text-xs mt-1">Configuração de cobrança e grupos.</p>
+            <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tight leading-none mb-2">Turmas</h1>
+            <p className="text-slate-500 font-bold text-sm tracking-wide">Configuração de cobrança e grupos acadêmicos.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
-            <button onClick={() => setViewMode('cards')} className={cn("p-2 rounded-lg transition-all", viewMode === 'cards' ? "bg-white shadow-sm text-slate-900 border border-slate-100" : "text-slate-400")}>
-              <LayoutGrid size={16} />
+          <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
+            <button 
+              onClick={() => setViewMode('cards')} 
+              className={cn("p-3 rounded-xl transition-all flex items-center gap-2", viewMode === 'cards' ? "bg-white shadow-md text-brand-blue border border-slate-100" : "text-slate-400 hover:text-slate-600")}
+            >
+              <LayoutGrid size={18} />
+              {viewMode === 'cards' && <span className="text-[10px] font-black uppercase tracking-widest">Cards</span>}
             </button>
-            <button onClick={() => setViewMode('list')} className={cn("p-2 rounded-lg transition-all", viewMode === 'list' ? "bg-white shadow-sm text-slate-900 border border-slate-100" : "text-slate-400")}>
-              <List size={16} />
+            <button 
+              onClick={() => setViewMode('list')} 
+              className={cn("p-3 rounded-xl transition-all flex items-center gap-2", viewMode === 'list' ? "bg-white shadow-md text-brand-blue border border-slate-100" : "text-slate-400 hover:text-slate-600")}
+            >
+              <List size={18} />
+              {viewMode === 'list' && <span className="text-[10px] font-black uppercase tracking-widest">Lista</span>}
             </button>
           </div>
-          <button onClick={openNew} className="flex items-center gap-3 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-md">
-             <Plus size={16} className="text-brand-lime" /> Nova Turma
-          </button>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={openNew} 
+            className="flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-brand-blue transition-all shadow-xl shadow-slate-900/10"
+          >
+             <Plus size={18} className="text-brand-lime" /> Nova Turma
+          </motion.button>
         </div>
       </motion.div>
 
-      {/* --- Filters - Compact --- */}
-      <div className="flex flex-col lg:flex-row gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 items-center">
+      {/* --- Filters - Premium Toolbar --- */}
+      <div className="flex flex-col lg:flex-row gap-6 bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 items-center">
         <div className="relative flex-1 group w-full">
-           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-brand-blue transition-colors" size={20} />
            <input 
-             type="text" placeholder="BUSCAR TURMA..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-             className="w-full pl-12 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:border-brand-blue outline-none font-bold text-slate-700 text-sm shadow-inner"
+             type="text" placeholder="Pesquisar por nome da turma..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+             className="w-full pl-16 pr-8 py-4 bg-white border border-slate-200 rounded-2xl focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none font-bold text-slate-700 text-base shadow-sm transition-all"
            />
         </div>
         
-        <div className="flex items-center gap-3 w-full lg:w-auto">
-           <select value={filterSegment} onChange={(e) => setFilterSegment(e.target.value)}
-              className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none"
-           >
-              <option value="all">Segmentos</option>
-              {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-           </select>
-           <select value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)}
-              className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none"
-           >
-              <option value="all">Cobrança</option>
-              {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
-                <option key={mode} value={mode}>{BILLING_LABELS[mode]}</option>
-              ))}
-           </select>
+        <div className="flex items-center gap-4 w-full lg:w-auto">
+           <div className="relative group flex-1 lg:flex-none">
+             <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+             <select 
+                value={filterSegment} onChange={(e) => setFilterSegment(e.target.value)}
+                className="w-full lg:w-48 pl-12 pr-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
+             >
+                <option value="all">TODOS SEGMENTOS</option>
+                {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+             </select>
+             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+           </div>
+
+           <div className="relative group flex-1 lg:flex-none">
+             <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+             <select 
+                value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)}
+                className="w-full lg:w-48 pl-12 pr-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
+             >
+                <option value="all">TODOS FATURAMENTOS</option>
+                {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
+                  <option key={mode} value={mode}>{BILLING_LABELS[mode].toUpperCase()}</option>
+                ))}
+             </select>
+             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+           </div>
         </div>
       </div>
 
       {/* --- Stats Cards --- */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Card 1: Total Turmas */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-between min-h-[130px]">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
-            <GraduationCap size={18} className="text-white" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Panorama Geral */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-brand-blue/30 transition-all">
+          <div className="flex items-center justify-between">
+            <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
+              <GraduationCap size={28} />
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Capacidade Total</span>
+              <span className="text-xl font-black text-slate-900 tabular-nums">{intelligence.totalStudents} Alunos</span>
+            </div>
           </div>
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Turmas</p>
-            <p className="text-4xl font-black text-slate-900 leading-none">{classes.length}</p>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">turmas ativas</p>
-          </div>
-        </div>
-
-        {/* Card 2: Por Modalidade */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col min-h-[130px]">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Por Modalidade</p>
-          <div className="space-y-2 flex-1">
-            {intelligence.segmentList.map(({ seg, count }) => (
-              <div key={seg} className="flex items-center justify-between">
-                <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest truncate mr-2">{seg}</span>
-                <span className="text-[9px] font-black text-slate-900 tabular-nums shrink-0">{count} turma{count !== 1 ? 's' : ''}</span>
-              </div>
-            ))}
+          <div className="mt-8">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Turmas</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{classes.length}</span>
+              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Ativas</span>
+            </div>
           </div>
         </div>
 
-        {/* Card 3: Alunos por Turma */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col min-h-[130px]">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Alunos por Turma</p>
-            <span className="text-[9px] font-black text-brand-blue uppercase tracking-widest">{intelligence.totalStudents} total</span>
+        {/* Distribuição por Modalidade */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group hover:border-brand-blue/30 transition-all flex flex-col">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1.5 h-6 bg-brand-blue rounded-full" />
+            <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Por Modalidade</h3>
           </div>
-          <div className="space-y-2 flex-1 max-h-36 overflow-y-auto pr-1">
-            {intelligence.byClass.map(({ name, students: count }) => (
-              <div key={name} className="flex items-center justify-between">
-                <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest truncate mr-2">{name}</span>
-                <span className="text-[9px] font-black text-slate-900 tabular-nums shrink-0">{count} al.</span>
+          <div className="space-y-4 flex-1">
+            {intelligence.segmentList.map(({ seg, count }) => {
+              const percentage = classes.length > 0 ? (count / classes.length) * 100 : 0;
+              return (
+                <div key={seg} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider truncate mr-2">{seg}</span>
+                    <span className="text-[10px] font-black text-slate-900 tabular-nums">{count} turmas</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden border border-slate-100 shadow-inner">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      className="h-full bg-brand-blue rounded-full shadow-sm"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Alunos por Turma (Top Ocupação) */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group hover:border-brand-blue/30 transition-all flex flex-col">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-brand-lime rounded-full" />
+              <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Maior Ocupação</h3>
+            </div>
+          </div>
+          <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[160px]">
+            {intelligence.byClass.slice(0, 5).map(({ name, students: count }) => (
+              <div key={name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100/50 hover:bg-white hover:shadow-md transition-all">
+                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider truncate mr-2">{name}</span>
+                <div className="flex items-center gap-2">
+                   <span className="text-[10px] font-black text-slate-900 tabular-nums">{count}</span>
+                   <span className="text-[9px] font-bold text-slate-400">alunos</span>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* --- Content - Compact --- */}
-      <div className="space-y-12">
+      {/* --- Content - Premium Layout --- */}
+      <div className="space-y-16">
         {SEGMENT_OPTIONS
           .filter(seg => filterSegment === 'all' || filterSegment === seg)
           .map(seg => {
@@ -281,83 +335,85 @@ export default function ClassesTest() {
             if (segClasses.length === 0) return null;
 
             return (
-              <div key={seg} className="space-y-4">
-                <div className="flex items-center gap-4 px-2">
-                  <div className="w-1 h-6 bg-indigo-600 rounded-full" />
-                  <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">{seg}</h2>
+              <div key={seg} className="space-y-6">
+                <div className="flex items-center gap-6 px-4">
+                  <div className="w-2 h-8 bg-brand-blue rounded-full shadow-sm shadow-brand-blue/20" />
+                  <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">{seg}</h2>
+                  <div className="flex-1 h-px bg-slate-100" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{segClasses.length} turmas</span>
                 </div>
 
                 {viewMode === 'cards' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {segClasses.map((cls) => {
                       const count = studentCounts[cls.id] || 0;
                       return (
-                        <div key={cls.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col gap-4 hover:border-indigo-300 transition-all group">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                                <GraduationCap size={20} />
-                              </div>
-                              <div>
-                                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{cls.name}</h3>
-                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{count} ALUNOS</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                              <button onClick={() => openEdit(cls)} className="p-1.5 text-slate-400 hover:text-indigo-600"><Pencil size={16} /></button>
-                              <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
-                            </div>
+                        <div key={cls.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 flex flex-col gap-6 hover:border-brand-blue/30 hover:shadow-xl hover:shadow-slate-200/50 transition-all group relative overflow-hidden">
+                          <div className="absolute top-0 right-0 p-4">
+                             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-brand-blue/10 group-hover:text-brand-blue transition-all">
+                               <Users size={20} />
+                             </div>
                           </div>
 
                           <div className="space-y-2">
-                             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                                <div className="flex items-center gap-2">
-                                   <CreditCard size={12} className="text-slate-400" />
-                                   <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</span>
-                                </div>
-                                <span className="text-sm font-black text-brand-blue tracking-tight">
-                                   {cls.billingMode === 'PREPAID_DAYS' ? 'Cálculo por Dias' : formatCurrencyBRL(cls.basePrice)}
-                                </span>
-                             </div>
-                             {cls.applyAbsenceDiscount && (
-                                <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[8px] font-black uppercase tracking-widest border border-amber-100">
-                                   <Info size={10} /> Desc. Faltas Ativo
-                                </div>
-                             )}
+                            <span className="text-[10px] font-black text-brand-blue uppercase tracking-[0.2em]">{BILLING_LABELS[cls.billingMode]}</span>
+                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight group-hover:text-brand-blue transition-colors">{cls.name}</h3>
+                          </div>
+
+                          <div className="flex items-end justify-between mt-auto pt-4 border-t border-slate-50">
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
+                              <p className="text-xl font-black text-slate-900 tabular-nums">{count}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <button onClick={() => openEdit(cls)} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                                 <Pencil size={18} />
+                               </button>
+                               <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-500 hover:text-white transition-all shadow-sm">
+                                 <Trash2 size={18} />
+                               </button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-slate-50/50">
-                          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Nome</th>
-                          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Modelo</th>
-                          <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                          <th className="px-6 py-4 w-16"></th>
+                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação da Turma</th>
+                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Modelo de Faturamento</th>
+                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Base</th>
+                          <th className="px-8 py-6 w-32"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {segClasses.map((cls) => (
-                          <tr key={cls.id} className="group hover:bg-slate-50 transition-all">
-                            <td className="px-6 py-3">
-                              <span className="text-xs font-black text-slate-900 uppercase tracking-tight">{cls.name}</span>
+                          <tr key={cls.id} className="group hover:bg-slate-50/50 transition-all">
+                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white text-[10px] font-black">
+                                  {cls.name.substring(0, 2).toUpperCase()}
+                                </div>
+                                <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cls.name}</span>
+                              </div>
                             </td>
-                            <td className="px-6 py-3">
-                               <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</p>
+                            <td className="px-8 py-6">
+                               <div className="inline-flex items-center px-3 py-1 bg-slate-100 rounded-full">
+                                 <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</span>
+                               </div>
                             </td>
-                            <td className="px-6 py-3 text-right">
-                              <span className="text-sm font-black text-brand-blue tracking-tight">
-                                 {cls.billingMode === 'PREPAID_DAYS' ? 'Cálculo por Dias' : formatCurrencyBRL(cls.basePrice)}
+                            <td className="px-8 py-6 text-right">
+                              <span className="text-base font-black text-brand-blue tracking-tight tabular-nums">
+                                 {cls.billingMode === 'PREPAID_DAYS' ? 'PORDIA' : formatCurrencyBRL(cls.basePrice)}
                               </span>
                             </td>
-                            <td className="px-6 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => openEdit(cls)} className="p-1.5 text-slate-400 hover:text-indigo-600"><Pencil size={14} /></button>
-                                <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                            <td className="px-8 py-6 text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                <button onClick={() => openEdit(cls)} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-blue hover:border-brand-blue shadow-sm transition-all"><Pencil size={16} /></button>
+                                <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 hover:border-red-500 shadow-sm transition-all"><Trash2 size={16} /></button>
                               </div>
                             </td>
                           </tr>
