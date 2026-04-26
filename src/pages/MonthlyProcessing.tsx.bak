@@ -1,0 +1,888 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Calculator, Upload, CheckCircle2, Save, Settings, Calendar, Info, HelpCircle, Receipt, ChevronDown, ChevronUp, ChevronRight, Search, X as XIcon, Clock, AlertTriangle, Filter, Plus, Trash2, Zap, MoreVertical, Layout, List, MousePointer2, RefreshCcw, Layers, BarChart3, Pencil, Copy, Phone, User, MessagesSquare, MessageSquare } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import Tooltip from "../components/Tooltip";
+import {
+  Student,
+  ClassInfo,
+  ServiceItem,
+  Invoice,
+  BillingMode,
+} from "../types";
+import { finance } from "../services/finance";
+import * as XLSX from "xlsx";
+import { format } from "date-fns";
+import ConfirmDialog from "../components/ConfirmDialog";
+import ImportConsumptionModal from "../components/ImportConsumptionModal";
+import { formatCurrencyBRL, cn } from "../lib/utils";
+import { calculateStudentInvoice } from "../lib/finance-logic";
+import {
+  calculateAgeInMonths,
+  getPriceKey,
+  CalculationInput,
+} from "../lib/finance-logic";
+import { useMonthlyInvoices } from "../hooks/useMonthlyInvoices";
+import { FixedBillingTable } from "../components/MonthlyProcessing/FixedBillingTable";
+import { ConsumptionTable } from "../components/MonthlyProcessing/ConsumptionTable";
+import { IntegralBillingTable } from "../components/MonthlyProcessing/IntegralBillingTable";
+import { IntegralModals } from "../components/MonthlyProcessing/IntegralModals";
+import { TemplateModal } from "../components/MonthlyProcessing/TemplateModal";
+
+const MONTHS = [
+  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", 
+  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+];
+const MONTHS_FULL = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_MONTH_IDX = new Date().getMonth(); // 0-indexed
+
+export default function MonthlyProcessing() {
+  const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+
+  const [monthYear, setMonthYear] = useState(format(new Date(), "MM/yyyy"));
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(CURRENT_MONTH_IDX);
+  const [scholasticDays, setScholasticDays] = useState<
+    Record<string, number | string>
+  >({});
+  const [boletoFee, setBoletoFee] = useState(3.5);
+  const [ageRefDay, setAgeRefDay] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [isSavingInvoices, setIsSavingInvoices] = useState(false);
+  const [dbConsumption, setDbConsumption] = useState<
+    import("../types").ConsumptionRecord[]
+  >([]);
+  const [previewInvoices, setPreviewInvoices] = useState<Invoice[]>([]);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "idle">(
+    "idle",
+  );
+
+  // UI states
+  const [activeTab, setActiveTab] = useState<
+    "fixed" | "consumption" | "integral"
+  >("fixed");
+  const [manualAbsences, setManualAbsences] = useState<Record<string, number>>(
+    {},
+  );
+  const [integralItems, setIntegralItems] = useState<
+    Record<
+      string,
+      { serviceId: string; quantity: number; price: number; name: string }[]
+    >
+  >({}); // studentId -> items
+  const [showIntegralSelectModal, setShowIntegralSelectModal] = useState(false);
+  const [showIntegralServiceModal, setShowIntegralServiceModal] = useState<
+    string | null
+  >(null);
+  const [consumptionFilter, setConsumptionFilter] = useState<
+    "all" | "imported" | "pending"
+  >("all");
+  const [recentlyImportedIds, setRecentlyImportedIds] = useState<string[]>([]);
+  const [bankSlipNumbers, setBankSlipNumbers] = useState<
+    Record<string, string>
+  >({});
+  const [manualDueDates, setManualDueDates] = useState<Record<string, string>>(
+    {},
+  );
+  const [invoiceNotes, setInvoiceNotes] = useState<Record<string, string>>({});
+  const [showStudentNotes, setShowStudentNotes] = useState<
+    Record<string, boolean>
+  >({});
+  const [studentSearch, setStudentSearch] = useState("");
+  const [removedStudentIds, setRemovedStudentIds] = useState<string[]>([]);
+  const [modalStudentSearch, setModalStudentSearch] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [segmentFilter, setSegmentFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([
+    "fixed", "consumption", "integral",
+  ]);
+  const [modalSegmentFilter, setModalSegmentFilter] = useState("all");
+  const [modalClassFilter, setModalClassFilter] = useState("all");
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [messageTemplates, setMessageTemplates] = useState({
+    fixed: "{MANDATORY_SNACK} - {MONTH_YEAR}\n{STUDENT_NAME}\n{CLASS_NAME}\nFALTAS: {ABSENCES}",
+    consumption: "{MANDATORY_SNACK} - {MONTH_YEAR}\n{STUDENT_NAME}\n{CLASS_NAME}\n{CONSUMPTION}",
+    integral: "INTEGRAL - {MONTH_YEAR}\n{STUDENT_NAME}\n{CLASS_NAME}\n{CONSUMPTION}",
+  });
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    variant: "info",
+  });
+
+  const skipNextSaveToast = useRef(false);
+  const skipNextAutoSave = useRef(false);
+
+  const [collegeShareBySegment, setCollegeShareBySegment] = useState<
+    Record<string, number>
+  >({});
+  const [mandatorySnackBySegment, setMandatorySnackBySegment] = useState<
+    Record<string, string>
+  >({});
+
+  const { formatStudentCopyId, getStudentMessage } = useMonthlyInvoices({
+    students,
+    classes,
+    services,
+    messageTemplates,
+    mandatorySnackBySegment,
+    activeTab,
+    integralItems,
+    dbConsumption
+  });
+
+  const [isRefCollapsed, setIsRefCollapsed] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [stepStates, setStepStates] = useState({
+    step1: true,
+    step2: true,
+    step3: true,
+  });
+  const [defaultDueDay, setDefaultDueDay] = useState<number>(10);
+
+  const tabCounts = React.useMemo(() => {
+    const counts = {
+      fixed: { total: 0, selected: 0 },
+      consumption: { total: 0, selected: 0 },
+      integral: { total: 0, selected: 0 }
+    };
+    
+    previewInvoices.forEach(inv => {
+      const isSelected = selectedIds.includes(inv.id);
+      if (inv.isIntegral) {
+        counts.integral.total++;
+        if (isSelected) counts.integral.selected++;
+      } else if (inv.billingMode === "POSTPAID_CONSUMPTION") {
+        counts.consumption.total++;
+        if (isSelected) counts.consumption.selected++;
+      } else {
+        counts.fixed.total++;
+        if (isSelected) counts.fixed.selected++;
+      }
+    });
+    
+    return counts;
+  }, [previewInvoices, selectedIds]);
+
+  const toggleStep = (step: keyof typeof stepStates) => {
+    setStepStates((prev) => ({ ...prev, [step]: !prev[step] }));
+  };
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(msg);
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      try {
+        const [s, c, svc, config] = await Promise.all([
+          finance.getStudents(),
+          finance.getClasses(),
+          finance.getServices(),
+          finance.getGlobalConfig(),
+        ]);
+        setStudents(s);
+        setClasses(c);
+        setServices(svc);
+        if (config) {
+          setScholasticDays(config.scholasticDays || {});
+          setBoletoFee(config.boletoEmissionFee ?? 3.5);
+          setAgeRefDay(config.ageReferenceDay || 0);
+          setDefaultDueDay(config.defaultDueDay || 10);
+          setCollegeShareBySegment(config.collegeShareBySegment || {});
+          setMandatorySnackBySegment(config.mandatorySnackBySegment || {});
+          if (config.messageTemplates) {
+            setMessageTemplates(config.messageTemplates);
+          }
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  // Get the scholastic days for the currently selected processing month
+  const getCurrentMonthDays = (): number => {
+    const parts = monthYear.split("/");
+    if (parts.length !== 2) return 0;
+    const key = `${parts[1]}-${parts[0]}`;
+    const val = scholasticDays[key];
+    const days = typeof val === "number" ? val : parseInt(val as string) || 0;
+    return isNaN(days) ? 0 : days;
+  };
+
+  const generatePreview = useCallback((data: any[]) => {
+    const newInvoices: Invoice[] = [];
+    const businessDays = getCurrentMonthDays();
+
+    students.forEach((student) => {
+      if (removedStudentIds.includes(student.id)) return;
+      
+      const studentClass = classes.find((c) => c.id === student.classId);
+      const effectiveClass = studentClass || {
+        id: 'missing',
+        name: 'Sem Turma',
+        segment: student.segment || 'Não Definido',
+        billingMode: 'POSTPAID_CONSUMPTION',
+        basePrice: 0,
+        collegeSharePercent: 0
+      } as any;
+
+      const consumption = data.find((d) => d.studentId === student.id);
+
+      if (effectiveClass.billingMode === 'POSTPAID_CONSUMPTION') {
+        const hasDraftData = bankSlipNumbers[student.id] || invoiceNotes[student.id] || manualDueDates[student.id];
+        if (!consumption && !hasDraftData) return;
+      }
+
+      const calcResult = calculateStudentInvoice({
+        student,
+        studentClass: effectiveClass,
+        services,
+        consumption,
+        manualAbsences: manualAbsences[student.id] || 0,
+        businessDays,
+        monthYear,
+        ageRefDay,
+        emissionFee: boletoFee,
+        collegeShareBySegment,
+        mandatorySnackBySegment,
+      });
+
+      let {
+        grossAmount,
+        absenceDiscountAmount,
+        personalDiscountAmount,
+        netAmount,
+        totalServices,
+        collegeShareAmount,
+      } = calcResult;
+
+      if (effectiveClass.billingMode === 'PREPAID_FIXED') {
+        netAmount = Math.max(0, grossAmount - absenceDiscountAmount);
+      } else {
+        netAmount = Math.max(0, grossAmount - absenceDiscountAmount - personalDiscountAmount);
+      }
+
+      let dueDate = manualDueDates[student.id];
+      if (!dueDate) {
+        const [m, y] = monthYear.split("/").map(Number);
+        const targetDate = new Date(y, m, 1);
+        const day = student.dueDay || defaultDueDay;
+        targetDate.setDate(day);
+        dueDate = format(targetDate, "yyyy-MM-dd");
+      }
+
+      newInvoices.push({
+        id: `preview_${student.id}_${monthYear.replace('/', '-')}`,
+        studentId: student.id,
+        classId: effectiveClass.id,
+        monthYear: monthYear,
+        dueDate,
+        billingMode: effectiveClass.billingMode,
+        grossAmount,
+        absenceDays: manualAbsences[student.id] || 0,
+        absenceDiscountAmount,
+        personalDiscountAmount,
+        netAmount,
+        nossoNumero: "",
+        filename: student.filenameSuffix || "",
+        paymentStatus: "PENDING",
+        collegeSharePercent: effectiveClass.collegeSharePercent,
+        boletoEmissionFee: boletoFee,
+        collegeShareAmount,
+        totalServices,
+        hasImportedConsumption: !!consumption,
+      });
+    });
+
+    Object.entries(integralItems)
+      .sort(([idA], [idB]) => {
+        const nameA = students.find((x) => x.id === idA)?.name || "";
+        const nameB = students.find((x) => x.id === idB)?.name || "";
+        return nameA.localeCompare(nameB);
+      })
+      .forEach(([studentId, items]) => {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) return;
+      const amount = items.reduce((a, b) => a + b.price * b.quantity, 0);
+      if (amount <= 0) return;
+
+      const studentClass = classes.find((c) => c.id === student.classId);
+      if (!studentClass) return;
+
+      const [m, y] = monthYear.split("/").map(Number);
+      const targetDate = new Date(y, m, 1);
+      const day = student.dueDay || defaultDueDay;
+      targetDate.setDate(day);
+      const dueDate =
+        manualDueDates[studentId] || format(targetDate, "yyyy-MM-dd");
+
+      const netAmount = Math.max(0, amount);
+      const totalServices = items.reduce((acc, it) => acc + it.quantity, 0);
+      const collegeSharePercent =
+        studentClass.collegeSharePercent ||
+        collegeShareBySegment[studentClass.segment] ||
+        0;
+
+      const collegeShareAmount = Math.max(
+        0,
+        ((netAmount - boletoFee) * collegeSharePercent) / 100,
+      );
+
+      newInvoices.push({
+        id: `preview_integral_${studentId}_${monthYear.replace('/', '-')}`,
+        studentId,
+        classId: studentClass.id,
+        monthYear,
+        dueDate,
+        billingMode: "PREPAID_FIXED",
+        grossAmount: amount,
+        absenceDays: 0,
+        absenceDiscountAmount: 0,
+        personalDiscountAmount: 0,
+        netAmount,
+        nossoNumero: "",
+        filename: student.filenameSuffix || "",
+        paymentStatus: "PENDING",
+        collegeSharePercent,
+        boletoEmissionFee: boletoFee,
+        collegeShareAmount,
+        totalServices,
+        isIntegral: true,
+        note: items.map((i) => `${i.name} (x${i.quantity})`).join(", "),
+      });
+    });
+
+    setPreviewInvoices(newInvoices.sort((a, b) => {
+      const nameA = students.find((s) => s.id === a.studentId)?.name || "";
+      const nameB = students.find((s) => s.id === b.studentId)?.name || "";
+      return nameA.localeCompare(nameB);
+    }));
+  }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay]);
+
+  const loadConsumption = useCallback(async (targetMonthYear: string, silent = false) => {
+    if (!silent) setIsLoading(true);
+    try {
+      const formattedMonth = targetMonthYear.replace("/", "-");
+      const records = await finance.getConsumptionByMonth(formattedMonth);
+      setDbConsumption(records);
+      generatePreview(records);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }, [generatePreview]);
+
+  useEffect(() => {
+    const init = async () => {
+      setIsLoadingDraft(true);
+      try {
+        const draft = await finance.getBillingDraft(monthYear);
+        if (draft) {
+          setManualAbsences(draft.manualAbsences || {});
+          setBankSlipNumbers(draft.bankSlipNumbers || {});
+          setManualDueDates(draft.manualDueDates || {});
+          setInvoiceNotes(draft.invoiceNotes || {});
+          setIntegralItems(draft.integralItems || {});
+          setRemovedStudentIds(draft.removedStudentIds || []);
+          lastSavedRef.current = JSON.stringify({ 
+            month: monthYear, 
+            manualAbsences: draft.manualAbsences || {},
+            bankSlipNumbers: draft.bankSlipNumbers || {},
+            manualDueDates: draft.manualDueDates || {},
+            invoiceNotes: draft.invoiceNotes || {},
+            integralItems: draft.integralItems || {},
+            removedStudentIds: draft.removedStudentIds || [],
+          });
+        } else {
+          setManualAbsences({});
+          setBankSlipNumbers({});
+          setManualDueDates({});
+          setInvoiceNotes({});
+          setIntegralItems({});
+          setRemovedStudentIds([]);
+          lastSavedRef.current = "";
+        }
+        
+        if (students.length > 0 && classes.length > 0) {
+          await loadConsumption(monthYear, true);
+        }
+      } finally {
+        setIsLoadingDraft(false);
+      }
+    };
+    init();
+  }, [monthYear, loadConsumption, students.length, classes.length]);
+
+  const lastSavedRef = useRef<string>("");
+  const isFirstRender = useRef(true);
+  const currentDataRef = useRef({
+    manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds,
+  });
+
+  currentDataRef.current = {
+    manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds,
+  };
+
+  const saveCurrentDraft = useCallback(async (month: string, silent = true) => {
+    const data = currentDataRef.current;
+    const dataStr = JSON.stringify({ month, ...data });
+    if (dataStr === lastSavedRef.current) return;
+
+    if (!silent) setSaveStatus("saving");
+    
+    await finance.saveBillingDraft({
+      id: month,
+      ...data,
+      lastUpdated: new Date().toISOString(),
+    });
+    
+    lastSavedRef.current = dataStr;
+    
+    if (!silent) {
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }
+  }, []);
+
+  const handleMonthChange = async (newLabel: string, newIdx: number) => {
+    await saveCurrentDraft(monthYear, true);
+    setMonthYear(newLabel);
+    setSelectedMonthIdx(newIdx);
+    skipNextAutoSave.current = true;
+  };
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (isLoadingDraft) return;
+    const timer = setTimeout(() => {
+      saveCurrentDraft(monthYear, false);
+    }, 2000);
+    return () => {
+      clearTimeout(timer);
+      saveCurrentDraft(monthYear, true);
+    };
+  }, [monthYear, manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, saveCurrentDraft]);
+
+  useEffect(() => {
+    generatePreview(dbConsumption);
+  }, [generatePreview, dbConsumption]);
+
+  const handleSaveInvoices = async () => {
+    setShowSaveConfirm(false);
+    setIsSavingInvoices(true);
+    try {
+      if (ageRefDay === 0) {
+        showToast("Erro: Dia Base de Idade não definido!");
+        return;
+      }
+
+      const invoicesToSave = previewInvoices
+        .filter((inv) => {
+          const typeMatch = inv.isIntegral 
+            ? selectedTypes.includes("integral")
+            : (inv.billingMode === "POSTPAID_CONSUMPTION" ? selectedTypes.includes("consumption") : selectedTypes.includes("fixed"));
+          
+          const hasNumber = !!bankSlipNumbers[inv.studentId];
+          return typeMatch && hasNumber && inv.netAmount >= 0;
+        })
+        .map((inv) => ({
+          ...inv,
+          bankSlipNumber: bankSlipNumbers[inv.studentId] || undefined,
+          note: invoiceNotes[inv.studentId] || undefined,
+        }));
+
+      if (invoicesToSave.length === 0) {
+        showToast("Nenhum boleto válido selecionado.");
+        return;
+      }
+
+      await Promise.all(invoicesToSave.map((inv) => finance.saveInvoice(inv)));
+      showToast(`${invoicesToSave.length} Títulos Gerados no Cluster!`);
+    } catch (e) {
+      console.error(e);
+      showToast("Erro Crítico no Salvamento.");
+    } finally {
+      setIsSavingInvoices(false);
+    }
+  };
+
+  const filteredInvoicesForSummary = React.useMemo(() => {
+    return previewInvoices.filter((inv) => {
+      if (inv.isIntegral) return selectedTypes.includes("integral");
+      const typeMatch =
+        inv.billingMode === "PREPAID_FIXED" ||
+        inv.billingMode === "PREPAID_DAYS"
+          ? selectedTypes.includes("fixed")
+          : selectedTypes.includes("consumption");
+      return typeMatch;
+    });
+  }, [previewInvoices, selectedTypes]);
+
+  const totalGross = React.useMemo(
+    () => filteredInvoicesForSummary.reduce((a, i) => a + i.grossAmount, 0),
+    [filteredInvoicesForSummary],
+  );
+  const totalNet = React.useMemo(
+    () => filteredInvoicesForSummary.reduce((a, i) => a + i.netAmount, 0),
+    [filteredInvoicesForSummary],
+  );
+  const totalCollege = React.useMemo(
+    () =>
+      filteredInvoicesForSummary.reduce(
+        (a, i) => a + (i.collegeShareAmount || 0),
+        0,
+      ),
+    [filteredInvoicesForSummary],
+  );
+
+  return (
+    <div className="p-4 md:p-10 pb-32 max-w-[1600px] mx-auto space-y-8 bg-slate-50/30 min-h-screen">
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-12 right-12 z-[100] bg-slate-900 text-white px-8 py-5 rounded-[2rem] font-black shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg">
+              <Zap size={20} />
+            </div>
+            <span className="uppercase tracking-widest text-[11px]">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Optimized Header --- */}
+      {/* --- Section 1: Referência e Importação (Intelligent Controls) --- */}
+      <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col lg:flex-row lg:items-center gap-12">
+        <div className="flex-1 space-y-8">
+           <div className="flex items-center justify-between border-b border-slate-50 pb-6">
+              <h3 className="text-[12px] font-black text-slate-900 uppercase tracking-[0.3em] flex items-center gap-3">
+                 <Calendar size={18} className="text-brand-blue" /> 01. Seletor de Referência Nominal
+              </h3>
+              
+              <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref. Atual:</span>
+                    <span className="text-[11px] font-black text-slate-900 uppercase">{MONTHS_FULL[parseInt(monthYear.split("/")[0]) - 1]} / {monthYear.split("/")[1]}</span>
+                 </div>
+                 <div className="flex items-center gap-2 bg-brand-blue/5 px-5 py-3 rounded-2xl border border-brand-blue/10">
+                    <span className="text-[9px] font-black text-brand-blue uppercase tracking-widest">Dias Letivos:</span>
+                    <span className="text-[11px] font-black text-brand-blue">{getCurrentMonthDays()}</span>
+                 </div>
+              </div>
+           </div>
+           
+           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+             {MONTHS_FULL.map((m, i) => {
+               const label = `${String(i + 1).padStart(2, "0")}/${CURRENT_YEAR}`;
+               const isSelected = monthYear === label;
+               return (
+                 <button
+                   key={i}
+                   onClick={() => handleMonthChange(label, i)}
+                   className={cn(
+                     "px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-tight transition-all border-2",
+                     isSelected 
+                       ? "bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/20 scale-105 z-10" 
+                       : "bg-slate-50 text-slate-400 border-transparent hover:border-slate-200 hover:bg-white"
+                   )}
+                 >
+                   {m}
+                 </button>
+               );
+             })}
+           </div>
+        </div>
+
+        <div className="lg:w-[350px] space-y-4">
+           <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner group/import">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                 <Upload size={14} /> Importação de Dados
+              </h4>
+              <button 
+                onClick={() => setShowImportModal(true)} 
+                className="w-full py-5 bg-white border-2 border-slate-200 hover:border-brand-blue rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group-hover/import:shadow-xl group-hover/import:-translate-y-1"
+              >
+                 <div className="w-12 h-12 bg-brand-blue/10 text-brand-blue rounded-full flex items-center justify-center">
+                    <Upload size={20} />
+                 </div>
+                 <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Importar Planilha</span>
+              </button>
+           </div>
+           <div className="flex gap-4">
+              <button onClick={() => setShowTemplateModal(true)} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-blue hover:border-brand-blue transition-all flex items-center justify-center gap-2">
+                 <MessagesSquare size={14} /> Templates
+              </button>
+              <button onClick={() => navigate('/config')} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-brand-blue hover:border-brand-blue transition-all shadow-sm">
+                 <Settings size={20} />
+              </button>
+           </div>
+        </div>
+      </div>
+
+      {/* --- Section 2: Dashboard de Faturamento --- */}
+      <div className="space-y-6">
+        {/* Filter & Toolbar */}
+        <div className="sticky top-4 z-40 bg-white/80 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3 w-full lg:flex-1">
+               <div className="relative flex-1 lg:max-w-xl">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                 <input 
+                   type="text" placeholder="PESQUISAR ALUNO PELO NOME..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-[11px] font-bold uppercase tracking-tight focus:outline-none focus:border-brand-blue focus:bg-white transition-all shadow-inner"
+                />
+              </div>
+
+              <select 
+                value={segmentFilter} onChange={(e) => setSegmentFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-2xl px-6 py-3 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-brand-blue transition-all shadow-sm"
+              >
+                <option value="all">Todos Segmentos</option>
+                <option value="Berçário">Berçário</option>
+                <option value="Educação Infantil">Educação Infantil</option>
+                <option value="Ensino Fundamental I">Ensino Fundamental I</option>
+              </select>
+
+              <select 
+                value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-2xl px-6 py-3 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-brand-blue transition-all shadow-sm"
+              >
+                <option value="all">Todas Turmas</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+           </div>
+
+           <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-end">
+              <div className="flex items-center gap-3 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                 <button onClick={() => setViewMode("list")} className={cn("p-2.5 rounded-xl transition-all", viewMode === "list" ? "bg-white text-brand-blue shadow-md" : "text-slate-400 hover:text-slate-600")}>
+                    <Layers size={18} />
+                 </button>
+                 <button onClick={() => setViewMode("grid")} className={cn("p-2.5 rounded-xl transition-all", viewMode === "grid" ? "bg-white text-brand-blue shadow-md" : "text-slate-400 hover:text-slate-600")}>
+                    <BarChart3 size={18} />
+                 </button>
+              </div>
+               <button 
+                disabled={!selectedIds.some(id => bankSlipNumbers[previewInvoices.find(i => i.id === id)?.studentId || ''])}
+                onClick={() => setShowSaveConfirm(true)}
+                className="flex items-center gap-3 px-8 py-3.5 bg-brand-blue text-white rounded-[1.2rem] shadow-xl shadow-brand-blue/20 hover:bg-brand-blue/90 transition-all disabled:grayscale disabled:opacity-50 disabled:shadow-none font-black text-[10px] uppercase tracking-widest"
+               >
+                  <Zap size={16} className="text-brand-lime" /> Gerar Boletos
+               </button>
+           </div>
+        </div>
+
+        {/* Tab System */}
+        <div className="flex bg-white p-2 rounded-[2.5rem] border border-slate-200 shadow-sm max-w-2xl mx-auto">
+          {(["fixed", "consumption", "integral"] as const).map((tab) => {
+            const count = tabCounts[tab];
+            const isSel = activeTab === tab;
+            return (
+              <button
+                key={tab} onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "flex-1 px-8 py-4 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-3",
+                  isSel ? "bg-slate-900 text-white shadow-xl shadow-slate-900/20" : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                {tab === "fixed" ? "Mensalidades" : tab === "consumption" ? "Consumo" : "Integral"}
+                <span className={cn("px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-normal", isSel ? "bg-white/20 text-white" : "bg-slate-200 text-slate-500")}>
+                  {count.total}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Data View */}
+        <div className="bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden min-h-[600px]">
+           {viewMode === "list" ? (
+             <div className="p-2">
+                {activeTab === "fixed" && (
+                  <FixedBillingTable
+                    monthYear={monthYear} previewInvoices={previewInvoices} students={students} classes={classes} services={services}
+                    dbConsumption={dbConsumption} manualAbsences={manualAbsences} setManualAbsences={setManualAbsences} setPreviewInvoices={setPreviewInvoices}
+                    businessDays={getCurrentMonthDays()} ageRefDay={ageRefDay} boletoFee={boletoFee} mandatorySnackBySegment={mandatorySnackBySegment}
+                    collegeShareBySegment={collegeShareBySegment} bankSlipNumbers={bankSlipNumbers} setBankSlipNumbers={setBankSlipNumbers}
+                    manualDueDates={manualDueDates} setManualDueDates={setManualDueDates} invoiceNotes={invoiceNotes} setInvoiceNotes={setInvoiceNotes}
+                    showStudentNotes={showStudentNotes} setShowStudentNotes={setShowStudentNotes} studentSearch={studentSearch} 
+                    classFilter={classFilter} segmentFilter={segmentFilter}
+                    selectedIds={selectedIds} setSelectedIds={setSelectedIds} formatStudentCopyId={formatStudentCopyId} getStudentMessage={getStudentMessage} setToast={showToast}
+                  />
+                )}
+                {activeTab === "consumption" && (
+                  <ConsumptionTable
+                    monthYear={monthYear} previewInvoices={previewInvoices} students={students} classes={classes} services={services}
+                    dbConsumption={dbConsumption} consumptionFilter={consumptionFilter} bankSlipNumbers={bankSlipNumbers} setBankSlipNumbers={setBankSlipNumbers}
+                    manualDueDates={manualDueDates} setManualDueDates={setManualDueDates} invoiceNotes={invoiceNotes} setInvoiceNotes={setInvoiceNotes}
+                    showStudentNotes={showStudentNotes} setShowStudentNotes={setShowStudentNotes} studentSearch={studentSearch} 
+                    classFilter={classFilter} segmentFilter={segmentFilter}
+                    recentlyImportedIds={recentlyImportedIds} selectedIds={selectedIds} setSelectedIds={setSelectedIds}
+                    formatStudentCopyId={formatStudentCopyId} getStudentMessage={getStudentMessage} setToast={showToast} ageRefDay={ageRefDay}
+                  />
+                )}
+                {activeTab === "integral" && (
+                  <IntegralBillingTable
+                    monthYear={monthYear} previewInvoices={previewInvoices} students={students} classes={classes} integralItems={integralItems}
+                    setIntegralItems={setIntegralItems} bankSlipNumbers={bankSlipNumbers} setBankSlipNumbers={setBankSlipNumbers}
+                    manualDueDates={manualDueDates} setManualDueDates={setManualDueDates} invoiceNotes={invoiceNotes} setInvoiceNotes={setInvoiceNotes}
+                    studentSearch={studentSearch} ageRefDay={ageRefDay}
+                    setShowIntegralSelectModal={setShowIntegralSelectModal} setShowIntegralServiceModal={setShowIntegralServiceModal}
+                    classFilter={classFilter} segmentFilter={segmentFilter}
+                    selectedIds={selectedIds} setSelectedIds={setSelectedIds} formatStudentCopyId={formatStudentCopyId} getStudentMessage={getStudentMessage} setToast={showToast}
+                  />
+                )}
+             </div>
+           ) : (
+             <div className="p-8 grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {previewInvoices
+                  .filter(inv => {
+                    const student = students.find(s => s.id === inv.studentId);
+                    if (!student) return false;
+                    const matchesSearch = student.name.toLowerCase().includes(studentSearch.toLowerCase());
+                    const matchesClass = classFilter === "all" || student.classId === classFilter;
+                    const matchesSegment = segmentFilter === "all" || student.segment === segmentFilter;
+                    const isNotRemoved = !removedStudentIds.includes(student.id);
+                    if (!(matchesSearch && matchesClass && matchesSegment && isNotRemoved)) return false;
+                    if (activeTab === "integral") return inv.isIntegral;
+                    if (activeTab === "consumption") return inv.billingMode === "POSTPAID_CONSUMPTION" && !inv.isIntegral;
+                    return inv.billingMode !== "POSTPAID_CONSUMPTION" && !inv.isIntegral;
+                  })
+                  .map(inv => {
+                    const student = students.find(s => s.id === inv.studentId);
+                    const sClass = classes.find(c => c.id === student?.classId);
+                    const isSel = selectedIds.includes(inv.id);
+                    return (
+                      <motion.div key={inv.id} layout className={cn("bg-white p-6 rounded-[2.5rem] border-2 transition-all relative group", isSel ? "border-brand-blue shadow-2xl shadow-brand-blue/10" : "border-slate-100 hover:border-slate-300 shadow-sm")}>
+                        <input type="checkbox" checked={isSel} onChange={() => setSelectedIds(isSel ? selectedIds.filter(id => id !== inv.id) : [...selectedIds, inv.id])} className="absolute top-6 right-6 w-5 h-5 rounded-lg border-slate-300 accent-brand-blue cursor-pointer" />
+                        <div className="flex items-center gap-4 mb-6">
+                           <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-black text-xl">{student?.name.charAt(0)}</div>
+                           <div>
+                              <h4 className="text-sm font-black text-slate-900 uppercase truncate max-w-[150px]">{student?.name}</h4>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sClass?.name}</p>
+                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Bruto</p>
+                              <p className="text-sm font-black text-slate-700">R$ {inv.grossAmount.toFixed(2)}</p>
+                           </div>
+                           <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100">
+                              <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1">Líquido</p>
+                              <p className="text-sm font-black text-emerald-700">R$ {inv.netAmount.toFixed(2)}</p>
+                           </div>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                           <div className="flex -space-x-2">
+                              {inv.isIntegral && <div className="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center text-[9px] font-black border-2 border-white">I</div>}
+                              {inv.hasImportedConsumption && <div className="w-7 h-7 rounded-full bg-brand-blue text-white flex items-center justify-center text-[9px] font-black border-2 border-white">C</div>}
+                           </div>
+                           <button onClick={() => { navigator.clipboard.writeText(getStudentMessage(inv)); showToast("Mensagem copiada!"); }} className="text-[9px] font-black text-brand-blue uppercase tracking-[0.2em] hover:scale-105 transition-transform">Copiar Msg</button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+             </div>
+           )}
+        </div>
+      </div>
+
+      {/* --- Floating Action Bar (Batch Generation) --- */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-10 py-6 rounded-[3rem] shadow-3xl flex items-center gap-10 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-5 pr-10 border-r border-white/10">
+               <div className="w-12 h-12 bg-brand-blue rounded-full flex items-center justify-center shadow-lg shadow-brand-blue/20"><CheckCircle2 size={24} /></div>
+               <div>
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">Selecionados</p>
+                  <p className="text-2xl font-black">{selectedIds.length} Alunos</p>
+               </div>
+            </div>
+            <div className="flex items-center gap-4">
+               <button onClick={() => {}} className="p-4 bg-white/10 hover:bg-brand-blue rounded-2xl text-white transition-all shadow-lg" title="Editar Lote">
+                  <Pencil size={20} />
+               </button>
+               <button onClick={() => showToast("Mensagens em Lote Copiadas")} className="p-4 bg-white/10 hover:bg-brand-blue rounded-2xl text-white transition-all shadow-lg" title="Copiar Mensagens">
+                  <Copy size={20} />
+               </button>
+               <button onClick={() => setSelectedIds([])} className="p-4 bg-white/10 hover:bg-red-500 rounded-2xl text-white transition-all shadow-lg" title="Excluir Seleção">
+                  <Trash2 size={20} />
+               </button>
+               <div className="w-px h-10 bg-white/10 mx-2" />
+               <button onClick={() => setSelectedIds([])} className="p-4 text-white/40 hover:text-white transition-colors">
+                  <XIcon size={24} />
+               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modals */}
+      <ConfirmDialog isOpen={showSaveConfirm} title="Confirmar Geração de Boletos" message={`Você está prestes a gerar boletos oficiais para ${previewInvoices.filter(i => selectedIds.includes(i.id) && !!bankSlipNumbers[i.studentId]).length} alunos do período ${monthYear}.`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
+      <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={(ids) => { setRecentlyImportedIds(ids); loadConsumption(monthYear, true); showToast(`${ids.length} registros de consumo sincronizados.`); }} monthYear={monthYear} students={students} />
+      <IntegralModals
+        showIntegralSelectModal={showIntegralSelectModal}
+        setShowIntegralSelectModal={setShowIntegralSelectModal}
+        showIntegralServiceModal={showIntegralServiceModal}
+        setShowIntegralServiceModal={setShowIntegralServiceModal}
+        students={students}
+        services={services}
+        modalStudentSearch={modalStudentSearch}
+        setModalStudentSearch={setModalStudentSearch}
+        modalSegmentFilter={modalSegmentFilter}
+        setModalSegmentFilter={setModalSegmentFilter}
+        modalClassFilter={modalClassFilter}
+        setModalClassFilter={setModalClassFilter}
+        classes={classes}
+        integralItems={integralItems}
+        setIntegralItems={setIntegralItems}
+        monthYear={monthYear}
+        ageRefDay={ageRefDay}
+        saveCurrentDraft={saveCurrentDraft}
+        getPriceKey={getPriceKey}
+      />
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        messageTemplates={messageTemplates}
+        setMessageTemplates={setMessageTemplates}
+        setToast={showToast}
+      />
+      <ConfirmDialog isOpen={confirmDialog.isOpen} title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })} variant={confirmDialog.variant} />
+    </div>
+  );
+}

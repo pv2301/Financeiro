@@ -1,0 +1,788 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Users, Plus, Pencil, Trash2, Save, X, Search, Upload, 
+  CheckCircle2, Calendar, ChevronUp, ChevronDown, 
+  Copy, Percent, Info, User,
+  Phone, Mail, ShieldCheck, Zap, ArrowUpRight,
+  LayoutGrid, List
+} from 'lucide-react';
+import { Student, ClassInfo } from '../types';
+import { finance } from '../services/finance';
+import ImportStudentsModal from '../components/ImportStudentsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { cn, formatCurrencyBRL } from '../lib/utils';
+
+export default function Students() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSegment, setFilterSegment] = useState('');
+  const [filterDiscount, setFilterDiscount] = useState<'ALL' | 'WITH'>('ALL');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  const [editingStudent, setEditingStudent] = useState<Student>({
+    id: '', name: '', classId: '', segment: '', birthDate: '',
+    responsibleName: '', responsibleCpf: '', contactPhone: '', contactEmail: '',
+    landlinePhone: '',
+    motherName: '', motherCpf: '', motherEmail: '', motherPhone1: '', motherPhone2: '',
+    fatherName: '', fatherCpf: '', fatherEmail: '', fatherPhone1: '', fatherPhone2: '',
+    personalDiscount: 0, personalDiscountNote: '', hasTimelyPaymentDiscount: false, filenameSuffix: '',
+    dueDay: undefined
+  });
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(message);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkDiscount, setBulkDiscount] = useState<number>(0);
+  const [bulkNote, setBulkNote] = useState<string>('');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [studentsData, classesData] = await Promise.all([
+        finance.getStudents(),
+        finance.getClasses()
+      ]);
+      setStudents((studentsData || []).sort((a, b) => a.name.localeCompare(b.name)));
+      setClasses(classesData || []);
+    } catch (error) {
+      console.error("Error loading students:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editingStudent.name || !editingStudent.classId) {
+      return alert('Nome do aluno e turma são obrigatórios');
+    }
+    
+    setIsSaving(true);
+    try {
+      const studentToSave = {
+        ...editingStudent,
+        id: editingStudent.id || crypto.randomUUID()
+      };
+      
+      await finance.saveStudent(studentToSave);
+      await loadData();
+      setIsModalOpen(false);
+      showToast(editingStudent.id ? 'Atualizado!' : 'Aluno cadastrado!');
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao salvar aluno.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsSaving(true);
+    try {
+      if (deleteTarget.id === 'bulk') {
+        await finance.deleteStudents(selectedIds);
+        showToast(`${selectedIds.length} alunos removidos!`);
+        setSelectedIds([]);
+      } else {
+        await finance.deleteStudent(deleteTarget.id);
+        showToast('Aluno removido!');
+      }
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao excluir aluno.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openModal = (s?: Student) => {
+    if (s) {
+      setEditingStudent({ 
+        ...s,
+        birthDate: s.birthDate ? s.birthDate.substring(0, 10) : ''
+      });
+    } else {
+      setEditingStudent({
+        id: '', name: '', classId: classes.length > 0 ? classes[0].id : '',
+        segment: '', birthDate: '', responsibleName: '', responsibleCpf: '',
+        contactPhone: '', contactEmail: '', landlinePhone: '',
+        motherName: '', motherCpf: '', motherEmail: '', motherPhone1: '', motherPhone2: '',
+        fatherName: '', fatherCpf: '', fatherEmail: '', fatherPhone1: '', fatherPhone2: '',
+        personalDiscount: 0, personalDiscountNote: '',
+        hasTimelyPaymentDiscount: false, filenameSuffix: '',
+        dueDay: undefined
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        s.responsibleName?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesClass = !filterClass || s.classId === filterClass;
+      const matchesSegment = !filterSegment || s.segment === filterSegment;
+      const matchesDiscount = filterDiscount === 'ALL' || s.personalDiscount > 0;
+      return matchesSearch && matchesClass && matchesSegment && matchesDiscount;
+    });
+  }, [students, searchTerm, filterClass, filterSegment, filterDiscount]);
+
+  const stats = useMemo(() => {
+    const discountGroups: Record<number, number> = {};
+    students.forEach(s => {
+      const d = s.personalDiscount || 0;
+      if (d > 0) discountGroups[d] = (discountGroups[d] || 0) + 1;
+    });
+    const discountList = Object.entries(discountGroups)
+      .map(([pct, count]) => ({ pct: Number(pct), count }))
+      .sort((a, b) => a.pct - b.pct);
+    return { total: students.length, discountList };
+  }, [students]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const formatAge = (birthDate: string) => {
+    if (!birthDate) return '—';
+    const birth = new Date(birthDate);
+    if (isNaN(birth.getTime())) return '—';
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    let months = today.getMonth() - birth.getMonth();
+    if (months < 0 || (months === 0 && today.getDate() < birth.getDate())) {
+      years--;
+      months += 12;
+    }
+    const yearText = years === 1 ? '1 ano' : `${years} anos`;
+    const monthText = months === 1 ? '1 mês' : `${months} meses`;
+    if (years > 0 && months > 0) return `${yearText} e ${monthText}`;
+    if (years > 0) return yearText;
+    if (months > 0) return monthText;
+    return 'Recém-nascido';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+             <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+             <div className="absolute inset-0 flex items-center justify-center text-brand-blue">
+                <Users size={24} className="animate-pulse" />
+             </div>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Indexando Bio-Perfis...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-12 right-12 z-[100] bg-slate-900 text-white px-8 py-5 rounded-[2rem] font-black shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="w-10 h-10 bg-brand-lime rounded-xl flex items-center justify-center text-slate-900 shadow-lg">
+              <Zap size={20} />
+            </div>
+            <span className="uppercase tracking-widest text-[11px]">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Header 'Pro-Max' --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-brand-blue rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-brand-blue/30 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <Users size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-[9px] font-black uppercase tracking-widest border border-brand-blue/20">Ecossistema Nominal</span>
+               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Protocolo Ativo</span>
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">Alunos</h1>
+            <p className="text-slate-400 font-medium mt-3 text-lg">Gestão inteligente de <span className="text-slate-900 font-bold">matriculados</span>.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-[3rem] border border-slate-100 shadow-inner">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => openModal()}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-[11px] hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-[0.2em]"
+          >
+            <Plus size={20} className="text-brand-lime" /> Novo Aluno
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-4 bg-white text-slate-600 border border-slate-200 px-8 py-5 rounded-[1.5rem] font-black text-[11px] transition-all shadow-sm uppercase tracking-[0.2em] hover:bg-slate-50"
+          >
+            <Upload size={20} /> Importação em Massa
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* --- Metric Cards --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Total de Alunos */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
+          className="p-8 rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-900 opacity-10" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+              <Users size={16} className="text-slate-600" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total de Alunos</p>
+          </div>
+          <p className="text-5xl font-black tracking-tighter text-slate-900 leading-none">{stats.total}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 opacity-60">Matrículas ativas</p>
+        </motion.div>
+
+        {/* Descontos por faixa */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+          className="p-8 rounded-[2.5rem] bg-indigo-50/50 border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500 opacity-20" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <Percent size={16} className="text-indigo-600" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Descontos Ativos</p>
+          </div>
+          {stats.discountList.length === 0 ? (
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest opacity-60 mt-2">Nenhum desconto ativo</p>
+          ) : (
+            <div className="space-y-2 mt-1">
+              {stats.discountList.map(({ pct, count }) => (
+                <div key={pct} className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-black text-indigo-600 uppercase tracking-widest w-10">{pct}%</span>
+                  <div className="flex-1 h-1 rounded-full bg-indigo-100 overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-400 rounded-full"
+                      style={{ width: `${Math.min(100, (count / stats.total) * 100 * 3)}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-black text-slate-600 tabular-nums">{count} {count === 1 ? 'aluno' : 'alunos'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* --- Sticky Filter Ecosystem --- */}
+      <div className="sticky top-4 z-40">
+        <div className="flex flex-col lg:flex-row gap-6 bg-slate-50/50 backdrop-blur-xl p-6 rounded-[3rem] shadow-2xl shadow-slate-900/10 border-2 border-white">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-all" size={22} />
+            <input 
+              type="text" 
+              placeholder="Pesquisar Bio-Perfis ou Responsáveis..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-20 pr-8 py-5 bg-white border-2 border-slate-100 rounded-[2rem] focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all font-bold text-slate-700 placeholder:text-slate-300 placeholder:font-black placeholder:uppercase placeholder:text-[10px] placeholder:tracking-widest shadow-sm"
+            />
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex bg-white p-2 rounded-[2rem] border-2 border-slate-100 shadow-sm">
+               <select 
+                  value={filterSegment}
+                  onChange={(e) => { setFilterSegment(e.target.value); setFilterClass(''); }}
+                  className="bg-transparent px-8 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+               >
+                  <option value="">Todos Segmentos</option>
+                  {['Berçário', 'Educação Infantil', 'Ensino Fundamental I'].map(s => <option key={s} value={s}>{s}</option>)}
+               </select>
+               <div className="w-px h-6 bg-slate-100 my-auto" />
+               <select 
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  className="bg-transparent px-8 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+               >
+                  <option value="">Todas Turmas</option>
+                  {classes
+                    .filter(c => !filterSegment || c.segment === filterSegment)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+               </select>
+            </div>
+
+            <div className="flex bg-white p-2 rounded-[2rem] border-2 border-slate-100 shadow-sm">
+               <button
+                  onClick={() => setFilterDiscount('ALL')}
+                  className={cn("px-8 py-3 rounded-[1.2rem] text-[9px] font-black uppercase tracking-widest transition-all", filterDiscount === 'ALL' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+               >
+                  Ver Todos
+               </button>
+               <button
+                  onClick={() => setFilterDiscount('WITH')}
+                  className={cn("px-8 py-3 rounded-[1.2rem] text-[9px] font-black uppercase tracking-widest transition-all", filterDiscount === 'WITH' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+               >
+                  Especiais
+               </button>
+            </div>
+            
+            {(searchTerm || filterClass || filterSegment || filterDiscount !== 'ALL') && (
+              <button 
+                onClick={() => { setSearchTerm(''); setFilterClass(''); setFilterSegment(''); setFilterDiscount('ALL'); }}
+                className="px-8 py-4 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 rounded-[1.5rem] transition-all"
+              >
+                Resetar Filtros
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* --- Batch Protocol Bar --- */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[90] bg-slate-900/95 text-white px-10 py-6 rounded-[3.5rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] border border-white/10 flex items-center gap-10 backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-5">
+               <div className="w-14 h-14 bg-brand-blue rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-brand-blue/30">
+                  <Users size={24} />
+               </div>
+               <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">Ação de Ecossistema</p>
+                  <p className="text-xl font-black tracking-tighter">{selectedIds.length} Perfis Selecionados</p>
+               </div>
+            </div>
+            
+            <div className="h-10 w-px bg-white/10" />
+            
+            <div className="flex items-center gap-4">
+               <button onClick={() => setIsBulkModalOpen(true)} className="flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all border border-white/5">
+                  <Percent size={16} /> Ajustar Desconto
+               </button>
+               <button onClick={() => setDeleteTarget({ id: 'bulk', name: `${selectedIds.length} alunos` })} className="flex items-center gap-3 px-8 py-4 bg-red-500 hover:bg-red-600 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-red-500/20">
+                  <Trash2 size={16} /> Remover
+               </button>
+               <button onClick={() => setSelectedIds([])} className="w-14 h-14 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center transition-all">
+                  <X size={20} />
+               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Student Intelligence Table --- */}
+      {isLoading ? (
+        <div className="bg-white p-32 rounded-[4rem] text-center border border-slate-100 shadow-xl">
+          <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin mx-auto mb-8" />
+          <p className="text-slate-400 font-black uppercase tracking-[0.4em] text-sm animate-pulse">Carregando Bio-Dados...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <th className="py-6 px-8 text-center w-16">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all"
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(filteredStudents.map(s => s.id));
+                        else setSelectedIds([]);
+                      }}
+                      checked={filteredStudents.length > 0 && filteredStudents.every(s => selectedIds.includes(s.id))}
+                    />
+                  </th>
+                  <th className="py-6 px-4">Aluno / Turma / Responsável</th>
+                  <th className="py-6 px-4">Contato / Auditoria</th>
+                  <th className="py-6 px-4">Financeiro</th>
+                  <th className="py-6 px-8 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-32 text-center">
+                      <Search size={64} className="mx-auto text-slate-100 mb-8" />
+                      <p className="text-slate-400 font-black uppercase tracking-[0.4em] text-sm">Nenhum perfil detectado.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((s, idx) => {
+                    const studentClass = classes.find(c => c.id === s.classId);
+                    const isSelected = selectedIds.includes(s.id);
+                    const initials = s.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                    
+                    return (
+                      <motion.tr 
+                        key={s.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.01 }}
+                        className={cn(
+                          "group transition-all hover:bg-slate-50/80",
+                          isSelected && "bg-brand-blue/5"
+                        )}
+                      >
+                        <td className="py-6 px-8 text-center">
+                          <input
+                            type="checkbox"
+                            className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(s.id)}
+                          />
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex items-center gap-6">
+                            <div className={cn(
+                              "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm transition-all shrink-0",
+                              isSelected ? "bg-brand-blue text-white shadow-brand-blue/20" : "bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white"
+                            )}>
+                              {initials}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <h3 className="font-black text-slate-900 uppercase tracking-tight text-base truncate mb-1">{s.name}</h3>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[9px] font-black text-brand-blue uppercase tracking-widest bg-brand-blue/5 px-2 py-0.5 rounded-md border border-brand-blue/10">
+                                  {studentClass?.name || 'Sem Turma'}
+                                </span>
+                                <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{formatAge(s.birthDate || '')}</span>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2 text-slate-500">
+                                  <User size={10} className="text-slate-400" />
+                                  <span className="text-[10px] font-black uppercase tracking-tight truncate max-w-[200px]">{s.responsibleName || 'Responsável não informado'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-400">
+                                  <span className="text-[9px] font-black uppercase tracking-widest">CPF: {s.responsibleCpf || '—'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-sm w-fit group-hover:border-slate-200 transition-all">
+                              <div className="w-7 h-7 bg-emerald-500/10 text-emerald-600 rounded-lg flex items-center justify-center">
+                                <Phone size={12} />
+                              </div>
+                              <span className="text-[10px] font-black text-slate-600 tabular-nums">{s.contactPhone || '—'}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100 text-slate-400">
+                                <ShieldCheck size={10} className="text-emerald-500" />
+                                <span className="text-[9px] font-black uppercase tracking-widest tabular-nums">ID: {s.id.substring(0, 8).toUpperCase()}</span>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(s.id);
+                                  showToast('ID Copiado!');
+                                }}
+                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-300 hover:text-brand-blue transition-all"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimento:</span>
+                              <span className="text-[11px] font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">Dia {s.dueDay || '10'}</span>
+                            </div>
+                            {s.personalDiscount > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                                  {s.personalDiscount}% Desconto
+                                </span>
+                              </div>
+                            )}
+                            <div className="max-w-[150px] truncate text-[9px] text-slate-400 font-medium italic">
+                              {s.personalDiscountNote || 'Sem observações'}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-6 px-8 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => openModal(s)} 
+                              className="w-10 h-10 bg-white text-slate-400 hover:text-brand-blue border border-slate-100 hover:border-brand-blue/30 rounded-xl transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Pencil size={18} />
+                            </motion.button>
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => setDeleteTarget({ id: s.id, name: s.name })} 
+                              className="w-10 h-10 bg-white text-slate-400 hover:text-red-500 border border-slate-100 hover:border-red-500/30 rounded-xl transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Trash2 size={18} />
+                            </motion.button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-20 border-t border-slate-100 gap-8 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <ShieldCheck size={24} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Canteen Hub &bull; Protocolo Alunos 2026</p>
+        </div>
+        <div className="flex items-center gap-10">
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Entidades Ativas: {students.length}</p>
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity Intelligence</p>
+        </div>
+      </div>
+
+      <ConfirmDialog 
+        isOpen={deleteTarget !== null} 
+        onCancel={() => setDeleteTarget(null)} 
+        onConfirm={confirmDelete}
+        title={deleteTarget?.id === 'bulk' ? 'Excluir Lote' : 'Remover Perfil'}
+        message={`Confirmar a remoção permanente de ${deleteTarget?.name} do ecossistema estratégico? Esta ação é irreversível.`}
+        variant="danger"
+      />
+
+      {/* Form Modal Pro-Max */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-xl pt-20 pb-20">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 40 }}
+              className="bg-white rounded-[4rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.3)] border border-slate-200 w-full max-w-5xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-12 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center sticky top-0 z-10">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/20">
+                     <User size={32} />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">{editingStudent.id ? 'Refinar Bio-Perfil' : 'Novo Aluno Estratégico'}</h2>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Sincronização de Dados Nominais</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="w-14 h-14 flex items-center justify-center bg-white rounded-2xl border-2 border-slate-100 hover:bg-red-50 hover:text-red-500 transition-all text-slate-400 shadow-sm">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-12 space-y-16 overflow-y-auto flex-1 bg-white">
+                {/* Section 1: Core Identity */}
+                <div className="space-y-10">
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-[0.3em] flex items-center gap-4">
+                    <div className="w-2 h-8 bg-brand-blue rounded-full shadow-lg shadow-brand-blue/20" />
+                    Identidade Primária
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Nome Completo do Aluno</label>
+                      <input type="text" value={editingStudent.name} onChange={e => setEditingStudent({...editingStudent, name: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Data de Nascimento</label>
+                      <input type="date" value={editingStudent.birthDate || ''} onChange={e => setEditingStudent({...editingStudent, birthDate: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Atribuição de Turma / Segmento</label>
+                      <select value={editingStudent.classId} onChange={e => setEditingStudent({...editingStudent, classId: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm cursor-pointer appearance-none">
+                        <option value="">Selecione o Cluster...</option>
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Financial Strategy */}
+                <div className="space-y-10">
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-[0.3em] flex items-center gap-4">
+                    <div className="w-2 h-8 bg-indigo-500 rounded-full shadow-lg shadow-indigo-500/20" />
+                    Estratégia Financeira
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm group/input">
+                       <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Dia de Vencimento</label>
+                       <input type="number" value={editingStudent.dueDay || ''} onChange={e => setEditingStudent({...editingStudent, dueDay: parseInt(e.target.value) || undefined})}
+                          className="w-full bg-white border-2 border-slate-100 rounded-2xl px-8 py-5 font-black text-4xl text-slate-900 outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all" />
+                       <p className="text-[10px] font-black text-slate-400 mt-4 uppercase tracking-widest">Deixe em branco para usar o dia 10 padrão.</p>
+                    </div>
+                    <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm">
+                       <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Acordo de Desconto (%)</label>
+                       <input type="number" value={editingStudent.personalDiscount || ''} onChange={e => setEditingStudent({...editingStudent, personalDiscount: parseFloat(e.target.value) || 0})}
+                          className="w-full bg-white border-2 border-slate-100 rounded-2xl px-8 py-5 font-black text-4xl text-slate-900 outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all" />
+                       <div className="flex items-center gap-4 mt-6">
+                          <input type="checkbox" id="timely" checked={editingStudent.hasTimelyPaymentDiscount} onChange={e => setEditingStudent({...editingStudent, hasTimelyPaymentDiscount: e.target.checked})}
+                             className="w-6 h-6 rounded-[0.5rem] border-2 border-slate-200 accent-brand-blue cursor-pointer" />
+                          <label htmlFor="timely" className="text-[11px] font-black text-slate-500 uppercase tracking-widest cursor-pointer select-none">Válido até o Vencimento</label>
+                       </div>
+                    </div>
+                    <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm">
+                       <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Notas de Protocolo</label>
+                       <textarea rows={5} value={editingStudent.personalDiscountNote || ''} onChange={e => setEditingStudent({...editingStudent, personalDiscountNote: e.target.value})}
+                          className="w-full bg-white border-2 border-slate-100 rounded-2xl px-8 py-5 font-medium text-sm text-slate-600 outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all resize-none shadow-inner" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Responsibles & Contacts */}
+                <div className="space-y-10">
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-[0.3em] flex items-center gap-4">
+                    <div className="w-2 h-8 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/20" />
+                    Hub de Responsáveis
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Nome do Responsável Financeiro</label>
+                      <input type="text" value={editingStudent.responsibleName} onChange={e => setEditingStudent({...editingStudent, responsibleName: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">CPF / Identificação</label>
+                      <input type="text" value={editingStudent.responsibleCpf} onChange={e => setEditingStudent({...editingStudent, responsibleCpf: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Telefone / WhatsApp Principal</label>
+                      <input type="text" value={editingStudent.contactPhone} onChange={e => setEditingStudent({...editingStudent, contactPhone: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">E-mail para Faturamento</label>
+                      <input type="email" value={editingStudent.contactEmail} onChange={e => setEditingStudent({...editingStudent, contactEmail: e.target.value})}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-8 py-5 font-black text-base uppercase tracking-wider text-slate-700 focus:outline-none focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 transition-all shadow-sm" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-12 border-t-2 border-slate-100 bg-slate-50/50 flex justify-end gap-6 sticky bottom-0 z-10 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                <button onClick={() => setIsModalOpen(false)} className="px-12 py-6 rounded-3xl font-black text-[12px] uppercase tracking-[0.3em] text-slate-400 hover:bg-slate-200 transition-all">Cancelar</button>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSave} 
+                  className="flex items-center gap-4 bg-slate-900 text-white px-16 py-6 rounded-3xl font-black text-[12px] uppercase tracking-[0.3em] shadow-2xl shadow-slate-900/20"
+                >
+                  <Save size={24} className="text-brand-lime" /> {editingStudent.id ? 'Sincronizar' : 'Efetivar Cadastro'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Action Modal Pro */}
+      <AnimatePresence>
+        {isBulkModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 bg-slate-900/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-slate-200 w-full max-w-xl overflow-hidden"
+            >
+              <div className="p-12 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div className="flex items-center gap-5">
+                   <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                      <Percent size={28} />
+                   </div>
+                   <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">Protocolo de <br /> Desconto em Lote</h2>
+                </div>
+                <button onClick={() => setIsBulkModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white border border-slate-100 hover:bg-red-50 hover:text-red-500 transition-all text-slate-400">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-12 space-y-10">
+                <div className="bg-slate-50 p-8 rounded-[2rem] border-2 border-slate-100">
+                   <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Margem de Desconto (%)</label>
+                   <input type="number" value={bulkDiscount} onChange={e => setBulkDiscount(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-white border-2 border-slate-100 rounded-2xl px-8 py-5 font-black text-5xl text-slate-900 outline-none focus:ring-8 focus:ring-brand-blue/5 transition-all tabular-nums" />
+                </div>
+                <div>
+                   <label className="block text-[11px] font-black text-slate-400 mb-4 uppercase tracking-widest">Justificativa Estratégica</label>
+                   <textarea rows={4} value={bulkNote} onChange={e => setBulkNote(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-8 py-5 font-medium text-sm text-slate-600 outline-none focus:ring-8 focus:ring-brand-blue/5 transition-all resize-none shadow-inner" />
+                </div>
+              </div>
+              <div className="p-12 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6">
+                 <button onClick={() => setIsBulkModalOpen(false)} className="px-10 py-5 font-black text-[12px] uppercase tracking-widest text-slate-400 hover:text-slate-600">Abortar</button>
+                 <motion.button 
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                   onClick={() => { finance.mergeBatchStudents(students.filter(s => selectedIds.includes(s.id)).map(s => ({ ...s, personalDiscount: bulkDiscount, personalDiscountNote: bulkNote }))).then(() => { loadData(); setIsBulkModalOpen(false); setSelectedIds([]); showToast('Protocolo de Lote Aplicado!'); }); }}
+                   className="bg-indigo-600 text-white px-12 py-5 rounded-[1.5rem] font-black text-[12px] uppercase tracking-widest shadow-2xl shadow-indigo-600/30">Efetivar Protocolo</motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportStudentsModal
+            existingClasses={classes}
+            onClose={() => setShowImportModal(false)}
+            onComplete={loadData}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

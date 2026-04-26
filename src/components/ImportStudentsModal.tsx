@@ -17,15 +17,21 @@ const COLUMN_MAP: Record<string, { field: string; label: string; default: boolea
   'TEL_RESP':         { field: 'contactPhone',   label: 'Telefone/WhatsApp',     default: true },
   'EMAIL_RESP':       { field: 'contactEmail',   label: 'Email do Responsável',  default: true },
   'MAE':              { field: 'motherName',     label: 'Nome da Mãe',           default: false },
+  'MAEALUNO':         { field: 'motherName',     label: 'Nome da Mãe',           default: false },
   'CPF_MAE':          { field: 'motherCpf',      label: 'CPF da Mãe',            default: false },
+  'CPFMALUNO':        { field: 'motherCpf',      label: 'CPF da Mãe',            default: false },
   'EMAIL_MAE':        { field: 'motherEmail',    label: 'Email da Mãe',          default: false },
   'PAI':              { field: 'fatherName',     label: 'Nome do Pai',            default: false },
+  'PAIALUNO':         { field: 'fatherName',     label: 'Nome do Pai',            default: false },
   'CPF_PAI':          { field: 'fatherCpf',      label: 'CPF do Pai',             default: false },
+  'CPFPIALUNO':       { field: 'fatherCpf',      label: 'CPF do Pai',             default: false },
   'EMAIL_PAI':        { field: 'fatherEmail',    label: 'Email do Pai',           default: false },
   'TEL_MAE1':         { field: 'motherPhone1',   label: 'Telefone Mãe 1',        default: false },
   'TEL_MAE2':         { field: 'motherPhone2',   label: 'Telefone Mãe 2',        default: false },
   'TEL_PAI1':         { field: 'fatherPhone1',   label: 'Telefone Pai 1',        default: false },
   'TEL_PAI2':         { field: 'fatherPhone2',   label: 'Telefone Pai 2',        default: false },
+  'TELEXALUNO':       { field: 'landlinePhone',  label: 'Telefone Fixo (Telex)', default: false },
+  'TELEFONEALUNO':    { field: 'contactPhone',   label: 'Telefone Aluno',        default: false },
 };
 
 function generateFilenameSuffix(name: string): string {
@@ -106,13 +112,37 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
         const seg = String(segmentRow?.['car'] || '').trim();
         const nc: ClassInfo = {
           id, name: c.name, segment: seg,
-          billingMode: 'ANTICIPATED_FIXED', basePrice: 0,
-          applyAbsenceDiscount: false, discountPerAbsence: 0,
-          collegeSharePercent: 20, scholasticDays: {},
+          billingMode: 'PREPAID_FIXED', basePrice: 0,
+          applyAbsenceDiscount: false,
+          collegeSharePercent: 20,
         };
         newClasses.push(nc);
         classLookup.set(c.name.toLowerCase(), nc);
       });
+
+      const parseExcelDate = (val: any): string => {
+        if (!val) return '';
+        if (val instanceof Date) return val.toISOString();
+        if (typeof val === 'number') {
+          // Excel epoch is 1899-12-30
+          const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+          return isNaN(date.getTime()) ? '' : date.toISOString();
+        }
+        if (typeof val === 'string') {
+          const parts = val.trim().split('/');
+          if (parts.length === 3) {
+            const d = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[2], 10);
+            const date = new Date(y, m, d);
+            return isNaN(date.getTime()) ? '' : date.toISOString();
+          }
+          // Try ISO or US format as fallback
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? '' : date.toISOString();
+        }
+        return '';
+      };
 
       // Build students
       const students: Student[] = rows.map(r => {
@@ -130,19 +160,19 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
           name,
           classId: cls.id,
           segment: String(r['car'] || '').trim(),
-          birthDate: r['DATANASCALUNO'] ? new Date(r['DATANASCALUNO']).toISOString() : '',
+          birthDate: parseExcelDate(r['DATANASCALUNO']),
           responsibleName: selectedCols.has('NOME_RESPONS_FIN') ? String(r['NOME_RESPONS_FIN'] || '') : '',
           responsibleCpf: cpf,
-          contactPhone: selectedCols.has('TEL_RESP') ? String(r['TEL_RESP'] || '') : '',
+          contactPhone: (selectedCols.has('TEL_RESP') ? String(r['TEL_RESP'] || '') : '') || (selectedCols.has('TELEFONEALUNO') ? String(r['TELEFONEALUNO'] || '') : ''),
           contactEmail: selectedCols.has('EMAIL_RESP') ? String(r['EMAIL_RESP'] || '') : '',
-          landlinePhone: selectedCols.has('TELEX') ? String(r['TELEX'] || '') : '',
-          motherName: selectedCols.has('MAE') ? String(r['MAE'] || '') : undefined,
-          motherCpf: selectedCols.has('CPF_MAE') ? String(r['CPF_MAE'] || '') : undefined,
+          landlinePhone: (selectedCols.has('TELEX') ? String(r['TELEX'] || '') : '') || (selectedCols.has('TELEXALUNO') ? String(r['TELEXALUNO'] || '') : ''),
+          motherName: (selectedCols.has('MAE') ? String(r['MAE'] || '') : '') || (selectedCols.has('MAEALUNO') ? String(r['MAEALUNO'] || '') : ''),
+          motherCpf: (selectedCols.has('CPF_MAE') ? String(r['CPF_MAE'] || '') : '') || (selectedCols.has('CPFMALUNO') ? String(r['CPFMALUNO'] || '') : ''),
           motherEmail: selectedCols.has('EMAIL_MAE') ? String(r['EMAIL_MAE'] || '') : undefined,
           motherPhone1: selectedCols.has('TEL_MAE1') ? String(r['TEL_MAE1'] || '') : undefined,
           motherPhone2: selectedCols.has('TEL_MAE2') ? String(r['TEL_MAE2'] || '') : undefined,
-          fatherName: selectedCols.has('PAI') ? String(r['PAI'] || '') : undefined,
-          fatherCpf: selectedCols.has('CPF_PAI') ? String(r['CPF_PAI'] || '') : undefined,
+          fatherName: (selectedCols.has('PAI') ? String(r['PAI'] || '') : '') || (selectedCols.has('PAIALUNO') ? String(r['PAIALUNO'] || '') : ''),
+          fatherCpf: (selectedCols.has('CPF_PAI') ? String(r['CPF_PAI'] || '') : '') || (selectedCols.has('CPFPIALUNO') ? String(r['CPFPIALUNO'] || '') : ''),
           fatherEmail: selectedCols.has('EMAIL_PAI') ? String(r['EMAIL_PAI'] || '') : undefined,
           fatherPhone1: selectedCols.has('TEL_PAI1') ? String(r['TEL_PAI1'] || '') : undefined,
           fatherPhone2: selectedCols.has('TEL_PAI2') ? String(r['TEL_PAI2'] || '') : undefined,

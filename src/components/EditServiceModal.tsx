@@ -35,13 +35,17 @@ export const ALL_SEGMENTS = [
 
 interface Props {
   service: ServiceItem;
-  onSave: (id: string, name: string, prices: Record<string, number>) => void;
+  onSave: (id: string, name: string, prices: Record<string, number>, mandatorySegments: Segment[]) => void;
   onClose: () => void;
+  isSaving?: boolean;
+  mandatoryFor?: Segment[];
+  targetSegment?: Segment;
 }
 
-export default function EditServiceModal({ service, onSave, onClose }: Props) {
+export default function EditServiceModal({ service, onSave, onClose, isSaving, mandatoryFor, targetSegment }: Props) {
   const [name, setName] = useState(service.name);
   const [prices, setPrices] = useState<Record<string, number>>(service.priceByKey || {});
+  const [mandatorySegments, setMandatorySegments] = useState<Segment[]>(mandatoryFor || []);
   
   // Bulk application state
   const [bulkValue, setBulkValue] = useState('');
@@ -94,14 +98,51 @@ export default function EditServiceModal({ service, onSave, onClose }: Props) {
         </div>
 
         <div className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Nome do Serviço</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue transition-all"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Nome do Serviço</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Configurações de Faturamento</label>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <CheckSquare size={14} /> Referencial de Faltas
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  {['Educação Infantil', 'Ensino Fundamental I']
+                    .filter(seg => !targetSegment || seg === targetSegment)
+                    .map((seg) => (
+                    <label key={seg} className="flex items-center gap-2 cursor-pointer group">
+                      <div 
+                        onClick={() => {
+                          if (mandatorySegments.includes(seg as Segment)) {
+                            setMandatorySegments(mandatorySegments.filter(s => s !== seg));
+                          } else {
+                            // Since we isolated it, we can actually just replace or add
+                            // If we want it to be exclusive per segment, we just toggle it.
+                            setMandatorySegments([...mandatorySegments, seg as Segment]);
+                          }
+                        }}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${mandatorySegments.includes(seg as Segment) ? 'border-amber-500 bg-amber-500' : 'border-slate-300 bg-white'}`}
+                      >
+                        {mandatorySegments.includes(seg as Segment) && <X size={12} className="text-white rotate-45" />}
+                      </div>
+                      <span className="text-xs font-bold text-slate-700 group-hover:text-amber-600 transition-colors">{seg}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[9px] text-amber-500 mt-2 font-medium leading-tight">
+                  💡 Marcar como referencial fará com que este lanche seja usado para calcular o desconto de faltas neste segmento.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-2xl p-4">
@@ -182,8 +223,21 @@ export default function EditServiceModal({ service, onSave, onClose }: Props) {
           <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors">
             Cancelar
           </button>
-          <button onClick={() => onSave(service.id, name, prices)} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-colors">
-            <Save size={18} /> Salvar Serviço
+          <button 
+            disabled={isSaving}
+            onClick={() => onSave(service.id, name, prices, mandatorySegments)} 
+            className={`flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all ${isSaving ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:bg-emerald-600 active:scale-95'}`}
+          >
+            {isSaving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save size={18} /> Salvar Serviço
+              </>
+            )}
           </button>
         </div>
       </motion.div>

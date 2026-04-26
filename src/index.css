@@ -9,10 +9,75 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-brand-blue);
+  cursor: pointer;
+}
+
+:root {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #f1f5f9;
+}
+
+.dark {
+  --bg-main: #020617;
+  --bg-card: #0f172a;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: #1e293b;
+}
+
 @layer base {
   body {
-    @apply bg-[#f8fafc] text-slate-900;
+    @apply bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-300;
   }
+}
+
+.dark aside {
+  @apply bg-slate-900 border-slate-800;
+}
+
+.dark .bg-white {
+  @apply bg-slate-900 border-slate-800;
+}
+
+.dark .text-slate-800, .dark .text-slate-700 {
+  @apply text-slate-200;
+}
+
+.dark .text-slate-600, .dark .text-slate-500 {
+  @apply text-slate-400;
+}
+
+.dark .bg-slate-50 {
+  @apply bg-slate-950 border-slate-800;
+}
+
+.dark .border-slate-100, .dark .border-slate-200 {
+  @apply border-slate-800;
+}
+
+.dark input, .dark select, .dark textarea {
+  @apply bg-slate-800 border-slate-700 text-slate-200 focus:ring-brand-blue/30;
+}
+
+.dark .shadow-sm {
+  @apply shadow-none;
+}
+
+.dark .hover\:bg-slate-50:hover {
+  @apply hover:bg-slate-800;
+}
+
+.dark .bg-slate-100 {
+  @apply bg-slate-800 text-slate-300;
 }
 
 .no-scrollbar::-webkit-scrollbar {

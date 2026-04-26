@@ -7,39 +7,98 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "paulo.vlima@prf.gov.br" && request.auth.token.email_verified == true));
+      return isAuthenticated() && (
+        request.auth.uid == "yUvj3iONfJUNiEvdRS8REf4AzB13" ||
+        ('email' in request.auth.token && (
+          request.auth.token.email == "paulo.vlima@prf.gov.br" ||
+          request.auth.token.email == "paulovictorsilva2301@gmail.com"
+        ))
+      );
     }
 
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && (request.auth.uid == userId && request.resource.data.role == 'user') || isAdmin();
-      allow update: if isAuthenticated() && (request.auth.uid == userId && request.resource.data.role == resource.data.role) || isAdmin();
+    function getProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    // True for any user approved by an admin (status == APPROVED)
+    function isApproved() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        getProfile().status == 'APPROVED'
+      );
+    }
+
+    // True for approved users who can write (ADMIN, EDITOR, or legacy USER role)
+    function canWrite() {
+      return isAdmin() || (
+        isApproved() &&
+        getProfile().role != 'VIEWER'
+      );
+    }
+
+    match /profiles/{userId} {
+      allow get: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /presence/{userId} {
+      allow read, list: if isApproved();
+      allow write: if isApproved() && (request.auth.uid == userId);
+    }
+
+    match /fin_presence/{userId} {
+      allow read, list: if isApproved();
+      allow write: if isApproved() && (request.auth.uid == userId);
     }
 
     match /fin_students/{studentId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isApproved();
+      allow write: if canWrite();
     }
 
     match /fin_classes/{classId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isApproved();
+      allow write: if canWrite();
     }
 
     match /fin_snacks/{snackId} {
-      allow read, write: if isAuthenticated();
+      allow read: if true;
+      allow write: if canWrite();
     }
 
     match /fin_invoices/{invoiceId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isApproved();
+      allow write: if canWrite();
     }
 
     match /fin_config/{configId} {
-      allow read, write: if isAuthenticated();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /fin_consumption/{consumptionId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /fin_audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /fin_billing_drafts/{draftId} {
+      allow read, write: if isAdmin();
     }
   }
 }

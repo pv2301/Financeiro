@@ -10,6 +10,7 @@ interface Props {
   variant?: 'danger' | 'warning' | 'info';
   onConfirm: () => void;
   onCancel: () => void;
+  isLoading?: boolean;
 }
 
 const VARIANTS = {
@@ -18,7 +19,7 @@ const VARIANTS = {
   info:    { bg: 'bg-sky-50',    text: 'text-sky-600',    btn: 'bg-sky-500 hover:bg-sky-600',     Icon: Info },
 };
 
-export default function ConfirmDialog({ isOpen, title, message, confirmLabel = 'Confirmar', variant = 'danger', onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({ isOpen, title, message, confirmLabel = 'Confirmar', variant = 'danger', onConfirm, onCancel, isLoading }: Props) {
   const v = VARIANTS[variant];
 
   return (
@@ -26,7 +27,7 @@ export default function ConfirmDialog({ isOpen, title, message, confirmLabel = '
       {isOpen && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4"
-          onClick={onCancel}>
+          onClick={isLoading ? undefined : onCancel}>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
             onClick={e => e.stopPropagation()}>
@@ -36,17 +37,21 @@ export default function ConfirmDialog({ isOpen, title, message, confirmLabel = '
               </div>
               <div className="text-center">
                 <h3 className="text-lg font-black text-slate-800">{title}</h3>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">{message}</p>
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed whitespace-pre-line">{message}</p>
               </div>
             </div>
             <div className="flex gap-3 p-6 pt-0">
               <button onClick={onCancel}
-                className="flex-1 px-5 py-3 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+                disabled={isLoading}
+                className="flex-1 px-5 py-3 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50">
                 Cancelar
               </button>
               <button onClick={onConfirm}
-                className={`flex-1 px-5 py-3 rounded-2xl font-black text-white ${v.btn} transition-colors shadow-lg`}>
-                {confirmLabel}
+                disabled={isLoading}
+                className={`flex-1 px-5 py-3 rounded-2xl font-black text-white ${v.btn} transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50`}>
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : confirmLabel}
               </button>
             </div>
           </motion.div>

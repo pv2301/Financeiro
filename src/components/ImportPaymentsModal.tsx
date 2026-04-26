@@ -4,6 +4,7 @@ import { Upload, CheckCircle2, AlertTriangle, XCircle, X, FileSpreadsheet } from
 import { PaymentImportResult } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
+import { cn } from '../lib/utils';
 
 interface Props {
   boletoFee: number;
@@ -27,9 +28,7 @@ export default function ImportPaymentsModal({ boletoFee, onClose, onComplete }: 
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
 
-      // Map bank columns to expected format
       const bankRows = json.map(row => {
-        // Try common column names from bank files
         const nossoNumero = String(
           row['Nosso Número'] || row['NossoNumero'] || row['NOSSO NUMERO'] || row['Titulo'] || ''
         ).trim();
@@ -56,7 +55,7 @@ export default function ImportPaymentsModal({ boletoFee, onClose, onComplete }: 
       }).filter(r => r.nossoNumero && r.amountCharged > 0);
 
       if (bankRows.length === 0) {
-        throw new Error('Nenhuma linha válida encontrada. Verifique se a planilha contém as colunas "Nosso Número" e "Vr cobrado".');
+        throw new Error('Nenhuma linha válida encontrada na planilha.');
       }
 
       const importResult = await finance.processPaymentImport(bankRows, boletoFee);
@@ -78,98 +77,137 @@ export default function ImportPaymentsModal({ boletoFee, onClose, onComplete }: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-              <FileSpreadsheet size={20} />
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center px-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-100"
+      >
+        {/* --- Glass Header --- */}
+        <div className="flex items-center justify-between p-8 border-b border-slate-50 bg-slate-50/50">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-500/20">
+              <FileSpreadsheet size={28} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-800">Importar Baixa Bancária</h2>
-              <p className="text-xs text-slate-400">Planilha de retorno do banco (.xlsx)</p>
+              <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">Baixa Bancária</h2>
+              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-0.5">Sincronização via Retorno (.xlsx)</p>
             </div>
           </div>
-          <button onClick={handleClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <button 
+            onClick={handleClose} 
+            className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto flex-1">
+        <div className="p-8 space-y-8 overflow-y-auto flex-1 custom-scrollbar">
           {!result ? (
-            /* Upload area */
-            <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl">
+            <div className="text-center py-12 border-4 border-dashed border-slate-100 rounded-[2.5rem] bg-slate-50/30 group hover:border-brand-blue/20 transition-all">
               <input type="file" accept=".xls,.xlsx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-              <Upload size={40} className="mx-auto mb-4 text-slate-300" />
-              <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing}
-                className="bg-brand-blue text-white px-6 py-3 rounded-2xl font-black hover:bg-brand-blue/90 transition-all disabled:opacity-50">
-                {isProcessing ? 'Processando...' : 'Selecionar Planilha'}
+              <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-slate-100 mx-auto mb-6 group-hover:scale-110 transition-transform">
+                <Upload size={32} className="text-slate-300 group-hover:text-brand-blue transition-colors" />
+              </div>
+              <h3 className="text-sm font-black text-slate-700 uppercase tracking-tight mb-2">Selecione o arquivo do banco</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8 px-10">Cobranca_Titulos_Liquidacao.xlsx</p>
+              
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isProcessing}
+                className="bg-brand-blue text-white px-10 py-4 rounded-2xl font-black text-xs hover:bg-brand-blue/90 transition-all shadow-xl shadow-brand-blue/20 disabled:opacity-50 uppercase tracking-widest flex items-center gap-3 mx-auto"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={18} />
+                    Selecionar Planilha
+                  </>
+                )}
               </button>
-              <p className="text-xs text-slate-400 mt-4">Ex: Cobranca_Titulos.xlsx, retorno bancário Bradesco</p>
             </div>
           ) : (
-            /* Results */
-            <>
-              {/* Summary cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-50 rounded-2xl p-4 text-center">
-                  <CheckCircle2 size={24} className="mx-auto text-emerald-600 mb-1" />
-                  <p className="text-xl font-black text-emerald-700">{result.processed}</p>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase">Baixados</p>
-                </div>
-                <div className="bg-amber-50 rounded-2xl p-4 text-center">
-                  <AlertTriangle size={24} className="mx-auto text-amber-600 mb-1" />
-                  <p className="text-xl font-black text-amber-700">{result.divergences}</p>
-                  <p className="text-[9px] font-black text-amber-500 uppercase">Divergências</p>
-                </div>
-                <div className="bg-red-50 rounded-2xl p-4 text-center">
-                  <XCircle size={24} className="mx-auto text-red-500 mb-1" />
-                  <p className="text-xl font-black text-red-600">{result.notFound}</p>
-                  <p className="text-[9px] font-black text-red-400 uppercase">Não encontrados</p>
-                </div>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-8"
+            >
+              {/* --- Dashboard Results --- */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Baixados', value: result.processed, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', accent: 'bg-emerald-500' },
+                  { label: 'Divergentes', value: result.divergences, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', accent: 'bg-amber-500' },
+                  { label: 'Ignorados', value: result.notFound, icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', accent: 'bg-red-500' },
+                ].map((stat, i) => (
+                  <div key={i} className={cn("p-5 rounded-[2rem] text-center border border-slate-50 relative overflow-hidden", stat.bg)}>
+                    <div className={cn("absolute top-0 left-0 w-full h-1 opacity-40", stat.accent)} />
+                    <stat.icon size={24} className={cn("mx-auto mb-2", stat.color)} />
+                    <p className={cn("text-2xl font-black tracking-tighter leading-none", stat.color)}>{stat.value}</p>
+                    <p className={cn("text-[9px] font-black uppercase tracking-widest mt-2", stat.color, "opacity-70")}>{stat.label}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Detail table */}
-              {result.details.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                        <th className="pb-2 pr-3">Nosso Nº</th>
-                        <th className="pb-2 pr-3">Aluno</th>
-                        <th className="pb-2">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {result.details.map((d, i) => (
-                        <tr key={i}>
-                          <td className="py-2 pr-3 font-bold text-slate-600">{d.nossoNumero}</td>
-                          <td className="py-2 pr-3 text-slate-500">{d.studentName || '—'}</td>
-                          <td className="py-2">
-                            {d.status === 'OK' && <span className="text-emerald-600 font-bold text-xs">✓ OK</span>}
-                            {d.status === 'NOT_FOUND' && <span className="text-red-500 font-bold text-xs">✗ Não encontrado</span>}
-                            {d.status === 'VALUE_DIVERGENCE' && (
-                              <span className="text-amber-600 font-bold text-xs" title={d.divergenceNote}>⚠ {d.divergenceNote}</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* --- Detailed Report --- */}
+              <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100">
+                <div className="flex items-center justify-between mb-6 px-2">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Relatório de Processamento</h4>
+                  <span className="text-[10px] font-bold text-slate-300">{result.details.length} itens</span>
                 </div>
-              )}
-            </>
+                
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {result.details.map((d, i) => (
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Nosso Nº {d.nossoNumero}</p>
+                        <h5 className="text-xs font-black text-slate-700 uppercase truncate">{d.studentName || 'Não Identificado'}</h5>
+                      </div>
+                      <div className="text-right">
+                        {d.status === 'OK' && (
+                          <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                            <CheckCircle2 size={12} /> OK
+                          </div>
+                        )}
+                        {d.status === 'NOT_FOUND' && (
+                          <div className="flex items-center gap-1.5 text-red-500 bg-red-50 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-100">
+                            <XCircle size={12} /> Falha
+                          </div>
+                        )}
+                        {d.status === 'VALUE_DIVERGENCE' && (
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-amber-100">
+                              <AlertTriangle size={12} /> Divergência
+                            </div>
+                            <span className="text-[9px] font-bold text-amber-500 mt-1 uppercase tracking-tighter">{d.divergenceNote}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-slate-100">
-          <button onClick={handleClose}
-            className="w-full px-6 py-3 rounded-2xl font-black text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
-            {result ? 'Fechar' : 'Cancelar'}
+        {/* --- Footer --- */}
+        <div className="p-8 border-t border-slate-50 bg-white sticky bottom-0">
+          <button 
+            onClick={handleClose}
+            className="w-full px-8 py-4 rounded-2xl font-black text-xs bg-slate-900 text-white hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95"
+          >
+            {result ? (
+              <>
+                <CheckCircle2 size={18} />
+                Concluir e Sincronizar
+              </>
+            ) : (
+              'Cancelar Importação'
+            )}
           </button>
         </div>
       </motion.div>

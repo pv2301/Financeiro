@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, Trash2, X, ChevronDown, ChevronRight, User, Users, Receipt, Calendar } from 'lucide-react';
+import { AlertTriangle, Trash2, X, ChevronDown, ChevronRight, User, Users, Receipt, Calendar, RotateCcw } from 'lucide-react';
 import { finance } from '../services/finance';
 import { Student, ClassInfo, Invoice } from '../types';
 
@@ -35,16 +35,53 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
   }, [isOpen]);
 
   const loadData = async () => {
-    const [s, c, inv] = await Promise.all([
+    // Invalidate cache to ensure we see the latest April/May data
+    localStorage.removeItem('fin_cache_fin_students');
+    localStorage.removeItem('fin_cache_fin_classes');
+    localStorage.removeItem('fin_cache_fin_invoices');
+    localStorage.removeItem('fin_cache_fin_consumption');
+    localStorage.removeItem('fin_cache_fin_billing_drafts');
+
+    const [s, c, inv, drafts, consSnap] = await Promise.all([
       finance.getStudents(),
       finance.getClasses(),
-      finance.getInvoices()
+      finance.getInvoices(),
+      finance.getBillingDrafts(),
+      finance.getConsumption()
     ]);
+    
     setStudents(s);
     setClasses(c);
     
-    // Extract unique months
-    const uniqueMonths = Array.from(new Set(inv.map(i => i.monthYear))).sort();
+    // Extract unique months from all sources and normalize to MM/YYYY
+    const monthsFromInv = inv.map(i => i.monthYear);
+    const monthsFromCons = consSnap.map(c => c.monthYear);
+    const monthsFromDrafts = drafts.map(d => d.id);
+    
+    const allRawMonths = [...monthsFromInv, ...monthsFromCons, ...monthsFromDrafts];
+    
+    const uniqueMonths = Array.from(new Set(allRawMonths))
+      .filter(m => {
+        if (!m || typeof m !== 'string') return false;
+        // Accept any string containing 4 digits (year) and 2 digits (month) or something like MM/YYYY, MM-YYYY, YYYY-MM
+        return /\d{2,4}[/-]\d{2,4}/.test(m);
+      })
+      .map(m => m.replace('-', '/'))
+      .sort((a, b) => {
+        const [mA, yA] = a.split('/').map(Number);
+        const [mB, yB] = b.split('/').map(Number);
+        if (yA !== yB) return yA - yB;
+        return mA - mB;
+      });
+      
+    console.log('Months debug:', {
+      fromInv: Array.from(new Set(monthsFromInv)),
+      fromCons: Array.from(new Set(monthsFromCons)),
+      fromDrafts: Array.from(new Set(monthsFromDrafts)),
+      allRaw: allRawMonths,
+      unique: uniqueMonths
+    });
+      
     setMonths(uniqueMonths);
   };
 
@@ -129,9 +166,18 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
                 <p className="text-red-700/70 text-sm font-medium">Exclusão permanente e irreversível de dados</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-red-100 rounded-xl transition-colors text-red-400">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={loadData}
+                className="p-2 hover:bg-red-100 rounded-xl transition-colors text-red-600 font-bold text-[10px] uppercase tracking-widest flex items-center gap-1"
+                title="Atualizar dados do banco"
+              >
+                <RotateCcw size={14} /> Atualizar
+              </button>
+              <button onClick={onClose} className="p-2 hover:bg-red-100 rounded-xl transition-colors text-red-400">
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
@@ -163,7 +209,7 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
                           type="checkbox" 
                           checked={selectedStudents.includes(s.id)}
                           onChange={() => handleToggleStudent(s.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500" 
+                          className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all focus:ring-4 focus:ring-brand-blue/10"
                         />
                         <span className="text-sm font-medium text-slate-700 truncate">{s.name}</span>
                       </label>
@@ -201,7 +247,7 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
                           type="checkbox" 
                           checked={selectedClasses.includes(c.id)}
                           onChange={() => handleToggleClass(c.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500" 
+                          className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all focus:ring-4 focus:ring-brand-blue/10"
                         />
                         <span className="text-sm font-medium text-slate-700">{c.name}</span>
                       </label>
@@ -233,15 +279,15 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
                   </button>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {months.map(m => (
-                      <label key={m} className="flex items-center gap-3 p-2 rounded-xl border border-slate-100 hover:border-red-200 hover:bg-red-50 transition-all cursor-pointer">
+                      <label key={m} className="flex items-center gap-3 p-2 rounded-xl border border-slate-100 hover:border-red-200 hover:bg-red-50 transition-all cursor-pointer group">
                         <input 
                           type="checkbox" 
                           checked={selectedMonths.includes(m)}
                           onChange={() => handleToggleMonth(m)}
-                          className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500" 
+                          className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-red-600 focus:ring-4 focus:ring-red-100 transition-all" 
                         />
-                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                          <Calendar size={14} className="text-slate-400" />
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700 group-hover:text-red-700">
+                          <Calendar size={14} className="text-slate-400 group-hover:text-red-400" />
                           {m}
                         </div>
                       </label>

@@ -1,0 +1,625 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  GraduationCap, Plus, Pencil, Trash2, Users, X, Save,
+  Check, LayoutGrid, List, Filter,
+  Zap, CreditCard, ShieldCheck,
+  Layers, Activity, ChevronRight, Calculator,
+  Settings
+} from 'lucide-react';
+import { ClassInfo, BillingMode } from '../types';
+import { finance } from '../services/finance';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { cn, formatCurrencyBRL } from '../lib/utils';
+
+const SEGMENT_OPTIONS = ['Berçário', 'Educação Infantil', 'Ensino Fundamental I'];
+
+const BILLING_LABELS: Record<BillingMode, string> = {
+  PREPAID_FIXED:        'Pré-Pago Fixo',
+  PREPAID_DAYS:         'Pré-Pago por Dias',
+  POSTPAID_CONSUMPTION: 'Pós-Pago (Consumo)',
+};
+
+const BILLING_DESC: Record<BillingMode, string> = {
+  PREPAID_FIXED:        'Mensalidade estável independente do consumo real.',
+  PREPAID_DAYS:         'Cálculo dinâmico baseado em dias letivos do mês.',
+  POSTPAID_CONSUMPTION: 'Faturamento retroativo baseado em consumo real.',
+};
+
+const emptyClass = (): ClassInfo => ({
+  id: '',
+  name: '',
+  segment: 'Berçário',
+  billingMode: 'PREPAID_FIXED',
+  basePrice: 0,
+  applyAbsenceDiscount: false,
+  collegeSharePercent: 20,
+});
+
+export default function Classes() {
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [modal, setModal] = useState<ClassInfo | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
+    return (localStorage.getItem('classesViewMode') as 'cards' | 'list') || 'cards';
+  });
+
+  const [filterSegment, setFilterSegment] = useState<string>('all');
+  const [filterBilling, setFilterBilling] = useState<string>('all');
+
+  useEffect(() => {
+    localStorage.setItem('classesViewMode', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [cls, students] = await Promise.all([finance.getClasses(), finance.getStudents()]);
+      setClasses((cls || []).sort((a, b) => a.name.localeCompare(b.name)));
+      const counts: Record<string, number> = {};
+      (students || []).forEach(s => { counts[s.classId] = (counts[s.classId] || 0) + 1; });
+      setStudentCounts(counts);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const openNew = () => { setModal(emptyClass()); setIsNew(true); };
+  const openEdit = (c: ClassInfo) => { setModal({ ...c }); setIsNew(false); };
+  const closeModal = () => { setModal(null); };
+
+  const save = async () => {
+    if (!modal) return;
+    if (!modal.name.trim()) return alert('Nome da turma obrigatório.');
+    
+    setSaving(true);
+    try {
+      const id = modal.id || modal.name.replace(/\s+/g, '_').toUpperCase();
+      await finance.saveClass({ ...modal, id });
+      await loadData();
+      showToast(isNew ? 'Turma Inicializada!' : 'Configuração Atualizada!');
+      closeModal();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao salvar turma.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setSaving(true);
+    try {
+      await finance.deleteClass(deleteTarget.id);
+      showToast('Turma Removida do Ecossistema!');
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao excluir turma.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const intelligence = useMemo(() => {
+    const totalStudents = Object.values(studentCounts).reduce((a, b) => a + b, 0);
+
+    const bySegment: Record<string, number> = {};
+    classes.forEach(c => {
+      bySegment[c.segment] = (bySegment[c.segment] || 0) + 1;
+    });
+    const segmentList = Object.entries(bySegment)
+      .map(([seg, count]) => ({ seg, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const byClass = classes
+      .map(c => ({ name: c.name, students: studentCounts[c.id] || 0 }))
+      .sort((a, b) => b.students - a.students);
+
+    return { totalStudents, segmentList, byClass };
+  }, [classes, studentCounts]);
+
+  if (isLoading && classes.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Sincronizando Turmas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-12 right-12 z-[100] bg-slate-900 text-white px-8 py-5 rounded-[2rem] font-black shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg">
+              <Zap size={20} />
+            </div>
+            <span className="uppercase tracking-widest text-[11px]">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Strategic Header --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-indigo-600/30 relative overflow-hidden group cursor-pointer">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <GraduationCap size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-indigo-500/10 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-500/20">Turmas</span>
+               <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-[9px] font-black uppercase tracking-widest border border-brand-blue/20">Configuração Global</span>
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">Estrutura de <span className="text-indigo-600 text-6xl">Turmas</span></h1>
+            <p className="text-slate-400 font-medium mt-3 text-lg">Defina os modelos de faturamento por turma.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-[3rem] border border-slate-100">
+           <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
+            <button onClick={() => setViewMode('cards')} className={cn("p-4 rounded-xl transition-all", viewMode === 'cards' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}>
+              <LayoutGrid size={20} />
+            </button>
+            <button onClick={() => setViewMode('list')} className={cn("p-4 rounded-xl transition-all", viewMode === 'list' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}>
+              <List size={20} />
+            </button>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={openNew}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-[11px] hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-[0.2em]"
+          >
+            <Plus size={20} className="text-brand-lime" /> Nova Turma
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* --- Intelligence Dashboard --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total de Turmas */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
+          className="p-8 rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-900 opacity-10" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+              <Layers size={16} className="text-slate-600" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total de Turmas</p>
+          </div>
+          <p className="text-5xl font-black tracking-tighter text-slate-900 leading-none">{classes.length}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 opacity-60">{intelligence.totalStudents} alunos matriculados</p>
+        </motion.div>
+
+        {/* Por Modalidade */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+          className="p-8 rounded-[2.5rem] bg-emerald-50/50 border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500 opacity-20" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <Activity size={16} className="text-emerald-600" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Por Modalidade</p>
+          </div>
+          <div className="space-y-2">
+            {intelligence.segmentList.map(({ seg, count }) => (
+              <div key={seg} className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-black text-slate-700 truncate flex-1">{seg || '—'}</span>
+                <span className="text-[11px] font-black text-emerald-600 tabular-nums shrink-0">{count} {count === 1 ? 'turma' : 'turmas'}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Alunos por Turma */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}
+          className="p-8 rounded-[2.5rem] bg-brand-blue/5 border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-blue opacity-20" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-brand-blue/10 flex items-center justify-center">
+              <Users size={16} className="text-brand-blue" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Alunos por Turma</p>
+          </div>
+          <div className="space-y-2 max-h-36 overflow-y-auto pr-1 no-scrollbar">
+            {intelligence.byClass.map(({ name, students }) => (
+              <div key={name} className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-black text-slate-700 truncate flex-1">{name}</span>
+                <span className="text-[11px] font-black text-brand-blue tabular-nums shrink-0">{students}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* --- Filter Ecosystem --- */}
+      <div className="flex flex-col lg:flex-row gap-6 bg-white p-8 rounded-[3.5rem] shadow-xl shadow-slate-200/20 border border-slate-100">
+        <div className="flex-1 flex flex-col md:flex-row gap-4">
+           <div className="flex-1 flex bg-slate-50 p-1.5 rounded-[1.5rem] border border-slate-100 group focus-within:border-brand-blue/20 transition-all">
+             <div className="flex items-center pl-6 pr-4 text-slate-400">
+                <Filter size={18} />
+             </div>
+             <select 
+                value={filterSegment}
+                onChange={(e) => setFilterSegment(e.target.value)}
+                className="flex-1 bg-transparent px-2 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+             >
+                <option value="all">Filtrar por Segmento</option>
+                {Array.from(new Set([...SEGMENT_OPTIONS, ...classes.map(c => c.segment)])).filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+          </div>
+
+          <div className="flex-1 flex bg-slate-50 p-1.5 rounded-[1.5rem] border border-slate-100 group focus-within:border-brand-blue/20 transition-all">
+             <div className="flex items-center pl-6 pr-4 text-slate-400">
+                <Settings size={18} />
+             </div>
+             <select 
+                value={filterBilling}
+                onChange={(e) => setFilterBilling(e.target.value)}
+                className="flex-1 bg-transparent px-2 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+             >
+                <option value="all">Modelo de Cobrança</option>
+                {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
+                  <option key={mode} value={mode}>{BILLING_LABELS[mode]}</option>
+                ))}
+             </select>
+          </div>
+        </div>
+
+        {(filterSegment !== 'all' || filterBilling !== 'all') && (
+          <button 
+            onClick={() => { setFilterSegment('all'); setFilterBilling('all'); }}
+            className="px-8 py-4 text-brand-orange font-black text-[10px] uppercase tracking-widest hover:bg-brand-orange/5 rounded-[1.5rem] transition-all"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
+      {/* --- Segmented Content --- */}
+      <div className="space-y-16">
+        {Array.from(new Set([...SEGMENT_OPTIONS, ...classes.map(c => c.segment || '__sem_modalidade__')]))
+          .filter(seg => filterSegment === 'all' || filterSegment === seg)
+          .map(seg => {
+            const segClasses = classes.filter(c =>
+              (seg === '__sem_modalidade__' ? !c.segment : c.segment === seg) &&
+              (filterBilling === 'all' || c.billingMode === filterBilling)
+            );
+            if (segClasses.length === 0) return null;
+
+            const segLabel = seg === '__sem_modalidade__' ? 'Sem Modalidade' : seg;
+            return (
+              <motion.div layout key={seg} className="space-y-8">
+                <div className="flex items-center gap-6 px-4">
+                  <h2 className={`text-2xl font-black uppercase tracking-tighter flex items-center gap-4 ${seg === '__sem_modalidade__' ? 'text-slate-400' : 'text-slate-900'}`}>
+                    <div className={`w-1.5 h-10 rounded-full shadow-lg ${seg === '__sem_modalidade__' ? 'bg-slate-300' : 'bg-indigo-600 shadow-indigo-600/20'}`} />
+                    {segLabel}
+                    <span className="px-3 py-1 bg-slate-100 text-slate-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                       {segClasses.length} Turmas
+                    </span>
+                  </h2>
+                  <div className="h-px bg-slate-100 flex-1"></div>
+                </div>
+
+                {viewMode === 'cards' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                    {segClasses.map((cls, i) => {
+                      const count = studentCounts[cls.id] || 0;
+                      return (
+                        <motion.div 
+                          key={cls.id} 
+                          initial={{ opacity: 0, y: 20 }} 
+                          animate={{ opacity: 1, y: 0 }} 
+                          transition={{ delay: i * 0.05 }}
+                          className="bg-white rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 p-10 flex flex-col gap-8 hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-600/5 transition-all group relative overflow-hidden"
+                        >
+                          {/* Background Glow */}
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700" />
+                          
+                          <div className="flex items-start justify-between relative z-10">
+                            <div className="flex items-center gap-5">
+                              <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner">
+                                <GraduationCap size={28} />
+                              </div>
+                              <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-tight">{cls.name}</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">ID: {cls.id}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+                              <button onClick={() => openEdit(cls)} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm"><Pencil size={18} /></button>
+                              <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm"><Trash2 size={18} /></button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 relative z-10">
+                            <div className="bg-slate-50/50 border border-slate-100 rounded-[2rem] p-6 group-hover:bg-white transition-all">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <CreditCard size={10} /> Modo de Cobrança
+                              </p>
+                              <p className="text-xs font-black text-slate-700 uppercase tracking-tight">{BILLING_LABELS[cls.billingMode]}</p>
+                            </div>
+                            <div className="bg-brand-blue/5 border border-brand-blue/10 rounded-[2rem] p-6 group-hover:bg-white transition-all">
+                              <p className="text-[9px] font-black text-brand-blue/60 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Calculator size={10} /> Valor Base
+                              </p>
+                              <p className="text-lg font-black text-brand-blue tracking-tighter">
+                                {typeof cls.basePrice === 'number' ? formatCurrencyBRL(cls.basePrice) : 'Dinâmico'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-6 border-t border-slate-50 relative z-10">
+                            <div className="flex items-center gap-4">
+                               <div className="flex -space-x-3">
+                                  {[1,2,3].map(i => (
+                                    <div key={i} className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-slate-400">
+                                      <User size={14} />
+                                    </div>
+                                  ))}
+                               </div>
+                               <div>
+                                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none">
+                                    {count} {count === 1 ? 'ALUNO' : 'ALUNOS'}
+                                  </p>
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Matrículas Ativas</p>
+                               </div>
+                            </div>
+                            {cls.applyAbsenceDiscount && (
+                              <div className="bg-amber-50 text-amber-600 px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-amber-100 flex items-center gap-2">
+                                <Zap size={10} /> Desc. Faltas
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-xl overflow-hidden">
+                    <table className="w-full text-left border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-slate-50/50">
+                          <th className="pl-10 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Turma</th>
+                          <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cluster / Matrículas</th>
+                          <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Modelo de Faturamento</th>
+                          <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Valor Base</th>
+                          <th className="pl-6 pr-10 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Comandos</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {segClasses.map((cls) => (
+                          <tr key={cls.id} className="group hover:bg-slate-50/50 transition-all">
+                            <td className="pl-10 pr-6 py-6">
+                              <span className="text-base font-black text-slate-900 uppercase tracking-tighter">{cls.name}</span>
+                            </td>
+                            <td className="px-6 py-6">
+                              <div className="inline-flex items-center gap-3 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                                <Users size={14} /> {studentCounts[cls.id] || 0} Matrículas
+                              </div>
+                            </td>
+                            <td className="px-6 py-6">
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</span>
+                            </td>
+                            <td className="px-6 py-6">
+                              <span className="text-base font-black text-brand-blue tracking-tighter">
+                                {typeof cls.basePrice === 'number' ? formatCurrencyBRL(cls.basePrice) : 'Dinâmico'}
+                              </span>
+                            </td>
+                            <td className="pl-6 pr-10 py-6 text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                <button onClick={() => openEdit(cls)} className="w-12 h-12 bg-white text-slate-400 hover:text-indigo-600 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center"><Pencil size={18} /></button>
+                                <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="w-12 h-12 bg-white text-slate-400 hover:text-red-500 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center"><Trash2 size={18} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+      </div>
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-16 border-t border-slate-100 gap-6 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <ShieldCheck size={20} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Gestão de Turmas &bull; 2026</p>
+        </div>
+        <div className="flex items-center gap-8">
+           <div className="flex items-center gap-3">
+              <Activity size={14} className="text-brand-blue animate-pulse" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Sistema Ativo</p>
+           </div>
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity &bull; 2026</p>
+        </div>
+      </div>
+
+      {/* --- Creation Wizard Pro --- */}
+      <AnimatePresence>
+        {modal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 40 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 40 }}
+              className="bg-white rounded-[4rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 z-10">
+                <div className="flex items-center gap-4">
+                   <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
+                      <GraduationCap size={28} />
+                   </div>
+                   <div>
+                      <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{isNew ? 'Nova Turma' : 'Editar Turma'}</h2>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Turma: {modal.name || 'Nova'}</p>
+                   </div>
+                </div>
+                <button onClick={closeModal} className="w-12 h-12 flex items-center justify-center bg-white rounded-2xl border border-slate-100 hover:text-red-500 transition-all text-slate-400 shadow-sm"><X size={20} /></button>
+              </div>
+
+              <div className="p-10 space-y-12 overflow-y-auto flex-1">
+                {/* Identity */}
+                <div className="space-y-8">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
+                    Identidade do Cluster
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Nome da Turma Operational</label>
+                      <input value={modal.name} onChange={e => setModal({ ...modal, name: e.target.value })}
+                        className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-indigo-600/10 focus:border-indigo-600/20 transition-all font-black text-slate-700 uppercase tracking-tight" placeholder="EX: 1º ANO FUNDAMENTAL A" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Segmento Acadêmico</label>
+                      <select value={modal.segment} onChange={e => setModal({ ...modal, segment: e.target.value })}
+                        className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-indigo-600/10 focus:border-indigo-600/20 transition-all font-black text-slate-700 cursor-pointer uppercase tracking-tight">
+                        {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billing Strategy */}
+                <div className="space-y-8">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                    Estratégia de Faturamento
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
+                      <button key={mode} 
+                        onClick={() => {
+                          let newBasePrice = modal.basePrice;
+                          if (mode === 'PREPAID_DAYS') newBasePrice = 0;
+                          else if (mode === 'POSTPAID_CONSUMPTION') newBasePrice = 0;
+                          setModal({ ...modal, billingMode: mode, basePrice: newBasePrice });
+                        }}
+                        className={cn(
+                          "flex items-center gap-6 p-8 rounded-[2.5rem] border-2 text-left transition-all group",
+                          modal.billingMode === mode ? "border-indigo-600 bg-indigo-50 shadow-xl shadow-indigo-600/5" : "border-slate-50 bg-slate-50/50 hover:border-slate-200"
+                        )}>
+                        <div className={cn("w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all", modal.billingMode === mode ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200")}>
+                          {modal.billingMode === mode && <Check size={18} strokeWidth={4} />}
+                        </div>
+                        <div className="flex-1">
+                          <p className={cn("font-black text-base uppercase tracking-tighter transition-colors", modal.billingMode === mode ? "text-indigo-600" : "text-slate-700")}>{BILLING_LABELS[mode]}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 opacity-80">{BILLING_DESC[mode]}</p>
+                        </div>
+                        <ChevronRight size={24} className={cn("transition-all", modal.billingMode === mode ? "text-indigo-600 opacity-100 translate-x-2" : "text-slate-200 opacity-0")} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pricing Intelligence */}
+                <div className="space-y-8">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <div className="w-1.5 h-6 bg-brand-blue rounded-full" />
+                    Pricing Intelligence
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                        {modal.billingMode === 'PREPAID_FIXED' ? 'Valor Mensal Fixo' : 'Informação de Cálculo'}
+                      </label>
+                      {modal.billingMode === 'PREPAID_FIXED' ? (
+                        <div className="relative">
+                          <span className="absolute left-6 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">R$</span>
+                          <input type="number" value={typeof modal.basePrice === 'number' ? modal.basePrice : 0} onChange={e => setModal({ ...modal, basePrice: parseFloat(e.target.value) || 0 })}
+                            className="w-full pl-16 pr-8 py-5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue/20 transition-all font-black text-brand-blue text-2xl" min={0} step={0.01} />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-inner">
+                           <Activity size={24} className="text-brand-blue animate-pulse" />
+                           <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                             {modal.billingMode === 'PREPAID_DAYS' ? 'Automático: Valor/Dia × Dias Letivos' : 'Automático: Total Consumido'}
+                           </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
+                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Políticas de Redução</label>
+                       <button 
+                         onClick={() => setModal({ ...modal, applyAbsenceDiscount: !modal.applyAbsenceDiscount })}
+                         className={cn("w-full flex items-center gap-5 p-6 rounded-2xl border-2 transition-all", modal.applyAbsenceDiscount ? "bg-white border-amber-500 shadow-xl shadow-amber-500/5" : "bg-white border-slate-100 hover:border-slate-200")}
+                       >
+                          <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", modal.applyAbsenceDiscount ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-slate-50 text-slate-300")}>
+                             <Zap size={18} />
+                          </div>
+                          <div className="text-left">
+                             <p className={cn("text-[11px] font-black uppercase tracking-widest", modal.applyAbsenceDiscount ? "text-amber-600" : "text-slate-400")}>Desconto por Faltas</p>
+                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Usa Lanche Referencial</p>
+                          </div>
+                       </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-4 sticky bottom-0 z-10 backdrop-blur-md">
+                <button onClick={closeModal} className="px-10 py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest text-slate-400 hover:bg-slate-200 transition-all">Cancelar</button>
+                <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={save} 
+                  disabled={saving}
+                  className="flex items-center gap-3 bg-indigo-600 text-white px-12 py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-indigo-600/20"
+                >
+                  <Save size={20} /> {isNew ? 'Criar Turma' : 'Salvar'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <ConfirmDialog isOpen={!!deleteTarget} title="Remover Turma" message={`Excluir permanentemente a turma "${deleteTarget?.name}"?`} confirmLabel="Remover" variant="danger" onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
+    </div>
+  );
+}
+
+// Internal User type helper (if needed)
+const User = Users;

@@ -1,0 +1,453 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Utensils, Plus, Pencil, Trash2, X, Save, 
+  CheckSquare, ShieldCheck, Zap, ArrowUpRight,
+  Calculator, Activity, Star, Info, ChevronRight,
+  LayoutGrid, Layers
+} from 'lucide-react';
+import { ServiceItem, Segment } from '../types';
+import { finance } from '../services/finance';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { cn, formatCurrencyBRL } from '../lib/utils';
+import EditServiceModal, { ALL_SEGMENTS } from '../components/EditServiceModal';
+
+const SEGMENT_THEMES: Record<string, { text: string; bg: string; accent: string; shadow: string }> = {
+  'Berçário':              { text: 'text-amber-600', bg: 'bg-amber-500', accent: 'bg-amber-50', shadow: 'shadow-amber-500/20' },
+  'Educação Infantil':     { text: 'text-emerald-600', bg: 'bg-emerald-500', accent: 'bg-emerald-50', shadow: 'shadow-emerald-500/20' },
+  'Ensino Fundamental I':  { text: 'text-sky-600', bg: 'bg-brand-blue', accent: 'bg-brand-blue/5', shadow: 'shadow-brand-blue/20' },
+};
+
+export default function Snacks() {
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
+  const [editingSegment, setEditingSegment] = useState<Segment | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [globalConfig, setGlobalConfig] = useState<any>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [data, config] = await Promise.all([
+        finance.getServices(),
+        finance.getGlobalConfig()
+      ]);
+      setServices(data.sort((a, b) => a.name.localeCompare(b.name)));
+      setGlobalConfig(config);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const startEdit = (service: ServiceItem, segment: Segment) => {
+    setEditingService(service);
+    setEditingSegment(segment);
+  };
+
+  const saveEdit = async (id: string, name: string, prices: Record<string, number>, mandatorySegments: Segment[]) => {
+    setIsSaving(true);
+    try {
+      await finance.saveService({ id, name: name.trim(), priceByKey: prices });
+      if (globalConfig) {
+        const newMandatory = { ...globalConfig.mandatorySnackBySegment };
+        Object.keys(newMandatory).forEach(seg => {
+          if (newMandatory[seg] === id) delete newMandatory[seg];
+        });
+        mandatorySegments.forEach(seg => {
+          newMandatory[seg] = id;
+        });
+        await finance.saveConfig({ ...globalConfig, mandatorySnackBySegment: newMandatory });
+      }
+      showToast('Precificação Atualizada!');
+      setEditingService(null);
+      setEditingSegment(null);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao salvar serviço.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const cancelEdit = () => { 
+    setEditingService(null); 
+    setEditingSegment(null);
+  };
+
+  const handleAdd = async () => {
+    if (!addName.trim()) return;
+    setIsSaving(true);
+    try {
+      const id = addName.trim().replace(/\s+/g, '_').toUpperCase();
+      await finance.saveService({ id, name: addName.trim(), priceByKey: {} });
+      showToast('Serviço Adicionado ao Portfólio!');
+      setShowAddModal(false);
+      setAddName('');
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao adicionar serviço.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsSaving(true);
+    try {
+      await finance.deleteService(deleteTarget.id);
+      showToast('Serviço Removido!');
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao excluir serviço.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const loadDefaults = async () => {
+    setIsLoading(true);
+    try {
+      const defaults = [
+        {
+          id: 'LANCHE_COLETIVO', name: 'Lanche Coletivo',
+          priceByKey: { 'Educação Infantil|Maternal': 11.00, 'Educação Infantil|Grupo 1': 14.50, 'Educação Infantil|Grupo 2': 14.50, 'Educação Infantil|Grupo 3': 14.50, 'Ensino Fundamental I|Ano 1': 14.20, 'Ensino Fundamental I|Ano 2': 14.20, 'Ensino Fundamental I|Ano 3': 14.20, 'Ensino Fundamental I|Ano 4': 14.20, 'Ensino Fundamental I|Ano 5': 14.20 }
+        },
+        {
+          id: 'LANCHE_INTEGRAL', name: 'Lanche Integral',
+          priceByKey: { 'Educação Infantil|Maternal': 10.50, 'Educação Infantil|Grupo 1': 13.60, 'Educação Infantil|Grupo 2': 13.60, 'Educação Infantil|Grupo 3': 13.60, 'Ensino Fundamental I|Ano 1': 13.60, 'Ensino Fundamental I|Ano 2': 13.60, 'Ensino Fundamental I|Ano 3': 13.60, 'Ensino Fundamental I|Ano 4': 13.60, 'Ensino Fundamental I|Ano 5': 13.60 }
+        },
+        {
+          id: 'ALMOCO', name: 'Almoço',
+          priceByKey: { 'Berçário|Baby': 12.20, 'Berçário|Ninho': 13.50, 'Berçário|Extra': 15.00, 'Educação Infantil|Maternal': 17.00, 'Educação Infantil|Grupo 1': 21.00, 'Educação Infantil|Grupo 2': 21.00, 'Educação Infantil|Grupo 3': 21.00, 'Ensino Fundamental I|Ano 1': 21.00, 'Ensino Fundamental I|Ano 2': 21.00, 'Ensino Fundamental I|Ano 3': 21.00, 'Ensino Fundamental I|Ano 4': 21.00, 'Ensino Fundamental I|Ano 5': 21.00 }
+        },
+        {
+          id: 'CEIA', name: 'Ceia',
+          priceByKey: { 'Berçário|Baby': 11.20, 'Berçário|Ninho': 12.50, 'Berçário|Extra': 14.00, 'Educação Infantil|Maternal': 14.50, 'Educação Infantil|Grupo 1': 15.50, 'Educação Infantil|Grupo 2': 15.50, 'Educação Infantil|Grupo 3': 15.50 }
+        },
+        {
+          id: 'LANCHE', name: 'Lanche',
+          priceByKey: { 'Berçário|Baby': 4.80, 'Berçário|Ninho': 6.20, 'Berçário|Extra': 8.80 }
+        }
+      ];
+      for (const svc of defaults) {
+        await finance.saveService(svc);
+      }
+      showToast('Configuração Padrão Restaurada!');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const totalServices = useMemo(() => services.length, [services]);
+
+  if (isLoading && services.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Carregando serviços...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-12 right-12 z-[100] bg-slate-900 text-white px-8 py-5 rounded-[2rem] font-black shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="w-10 h-10 bg-brand-lime rounded-xl flex items-center justify-center text-slate-900 shadow-lg">
+              <Zap size={20} />
+            </div>
+            <span className="uppercase tracking-widest text-[11px]">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Strategic Header --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-brand-blue rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-brand-blue/30 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <Utensils size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-[9px] font-black uppercase tracking-widest border border-brand-blue/20">Serviços</span>
+               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Tabela de Preços</span>
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">Serviços e <span className="text-brand-blue text-6xl">Valores</span></h1>
+            <p className="text-slate-400 font-medium mt-3 text-lg">Defina a precificação granular por segmento e nível acadêmico.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-[3rem] border border-slate-100">
+           <div className="px-8 py-5 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                 <Layers size={18} />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Portfólio Ativo</p>
+                 <p className="text-base font-black text-slate-900 mt-1">{totalServices} Serviços</p>
+              </div>
+           </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-[11px] hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-[0.2em]"
+          >
+            <Plus size={20} className="text-brand-lime" /> Adicionar Serviço
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {services.length === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-32 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-xl shadow-slate-100/50">
+          <div className="w-32 h-32 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200 mx-auto mb-10 shadow-inner">
+             <Utensils size={64} />
+          </div>
+          <p className="font-black text-slate-400 uppercase tracking-[0.3em] text-sm mb-10">O Portfólio de Serviços está vazio.</p>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={loadDefaults} 
+            className="bg-brand-blue text-white font-black px-12 py-6 rounded-[2rem] hover:bg-brand-blue/90 transition-all shadow-2xl shadow-brand-blue/30 uppercase text-xs tracking-[0.2em] flex items-center gap-4 mx-auto"
+          >
+            <Star size={20} className="text-brand-lime" /> Restaurar Tabela Padrão (Colégio)
+          </motion.button>
+        </motion.div>
+      ) : (
+        <div className="space-y-24">
+          {ALL_SEGMENTS.map((seg, segIdx) => {
+            const theme = SEGMENT_THEMES[seg.key] || SEGMENT_THEMES['Ensino Fundamental I'];
+            const segServices = services.filter(svc => {
+              const hasAnyPrice = seg.subKeys.some(sk => (svc.priceByKey[sk.key] || 0) > 0);
+              const isBrandNew = !Object.values(svc.priceByKey || {}).some(val => val > 0);
+              const isFirstSegment = seg.key === ALL_SEGMENTS[0].key;
+              return hasAnyPrice || (isBrandNew && isFirstSegment);
+            });
+
+            if (segServices.length === 0) return null;
+
+            return (
+              <motion.div 
+                key={seg.key} 
+                initial={{ opacity: 0, y: 30 }} 
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: segIdx * 0.1 }}
+                className="space-y-10"
+              >
+                <div className="flex items-center gap-6 px-6">
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-4">
+                    <div className={cn("w-2 h-10 rounded-full shadow-lg", theme.bg, theme.shadow)} />
+                    {seg.label}
+                    <span className="px-3 py-1 bg-slate-100 text-slate-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                       Auditoria de Valor
+                    </span>
+                  </h2>
+                  <div className="h-px bg-slate-100 flex-1"></div>
+                </div>
+
+                <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-slate-50/50">
+                          <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">Definição do Serviço</th>
+                          {seg.subKeys.map(sk => (
+                            <th key={sk.key} className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">{sk.label}</th>
+                          ))}
+                          <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Comandos</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {segServices.map((svc) => (
+                          <tr key={svc.id} className="group hover:bg-slate-50/50 transition-all">
+                            <td className="pl-12 pr-6 py-8">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-white group-hover:text-brand-blue transition-all shadow-inner">
+                                   <Utensils size={20} />
+                                </div>
+                                <div>
+                                  <p className="text-base font-black text-slate-900 uppercase tracking-tighter">{svc.name}</p>
+                                  {globalConfig?.mandatorySnackBySegment?.[seg.key] === svc.id && (
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                       <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                                       <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Serviço Referencial do Segmento</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            {seg.subKeys.map(sk => {
+                              const price = svc.priceByKey[sk.key] || 0;
+                              return (
+                                <td key={sk.key} className="px-6 py-8 text-center">
+                                  <div className={cn(
+                                    "inline-flex flex-col items-center p-4 rounded-3xl border transition-all",
+                                    price > 0 ? cn("bg-white border-slate-100 shadow-sm", theme.shadow) : "bg-slate-50/30 border-transparent opacity-30"
+                                  )}>
+                                    <span className={cn(
+                                      "text-lg font-black tracking-tighter leading-none mb-1",
+                                      price > 0 ? theme.text : 'text-slate-300'
+                                    )}>
+                                      {price > 0 ? formatCurrencyBRL(price) : '—'}
+                                    </span>
+                                    {price > 0 && <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Value Unit</span>}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="pl-6 pr-12 py-8 text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+                                <button 
+                                  onClick={() => startEdit(svc, seg.key)} 
+                                  className="w-12 h-12 bg-white text-slate-400 hover:text-brand-blue rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center transition-all"
+                                >
+                                  <Pencil size={18} />
+                                </button>
+                                <button 
+                                  onClick={() => setDeleteTarget({ id: svc.id, name: svc.name })} 
+                                  className="w-12 h-12 bg-white text-slate-400 hover:text-red-500 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center transition-all"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-16 border-t border-slate-100 gap-6 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <ShieldCheck size={20} className="text-slate-400 group-hover:text-brand-blue transition-colors" />
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Serviços e Valores &bull; 2026</p>
+        </div>
+        <div className="flex items-center gap-8">
+           <div className="flex items-center gap-3">
+              <Activity size={14} className="text-brand-blue animate-pulse" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Sistema Ativo</p>
+           </div>
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity &bull; 2026</p>
+        </div>
+      </div>
+
+      {/* --- Add Service Modal --- */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xl flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 40 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 40 }}
+              className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-md p-12 space-y-10 border border-white/20"
+            >
+              <div className="space-y-4 text-center">
+                <div className="w-20 h-20 bg-brand-blue rounded-[1.8rem] flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-blue/30">
+                   <Plus size={32} />
+                </div>
+                <div>
+                   <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Novo Serviço</h3>
+                   <p className="text-slate-400 text-sm font-medium">Expanda o portfólio do colégio.</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome de Identificação</label>
+                <input 
+                  autoFocus
+                  value={addName} 
+                  onChange={e => setAddName(e.target.value)} 
+                  placeholder="Ex: Lanche Coletivo Integral"
+                  className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-black text-slate-900 focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue/20 transition-all placeholder:text-slate-300" 
+                />
+                <div className="p-4 bg-brand-blue/5 rounded-2xl border border-brand-blue/10 flex items-center gap-3">
+                   <Info size={16} className="text-brand-blue shrink-0" />
+                   <p className="text-[9px] font-black text-brand-blue uppercase tracking-widest leading-relaxed">Após criar, você definirá os preços específicos para cada segmento acadêmico.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setShowAddModal(false)} className="flex-1 px-8 py-5 bg-slate-100 text-slate-400 font-black rounded-3xl uppercase text-[10px] tracking-widest hover:bg-slate-200 transition-all">Cancelar</button>
+                <button onClick={handleAdd} className="flex-1 px-8 py-5 bg-slate-900 text-white font-black rounded-3xl uppercase text-[10px] tracking-widest shadow-2xl shadow-slate-900/20 hover:bg-black transition-all">Inicializar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirm */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Remover Serviço"
+        message={`Excluir permanentemente o serviço "${deleteTarget?.name}"? Esta ação removerá a precificação de todos os segmentos.`}
+        confirmLabel="Remover"
+        variant="danger"
+        isLoading={isSaving}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Edit Service Modal */}
+      {editingService && (
+        <EditServiceModal
+          service={editingService}
+          onSave={saveEdit}
+          onClose={cancelEdit}
+          isSaving={isSaving}
+          mandatoryFor={
+            globalConfig
+              ? (Object.keys(globalConfig.mandatorySnackBySegment || {}).filter(
+                  (segKey) =>
+                    globalConfig.mandatorySnackBySegment[segKey] ===
+                    editingService.id,
+                ) as Segment[])
+              : []
+          }
+          targetSegment={editingSegment || undefined}
+        />
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,762 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  BarChart3, Download, Calendar, TrendingUp, Users, 
+  LayoutDashboard, List as ListIcon, Search, Filter,
+  FileText, DollarSign, Wallet, Percent, ChevronDown, 
+  Info, AlertCircle, Activity, Zap, ShieldCheck
+} from 'lucide-react';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
+  ResponsiveContainer, PieChart, Pie, Cell
+} from 'recharts';
+import { Invoice, ClassInfo, Student, BILLING_MODE_LABELS } from '../types';
+import { finance } from '../services/finance';
+import { formatCurrencyBRL, cn } from '../lib/utils';
+import * as XLSX from 'xlsx';
+
+// --- Types ---
+type ViewMode = 'dashboard' | 'list';
+
+export default function Reports() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  
+  // Filters
+  const [period, setPeriod] = useState('2026');
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClass, setSelectedClass] = useState('ALL');
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [inv, cls, stu] = await Promise.all([
+        finance.getInvoices(), 
+        finance.getClasses(), 
+        finance.getStudents()
+      ]);
+      setInvoices(inv || []); 
+      setClasses(cls || []); 
+      setStudents(stu || []);
+    } catch (error) {
+      console.error("Error loading report data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- Derived Data & Calculations ---
+  const filteredData = useMemo(() => {
+    if (!Array.isArray(invoices)) return [];
+    return invoices.filter(inv => {
+      if (!inv) return false;
+      const year = inv.monthYear?.split(/[\/-]/)?.[1] || '';
+      const matchesPeriod = year.includes(period);
+      const matchesClass = selectedClass === 'ALL' || inv.classId === selectedClass;
+      
+      const student = Array.isArray(students) ? students.find(s => s.id === inv.studentId) : null;
+      const matchesSearch = !searchTerm || student?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesPeriod && matchesClass && matchesSearch;
+    });
+  }, [invoices, period, selectedClass, searchTerm, students]);
+
+  const stats = useMemo(() => {
+    if (!Array.isArray(filteredData)) {
+      return {
+        totalCobrado: 0, totalRecebido: 0, repasseColegio: 0, taxasBancarias: 0,
+        margemLiquida: 0, inadimplencia: 0, totalAlunos: 0, ticketMedio: 0
+      };
+    }
+
+    const totalCobrado = filteredData.reduce((a, c) => a + (c?.netAmount || 0), 0);
+    const totalRecebido = filteredData
+      .filter(i => i?.paymentStatus === 'PAID')
+      .reduce((a, c) => a + (c?.amountCharged || c?.netAmount || 0), 0);
+    
+    const repasseColegio = filteredData
+      .filter(i => i?.paymentStatus === 'PAID')
+      .reduce((a, c) => a + (c?.collegeShareAmount || 0), 0);
+    
+    const taxasBancarias = filteredData
+      .filter(i => i?.paymentStatus === 'PAID')
+      .reduce((a, c) => a + (c?.boletoEmissionFee || 0), 0);
+
+    const margemLiquida = totalRecebido - repasseColegio - taxasBancarias;
+    const inadimplencia = totalCobrado > 0 ? ((totalCobrado - totalRecebido) / totalCobrado) * 100 : 0;
+    const totalAlunos = new Set(filteredData.map(i => i.studentId)).size;
+    const ticketMedio = filteredData.length > 0 ? totalCobrado / filteredData.length : 0;
+    
+    return {
+      totalCobrado,
+      totalRecebido,
+      repasseColegio,
+      taxasBancarias,
+      margemLiquida,
+      inadimplencia,
+      totalAlunos,
+      ticketMedio
+    };
+  }, [filteredData]);
+
+  // Chart Data: Revenue by Month
+  const revenueByMonth = useMemo(() => {
+    const months = [
+      'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 
+      'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'
+    ];
+    
+    return months.map((month, index) => {
+      const monthNum = (index + 1).toString().padStart(2, '0');
+      const monthInvoices = invoices.filter(inv => {
+        const invYear = inv?.monthYear?.split(/[\/-]/)?.[1] || '';
+        if (invYear !== period) return false;
+        const invMonth = inv?.monthYear?.split(/[\/-]/)?.[0] || '';
+        return invMonth.toUpperCase() === month || invMonth === monthNum;
+      });
+      
+      const cobrado = monthInvoices.reduce((a, c) => a + (c?.netAmount || 0), 0);
+      const recebido = monthInvoices
+        .filter(i => i?.paymentStatus === 'PAID')
+        .reduce((a, c) => a + (c?.amountCharged || c?.netAmount || 0), 0);
+        
+      return { name: month.substring(0, 3), Cobrado: cobrado, Recebido: recebido };
+    });
+  }, [invoices, period]);
+
+  // Chart Data: Distribution by Billing Mode
+  const billingModeDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredData.forEach(inv => {
+      if (!inv) return;
+      const label = BILLING_MODE_LABELS[inv.billingMode as keyof typeof BILLING_MODE_LABELS] || 'Outros';
+      counts[label] = (counts[label] || 0) + (inv.netAmount || 0);
+    });
+    
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredData]);
+
+  // Advanced Insights Calculation
+  const insights = useMemo(() => {
+    const classTotals = classes.map(c => {
+      const total = filteredData.filter(inv => inv.classId === c.id).reduce((a, b) => a + (b.netAmount || 0), 0);
+      return { name: c.name, total };
+    }).sort((a, b) => b.total - a.total);
+    
+    const bestClass = classTotals[0];
+    const bestStudentId = filteredData.reduce((acc, curr) => {
+      acc[curr.studentId] = (acc[curr.studentId] || 0) + (curr.netAmount || 0);
+      return acc;
+    }, {} as Record<string, number>);
+    const topStudent = Object.entries(bestStudentId).sort((a, b) => b[1] - a[1])[0];
+    
+    return { bestClass, topStudent };
+  }, [filteredData, classes]);
+
+  const COLORS = ['#3B82F6', '#F97316', '#10B981', '#6366F1', '#EC4899'];
+
+  const exportToExcel = () => {
+    const rows = filteredData.map(inv => {
+      const student = students.find(s => s.id === inv.studentId);
+      const clazz = classes.find(c => c.id === inv.classId);
+      return {
+        'Mês/Ano': inv.monthYear,
+        'Aluno': student?.name || 'Desconhecido',
+        'Turma': clazz?.name || 'Sem Turma',
+        'Modalidade': BILLING_MODE_LABELS[inv.billingMode as keyof typeof BILLING_MODE_LABELS],
+        'Total Bruto (R$)': inv.grossAmount,
+        'Total Líquido (R$)': inv.netAmount,
+        'Status': inv.paymentStatus === 'PAID' ? 'Pago' : 'Pendente',
+        'Valor Recebido (R$)': inv.amountCharged || (inv.paymentStatus === 'PAID' ? inv.netAmount : 0),
+        'Taxa Emissão (R$)': inv.boletoEmissionFee || 0,
+        'Repasse Colégio (R$)': inv.collegeShareAmount || 0,
+        'Resultado Canteen (R$)': (inv.amountCharged || 0) - (inv.boletoEmissionFee || 0) - (inv.collegeShareAmount || 0)
+      };
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatório Consolidado");
+    XLSX.writeFile(wb, `Relatorio_Financeiro_${period}_${new Date().getTime()}.xlsx`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+             <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+             <div className="absolute inset-0 flex items-center justify-center text-brand-blue">
+                <BarChart3 size={24} className="animate-pulse" />
+             </div>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Processando BI...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      {/* --- Strategic Header 'Pro-Max' --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-brand-blue rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-brand-blue/30 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <BarChart3 size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-[9px] font-black uppercase tracking-widest border border-brand-blue/20">Business Intelligence</span>
+               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Dados em Tempo Real</span>
+            </div>
+            <div className="flex items-center gap-4 mb-4">
+               <span className="px-4 py-1.5 bg-brand-orange/10 text-brand-orange rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-brand-orange/20">Analytics</span>
+               <span className="px-4 py-1.5 bg-indigo-500/10 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/20">Business Intelligence</span>
+            </div>
+            <h1 className="text-6xl font-black text-slate-900 uppercase tracking-tighter leading-none">Relatórios <span className="text-brand-orange text-7xl">Analíticos</span></h1>
+            <p className="text-slate-400 font-medium mt-4 text-xl">Visão estratégica e performance financeira consolidada.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-[3.5rem] border border-slate-100">
+           <div className="flex bg-white p-1 rounded-[2rem] border border-slate-100 shadow-sm">
+            <button onClick={() => setViewMode('dashboard')} className={cn("px-8 py-4 rounded-[1.5rem] transition-all text-[11px] font-black uppercase tracking-widest", viewMode === 'dashboard' ? "bg-slate-900 text-white shadow-xl" : "text-slate-400 hover:text-slate-600")}>
+               Dashboard
+            </button>
+            <button onClick={() => setViewMode('list')} className={cn("px-8 py-4 rounded-[1.5rem] transition-all text-[11px] font-black uppercase tracking-widest", viewMode === 'list' ? "bg-slate-900 text-white shadow-xl" : "text-slate-400 hover:text-slate-600")}>
+               Listagem
+            </button>
+          </div>
+          <button 
+            onClick={exportToExcel}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black text-[11px] hover:bg-black transition-all shadow-2xl shadow-slate-900/20 uppercase tracking-[0.2em]"
+          >
+            <Download size={20} className="text-brand-lime" /> Exportar BI
+          </button>
+        </div>
+      </motion.div>
+      {/* --- Filter Ecosystem --- */}
+      <div className="flex flex-col lg:flex-row gap-6 bg-white p-8 rounded-[3.5rem] shadow-xl shadow-slate-200/20 border border-slate-100 items-center">
+        <div className="flex-1 flex flex-col md:flex-row gap-6 w-full">
+           <div className="flex-1 relative group">
+              <Search className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-brand-orange transition-all" size={22} />
+              <input 
+                type="text" placeholder="BUSCAR ALUNO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-20 pr-8 py-5 bg-slate-50 border border-slate-100 rounded-[2rem] text-[11px] font-black uppercase tracking-widest focus:outline-none focus:border-brand-orange focus:bg-white transition-all shadow-inner"
+              />
+           </div>
+
+           <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex bg-slate-50 p-1.5 rounded-[2rem] border border-slate-100 group">
+                 <div className="flex items-center pl-6 pr-4 text-slate-300 group-hover:text-brand-orange transition-colors">
+                    <Calendar size={18} />
+                 </div>
+                 <select 
+                    value={period} onChange={(e) => setPeriod(e.target.value)}
+                    className="bg-transparent px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+                 >
+                    <option value="2026">Ano Fiscal 2026</option>
+                    <option value="2025">Ano Fiscal 2025</option>
+                 </select>
+              </div>
+
+              <div className="flex bg-slate-50 p-1.5 rounded-[2rem] border border-slate-100 group">
+                 <div className="flex items-center pl-6 pr-4 text-slate-300 group-hover:text-brand-orange transition-colors">
+                    <Filter size={18} />
+                 </div>
+                 <select 
+                    value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}
+                    className="bg-transparent px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-500 outline-none cursor-pointer hover:text-slate-900 transition-colors"
+                 >
+                    <option value="ALL">Todas as Turmas</option>
+                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                 </select>
+              </div>
+           </div>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {viewMode === 'dashboard' ? (
+          <motion.div 
+            key="dashboard"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-12"
+          >
+            {/* --- Metric Intelligence Grid --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {[
+                { 
+                  label: 'Total Faturamento', 
+                  value: stats.totalCobrado, 
+                  icon: DollarSign, 
+                  color: 'text-slate-900', 
+                  bg: 'bg-white',
+                  trend: 'Cobrado no período',
+                  accent: 'bg-slate-900',
+                  spark: [40, 55, 45, 60, 50, 70, 65]
+                },
+                { 
+                  label: 'Total Recebido', 
+                  value: stats.totalRecebido, 
+                  icon: Wallet, 
+                  color: 'text-emerald-600', 
+                  bg: 'bg-emerald-50/50',
+                  trend: stats.totalCobrado > 0 
+                    ? `${((stats.totalRecebido/stats.totalCobrado)*100).toFixed(1)}% de liquidação`
+                    : 'Aguardando dados',
+                  accent: 'bg-emerald-500',
+                  spark: [30, 45, 40, 55, 48, 65, 62]
+                },
+                { 
+                  label: 'Margem Líquida', 
+                  value: stats.margemLiquida, 
+                  icon: TrendingUp, 
+                  color: 'text-brand-blue', 
+                  bg: 'bg-brand-blue/5',
+                  trend: 'Líquido pós taxas e repasse',
+                  accent: 'bg-brand-blue',
+                  spark: [20, 30, 25, 35, 32, 45, 40]
+                },
+                { 
+                  label: 'Ticket Médio', 
+                  value: stats.ticketMedio, 
+                  icon: Percent, 
+                  color: 'text-brand-orange', 
+                  bg: 'bg-brand-orange/5',
+                  trend: 'Valor médio por título',
+                  accent: 'bg-brand-orange',
+                  spark: [45, 48, 46, 50, 49, 52, 51]
+                }
+              ].map((stat, i) => (
+                <motion.div 
+                  key={i} 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={cn("p-10 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden group transition-all hover:shadow-2xl hover:shadow-slate-200/50", stat.bg)}
+                >
+                  <div className={cn("absolute top-0 left-0 w-2 h-full opacity-20", stat.accent)} />
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{stat.label}</p>
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center opacity-20", stat.accent)}>
+                        <stat.icon size={20} className={stat.color} />
+                      </div>
+                    </div>
+                    
+                    <p className={cn("text-4xl font-black tracking-tighter leading-none mb-3", stat.color)}>
+                      {formatCurrencyBRL(stat.value)}
+                    </p>
+                    
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider">
+                        {stat.trend}
+                      </p>
+                      <div className="flex items-end gap-1 h-6">
+                        {stat.spark.map((val, idx) => (
+                          <div 
+                            key={idx} 
+                            className={cn("w-1 rounded-full opacity-40", stat.accent)} 
+                            style={{ height: `${val}%` }} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* --- Advanced Insights Hub --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              <div className="lg:col-span-1 bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 flex flex-col relative overflow-hidden group">
+                <div className="absolute -right-16 -top-16 w-48 h-48 bg-slate-50 rounded-full group-hover:scale-110 transition-transform duration-700" />
+                <div className="relative z-10 flex-1">
+                  <div className="flex items-center gap-3 mb-10">
+                    <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white">
+                      <TrendingUp size={20} />
+                    </div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">High Performance</h3>
+                  </div>
+                  
+                  <div className="space-y-8">
+                    {insights.bestClass && (
+                      <>
+                        <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:bg-slate-100/50">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 opacity-60">Líder por Segmento</p>
+                          <p className="text-2xl font-black text-slate-900 tracking-tight">
+                            {insights.bestClass.name}
+                          </p>
+                          <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest mt-1">
+                            {formatCurrencyBRL(insights.bestClass.total)} faturados
+                          </p>
+                        </div>
+                        <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:bg-slate-100/50">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 opacity-60">Top Faturamento Aluno</p>
+                          <p className="text-2xl font-black text-slate-900 tracking-tight truncate">
+                            {students.find(s => s.id === insights.topStudent?.[0])?.name || '---'}
+                          </p>
+                          <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest mt-1">
+                            Individual: {formatCurrencyBRL(insights.topStudent?.[1] || 0)}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 bg-slate-900 p-12 rounded-[4rem] text-white flex flex-col justify-center relative overflow-hidden shadow-2xl shadow-slate-900/40">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-brand-blue/20 blur-[120px] rounded-full -mr-32 -mt-32 animate-pulse" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full -ml-32 -mb-32" />
+                
+                <div className="relative z-10 space-y-6">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/20 border border-brand-blue/30 rounded-full mb-4">
+                    <div className="w-2 h-2 bg-brand-blue rounded-full animate-ping" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-blue">Resumo Consolidado</span>
+                  </div>
+                  
+                  <h2 className="text-5xl font-black uppercase tracking-tighter leading-none">
+                    Desempenho <br /> <span className="text-brand-blue">Financeiro</span>
+                  </h2>
+                  
+                  <p className="text-slate-400 font-medium text-lg max-w-xl leading-relaxed">
+                    A análise consolidada do exercício <span className="text-white font-black">{period}</span> revela um faturamento bruto de <span className="text-white font-black">{formatCurrencyBRL(stats.totalCobrado)}</span>. 
+                    Com um índice de recebimento de <span className="text-emerald-400 font-black">{((stats.totalRecebido / (stats.totalCobrado || 1)) * 100).toFixed(1)}%</span>, 
+                    a saúde financeira mantém-se <span className="text-brand-blue font-black underline decoration-brand-blue/30 underline-offset-8">ESTÁVEL</span>.
+                  </p>
+                  
+                  <div className="pt-8 flex flex-wrap gap-6">
+                     <div className="px-8 py-6 bg-white/5 rounded-[2rem] border border-white/10 backdrop-blur-md group hover:bg-white/10 transition-all">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Inadimplência</p>
+                        <p className="text-3xl font-black text-brand-orange">{stats.inadimplencia.toFixed(1)}%</p>
+                     </div>
+                     <div className="px-8 py-6 bg-brand-blue/10 rounded-[2rem] border border-brand-blue/20 backdrop-blur-md group hover:bg-brand-blue/20 transition-all">
+                        <p className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1">Margem Real</p>
+                        <p className="text-3xl font-black text-white">{((stats.margemLiquida / (stats.totalRecebido || 1)) * 100).toFixed(1)}%</p>
+                     </div>
+                     <div className="px-8 py-6 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 backdrop-blur-md group hover:bg-emerald-500/20 transition-all">
+                        <p className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">Impacto Repasse</p>
+                        <p className="text-3xl font-black text-white">{formatCurrencyBRL(stats.repasseColegio)}</p>
+                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* --- Advanced Charts Pro --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              {/* Evolution Chart */}
+              <div className="lg:col-span-2 bg-white p-10 rounded-[4rem] border border-slate-100 shadow-xl shadow-slate-200/30 h-[550px] flex flex-col group">
+                <div className="flex items-center justify-between mb-12 px-2">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Fluxo de Caixa</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Sazonalidade e Retorno Financeiro</p>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-brand-blue shadow-lg shadow-brand-blue/30" />
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Previsto</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30" />
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Realizado</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex-1 w-full">
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={revenueByMonth} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorCob" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorRec" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="6 6" vertical={false} stroke="#F1F5F9" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fontSize: 10, fontWeight: 900, fill: '#94A3B8'}}
+                        dy={20}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fontSize: 10, fontWeight: 900, fill: '#94A3B8'}}
+                        tickFormatter={(val) => `R$${val/1000}k`}
+                      />
+                      <RechartsTooltip 
+                        cursor={{ stroke: '#F1F5F9', strokeWidth: 2 }}
+                        contentStyle={{borderRadius: '2rem', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)', fontWeight: 900, fontSize: '12px', padding: '1.5rem'}}
+                        formatter={(val: number) => [formatCurrencyBRL(val), '']}
+                      />
+                      <Area type="monotone" dataKey="Cobrado" stroke="#3B82F6" strokeWidth={5} fillOpacity={1} fill="url(#colorCob)" />
+                      <Area type="monotone" dataKey="Recebido" stroke="#10B981" strokeWidth={5} fillOpacity={1} fill="url(#colorRec)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Distribution Chart */}
+              <div className="bg-white p-10 rounded-[4rem] border border-slate-100 shadow-xl shadow-slate-200/30 h-[550px] flex flex-col">
+                <div className="mb-10 text-center">
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Mix de Receita</h3>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Concentração por Categoria</p>
+                </div>
+                
+                <div className="flex-1 relative">
+                  <ResponsiveContainer width="100%" height={380}>
+                    <PieChart>
+                      <Pie
+                        data={billingModeDistribution}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={80}
+                        outerRadius={120}
+                        paddingAngle={8}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {billingModeDistribution.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 900, fontSize: '11px'}}
+                        formatter={(val: number) => [formatCurrencyBRL(val), '']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  
+                  <div className="absolute inset-0 flex flex-col justify-end pointer-events-none pb-4">
+                    <div className="flex flex-wrap justify-center gap-3 px-4">
+                      {billingModeDistribution.map((entry, index) => (
+                        <div key={index} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{entry.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="list"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-8"
+          >
+            {/* --- Advanced Audit Table --- */}
+            <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/30 overflow-hidden relative">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-50 bg-slate-50/50">
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Aluno & Turma</th>
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Referência</th>
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Valor Bruto</th>
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Repasse</th>
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
+                      <th className="p-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {filteredData.length > 0 ? filteredData.map((inv, idx) => {
+                      const student = students.find(s => s.id === inv.studentId);
+                      const className = classes.find(c => c.id === inv.classId)?.name || 'N/A';
+                      const isExpanded = expandedRow === inv.id;
+
+                      return (
+                        <React.Fragment key={inv.id}>
+                          <motion.tr 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.01 }}
+                            className={cn("group transition-colors", isExpanded ? "bg-slate-50/80" : "hover:bg-slate-50/50")}
+                          >
+                            <td className="p-10">
+                              <div className="flex items-center gap-6">
+                                <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-900 font-black text-lg uppercase group-hover:bg-white group-hover:shadow-lg transition-all shadow-inner">
+                                  {student?.name.charAt(0) || '?'}
+                                </div>
+                                <div>
+                                  <p className="text-lg font-black text-slate-900 tracking-tight">{student?.name || 'Aluno Removido'}</p>
+                                  <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest mt-1">{className}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-10">
+                              <div className="flex items-center gap-3">
+                                <Calendar size={16} className="text-slate-400" />
+                                <span className="text-base font-black text-slate-600 tabular-nums">{inv.monthYear}</span>
+                              </div>
+                            </td>
+                            <td className="p-10">
+                              <p className="text-lg font-black text-slate-900 tabular-nums">{formatCurrencyBRL(inv.netAmount)}</p>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Liquidação: {formatCurrencyBRL(inv.amountCharged || inv.netAmount)}</p>
+                            </td>
+                            <td className="p-10 text-base font-black text-slate-600 tabular-nums">
+                              {formatCurrencyBRL(inv.collegeShareAmount || 0)}
+                            </td>
+                            <td className="p-10">
+                              <span className={cn(
+                                "inline-flex items-center gap-3 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm" : "bg-brand-orange/10 text-brand-orange border border-brand-orange/20 shadow-sm"
+                              )}>
+                                <div className={cn("w-2 h-2 rounded-full", inv.paymentStatus === 'PAID' ? "bg-emerald-500 animate-pulse" : "bg-brand-orange")} />
+                                {inv.paymentStatus === 'PAID' ? 'Liquidado' : 'Pendente'}
+                              </span>
+                            </td>
+                            <td className="p-10 text-right">
+                              <button 
+                                onClick={() => setExpandedRow(isExpanded ? null : inv.id)}
+                                className={cn(
+                                  "w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2",
+                                  isExpanded ? "bg-slate-900 border-slate-900 text-white rotate-180 shadow-xl" : "bg-white border-slate-100 text-slate-400 hover:bg-slate-50 hover:border-slate-200"
+                                )}
+                              >
+                                <ChevronDown size={24} />
+                              </button>
+                            </td>
+                          </motion.tr>
+                          
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={6} className="p-0 border-none">
+                                  <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden bg-slate-50/80"
+                                  >
+                                    <div className="p-16 grid grid-cols-1 lg:grid-cols-2 gap-16 border-t-2 border-white">
+                                      <div className="space-y-8">
+                                        <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                                           <div className="w-1 h-4 bg-brand-blue rounded-full" /> Composição Estratégica
+                                        </h4>
+                                        <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl shadow-slate-200/30 overflow-hidden">
+                                          <div className="p-10 space-y-6">
+                                            {inv.items && inv.items.length > 0 ? inv.items.map((item, idx) => (
+                                              <div key={idx} className="flex items-center justify-between py-5 border-b border-slate-50 last:border-0">
+                                                <div>
+                                                  <p className="text-base font-black text-slate-900 tracking-tight">{item.description}</p>
+                                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{item.type || 'Consumo Bio-Perfil'}</p>
+                                                </div>
+                                                <p className="text-base font-black text-slate-900 tabular-nums">{formatCurrencyBRL(item.amount)}</p>
+                                              </div>
+                                            )) : (
+                                              <div className="text-center py-12">
+                                                <Info className="mx-auto text-slate-200 mb-4" size={40} />
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocolo sem detalhamento de itens</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="bg-slate-900 p-10 flex justify-between items-center">
+                                            <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em]">Consolidado Bruto</p>
+                                            <p className="text-3xl font-black text-white tabular-nums">{formatCurrencyBRL(inv.netAmount)}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-10">
+                                        <div className="grid grid-cols-2 gap-8">
+                                          <div className="p-10 bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/20 group">
+                                            <div className="w-12 h-12 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange mb-6 group-hover:scale-110 transition-transform">
+                                              <AlertCircle size={24} />
+                                            </div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Taxa de Repasse</p>
+                                            <p className="text-2xl font-black text-slate-900 tabular-nums">{formatCurrencyBRL(inv.collegeShareAmount || 0)}</p>
+                                          </div>
+                                          <div className="p-10 bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/20 group">
+                                            <div className="w-12 h-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue mb-6 group-hover:scale-110 transition-transform">
+                                              <DollarSign size={24} />
+                                            </div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Encargos Operacionais</p>
+                                            <p className="text-2xl font-black text-slate-900 tabular-nums">{formatCurrencyBRL(inv.boletoEmissionFee || 0)}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="p-10 bg-slate-900 rounded-[3rem] text-white shadow-2xl shadow-slate-900/30 relative overflow-hidden group/result">
+                                           <div className="absolute top-0 right-0 w-48 h-48 bg-brand-blue/20 blur-3xl rounded-full -mr-24 -mt-24 group-hover/result:scale-150 transition-transform duration-1000" />
+                                           <div className="relative z-10 flex items-center justify-between">
+                                              <div>
+                                                <p className="text-[11px] font-black text-blue-300 uppercase tracking-widest mb-3">Resultado Líquido Canteen</p>
+                                                <p className="text-5xl font-black tabular-nums tracking-tighter">
+                                                  {formatCurrencyBRL(inv.netAmount - (inv.collegeShareAmount || 0) - (inv.boletoEmissionFee || 0))}
+                                                </p>
+                                              </div>
+                                              <div className="text-right">
+                                                <p className="text-[11px] font-black text-blue-300 uppercase tracking-widest mb-3">Rentabilidade</p>
+                                                <span className="px-5 py-2 bg-brand-lime text-slate-900 text-[12px] font-black rounded-2xl shadow-xl">
+                                                  {(((inv.netAmount - (inv.collegeShareAmount || 0) - (inv.boletoEmissionFee || 0)) / (inv.netAmount || 1)) * 100).toFixed(1)}%
+                                                </span>
+                                              </div>
+                                           </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                </td>
+                              </tr>
+                            )}
+                          </AnimatePresence>
+                        </React.Fragment>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={6} className="p-32 text-center">
+                           <Search size={48} className="mx-auto text-slate-100 mb-6" />
+                           <p className="text-slate-400 font-black uppercase tracking-[0.4em] text-sm">Nenhum registro detectado no Auditor.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-20 border-t border-slate-100 gap-8 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <ShieldCheck size={24} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Canteen Hub &bull; Protocolo Analytics 2026</p>
+        </div>
+        <div className="flex items-center gap-10">
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Registros Processados: {filteredData.length}</p>
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity Intelligence</p>
+        </div>
+      </div>
+    </div>
+  );
+}

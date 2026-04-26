@@ -1,0 +1,435 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Users,
+  GraduationCap,
+  AlertCircle,
+  ChevronRight,
+  Apple,
+  Layers,
+  CheckCircle2,
+  Activity,
+  Zap,
+  Bell,
+  ArrowUpRight,
+  Calendar,
+  CreditCard,
+  ShieldCheck,
+  TrendingUp,
+  LayoutDashboard,
+  Phone,
+  User,
+  MoreVertical,
+  Plus
+} from 'lucide-react';
+import { cn, formatCurrencyBRL } from '../lib/utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Link, useNavigate } from 'react-router-dom';
+import { finance } from '../services/finance';
+import { useAuth } from '../hooks/useAuth';
+import { Student, ClassInfo, Invoice } from '../types';
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [greeting, setGreeting] = useState('');
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Bom dia');
+    else if (hour < 18) setGreeting('Boa tarde');
+    else setGreeting('Boa noite');
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [s, c, inv] = await Promise.all([
+          finance.getStudents(),
+          finance.getClasses(),
+          finance.getInvoices()
+        ]);
+        setStudents(s || []);
+        setClasses(c || []);
+        setInvoices(inv || []);
+      } catch (error) {
+        console.error("Erro ao carregar dashboard", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const getStudentName = (id: string) => students.find(s => s.id === id)?.name || 'Aluno Excluído';
+  const getStudentPhone = (id: string) => students.find(s => s.id === id)?.contactPhone || '';
+
+  const dashboardData = useMemo(() => {
+    const now = new Date();
+    const currentMonthStr = format(now, 'MM/yyyy');
+    
+    const currentMonthInvoices = invoices.filter(inv => inv.monthYear === currentMonthStr);
+    
+    const realInvoices = currentMonthInvoices.filter(inv => {
+      const s = students.find(x => x.id === inv.studentId);
+      return s && !s.name.includes('Exemplo') && !s.id.includes('fake');
+    });
+
+    const pendingInvoices = invoices.filter(inv => {
+      const s = students.find(x => x.id === inv.studentId);
+      const isFake = s && (s.name.includes('Exemplo') || s.id.includes('fake'));
+      return !isFake && inv.paymentStatus === 'PENDING';
+    });
+
+    const overdueInvoices = pendingInvoices
+      .filter(inv => new Date(inv.dueDate) < now)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    const totalStudentsCount = students.filter(s => !s.name.includes('Exemplo')).length;
+    const paidCount = realInvoices.filter(i => i.paymentStatus === 'PAID').length;
+    const collectionRate = realInvoices.length > 0 ? (paidCount / realInvoices.length) * 100 : 0;
+
+    return {
+      totalStudentsCount,
+      realInvoices,
+      pendingCount: pendingInvoices.length,
+      overdueInvoices,
+      collectionRate,
+      activeClasses: classes.length,
+      totalServices: realInvoices.reduce((acc, curr) => acc + ((curr as any).totalServices || 0), 0)
+    };
+  }, [invoices, students, classes]);
+
+  const currentMonthName = format(new Date(), 'MMMM', { locale: ptBR });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Zap className="text-brand-blue animate-pulse" size={24} />
+            </div>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Sincronizando Ecossistema...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      {/* --- Strategic Header 'Pro-Max' --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-slate-900/30 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <LayoutDashboard size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Estatísticas Reais</span>
+               <span className="px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-[9px] font-black uppercase tracking-widest border border-brand-blue/20">Protocolo Ativo</span>
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+              {greeting}, <span className="text-brand-blue text-6xl">{profile?.displayName?.split(' ')[0] ?? 'Admin'}</span>
+            </h1>
+            <p className="text-slate-400 font-medium mt-3 text-lg">Visão estratégica de <span className="text-slate-900 font-bold">{currentMonthName}</span>.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-[3rem] border border-slate-100">
+           <div className="px-8 py-5 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 relative">
+                 <Bell size={18} />
+                 {dashboardData.overdueInvoices.length > 0 && (
+                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white" />
+                 )}
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Notificações</p>
+                 <p className="text-base font-black text-slate-900 mt-1">{dashboardData.overdueInvoices.length} Pendências</p>
+              </div>
+           </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/monthly')}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-[11px] hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-[0.2em]"
+          >
+            <Zap size={20} className="text-brand-lime" /> Novo Fechamento
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* --- Metric Intelligence Grid --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {[
+          { 
+            label: 'Liquidez Mensal', 
+            value: `${dashboardData.collectionRate.toFixed(0)}%`, 
+            sub: `${dashboardData.realInvoices.length} faturas emitidas`,
+            icon: CreditCard, 
+            color: 'text-brand-blue', 
+            bg: 'bg-brand-blue/5',
+            accent: 'bg-brand-blue',
+            progress: dashboardData.collectionRate 
+          },
+          { 
+            label: 'Pendências Críticas', 
+            value: dashboardData.overdueInvoices.length, 
+            sub: 'Boletos vencidos hoje',
+            icon: AlertCircle, 
+            color: 'text-red-500', 
+            bg: 'bg-red-50',
+            accent: 'bg-red-500',
+            progress: (dashboardData.overdueInvoices.length / (dashboardData.pendingCount || 1)) * 100,
+            isOverdue: true
+          },
+          { 
+            label: 'Ecossistema Ativo', 
+            value: dashboardData.totalStudentsCount, 
+            sub: 'Alunos matriculados',
+            icon: Users, 
+            color: 'text-indigo-600', 
+            bg: 'bg-indigo-50',
+            accent: 'bg-indigo-500',
+            progress: 100
+          },
+          { 
+            label: 'Volume de Serviços', 
+            value: dashboardData.totalServices, 
+            sub: 'Atendimentos este mês',
+            icon: Layers, 
+            color: 'text-emerald-600', 
+            bg: 'bg-emerald-50',
+            accent: 'bg-emerald-500',
+            progress: 85
+          }
+        ].map((stat, i) => (
+          <motion.div 
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className={cn(
+              "p-10 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 relative overflow-hidden group hover:shadow-2xl transition-all",
+              stat.bg
+            )}
+          >
+            <div className={cn("absolute top-0 left-0 w-2 h-full opacity-20", stat.accent)} />
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-10">
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center bg-white shadow-sm border border-slate-100", stat.color)}>
+                  <stat.icon size={28} />
+                </div>
+                <div className="text-right">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                   <p className={cn("text-5xl font-black tracking-tighter mt-1", stat.isOverdue && stat.value > 0 ? 'text-red-500' : 'text-slate-900')}>
+                      {stat.value}
+                   </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="h-1.5 bg-slate-900/5 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${stat.progress}%` }}
+                    transition={{ duration: 1, delay: 0.5 }}
+                    className={cn("h-full rounded-full", stat.accent)} 
+                  />
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-60">{stat.sub}</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* --- Operational Hub --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        
+        {/* Overdue Feed (Left/Center) */}
+        <div className="lg:col-span-8 space-y-10">
+          <div className="flex items-center justify-between px-6">
+            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-4">
+              <div className="w-2 h-10 bg-red-500 rounded-full shadow-lg shadow-red-500/20" />
+              Títulos em Atraso
+              {dashboardData.overdueInvoices.length > 0 && (
+                <span className="px-3 py-1 bg-red-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest">
+                  Crítico
+                </span>
+              )}
+            </h2>
+            <Link to="/invoices" className="group flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-brand-blue transition-all">
+              Auditoria Completa <ArrowUpRight size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+            </Link>
+          </div>
+
+          <div className="space-y-6">
+            <AnimatePresence mode="popLayout">
+              {dashboardData.overdueInvoices.length === 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-[4rem] p-32 text-center border border-dashed border-slate-100 shadow-xl shadow-slate-100/50 flex flex-col items-center justify-center gap-8"
+                >
+                  <div className="w-32 h-32 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center text-emerald-500 relative">
+                    <CheckCircle2 size={64} />
+                    <div className="absolute inset-0 bg-emerald-500/10 rounded-[2.5rem] animate-ping" />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Status: Saudável</h3>
+                    <p className="text-slate-400 font-medium max-w-sm mx-auto text-lg leading-relaxed">Nenhuma pendência crítica detectada no ecossistema atual.</p>
+                  </div>
+                </motion.div>
+              ) : (
+                dashboardData.overdueInvoices.slice(0, 5).map((inv, idx) => (
+                  <motion.div 
+                    key={inv.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="group bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 flex flex-col md:flex-row md:items-center justify-between gap-10 hover:border-red-100 hover:shadow-2xl hover:shadow-red-500/5 transition-all"
+                  >
+                    <div className="flex items-center gap-8">
+                      <div className="w-20 h-20 rounded-[2rem] bg-slate-50 text-slate-300 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition-all shadow-inner relative overflow-hidden">
+                        <Users size={32} className="relative z-10" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tighter group-hover:text-red-600 transition-colors">
+                          {getStudentName(inv.studentId)}
+                        </h3>
+                        <div className="flex items-center gap-4 mt-3">
+                          <div className="flex items-center gap-2 bg-red-50 px-4 py-1.5 rounded-full border border-red-100">
+                             <Calendar size={12} className="text-red-500" />
+                             <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">Há {Math.floor((new Date().getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
+                          </div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Referência: {inv.monthYear}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between md:justify-end gap-12">
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Montante Devido</p>
+                        <p className="text-4xl font-black text-slate-900 tabular-nums tracking-tighter group-hover:text-red-500 transition-colors">
+                          {formatCurrencyBRL(inv.netAmount)}
+                        </p>
+                      </div>
+                      <motion.a 
+                        whileHover={{ scale: 1.1, rotate: 12 }}
+                        whileTap={{ scale: 0.9 }}
+                        href={`https://wa.me/55${getStudentPhone(inv.studentId).replace(/\D/g,'')}`} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="w-16 h-16 rounded-[1.8rem] bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/30"
+                      >
+                        <Phone size={24} />
+                      </motion.a>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* --- Strategic Sidebar (Right) --- */}
+        <div className="lg:col-span-4 space-y-12">
+          
+          {/* Action Focus Card */}
+          <div className="bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl shadow-slate-900/40 relative overflow-hidden group min-h-[450px] flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-brand-blue/20 blur-[120px] rounded-full -mr-40 -mt-40 group-hover:scale-150 transition-transform duration-1000" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full -ml-32 -mb-32" />
+            
+            <div className="relative z-10">
+              <div className="w-20 h-20 bg-white/10 backdrop-blur-xl rounded-[1.8rem] flex items-center justify-center border border-white/10 mb-10 shadow-2xl">
+                <Zap size={36} className="text-brand-lime" />
+              </div>
+              <h3 className="text-4xl font-black uppercase tracking-tighter leading-tight mb-6">Protocolo de <br /> <span className="text-brand-blue">Fechamento</span></h3>
+              <p className="text-slate-400 font-medium text-lg leading-relaxed mb-10">
+                Inicie o processamento estratégico para consolidar consumos e gerar faturamentos automáticos.
+              </p>
+            </div>
+
+            <motion.button 
+              whileHover={{ x: 5 }}
+              onClick={() => navigate('/monthly')}
+              className="relative z-10 w-full bg-white text-slate-900 font-black py-7 rounded-[2rem] flex items-center justify-center gap-4 hover:bg-brand-lime transition-all uppercase text-[11px] tracking-[0.2em] shadow-2xl"
+            >
+              Executar Protocolo
+              <ChevronRight size={20} />
+            </motion.button>
+          </div>
+
+          {/* Core Access Ecosystem */}
+          <div className="space-y-8">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] ml-8">Arquitetura do Sistema</h2>
+            <div className="grid grid-cols-1 gap-5">
+              {[
+                { to: '/students', icon: Users, label: 'Base de Alunos', color: 'text-brand-blue', bg: 'bg-brand-blue/5' },
+                { to: '/classes', icon: GraduationCap, label: 'Cluster de Turmas', color: 'text-brand-orange', bg: 'bg-brand-orange/5' },
+                { to: '/snacks', icon: Apple, label: 'Portfólio de Itens', color: 'text-red-500', bg: 'bg-red-50' },
+                { to: '/reports', icon: TrendingUp, label: 'Inteligência de Dados', color: 'text-indigo-500', bg: 'bg-indigo-50' }
+              ].map((link, i) => (
+                <Link 
+                  key={i} 
+                  to={link.to} 
+                  className="group flex items-center justify-between p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:border-brand-blue/20 transition-all"
+                >
+                  <div className="flex items-center gap-6">
+                    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 shadow-inner", link.bg, link.color)}>
+                      <link.icon size={24} />
+                    </div>
+                    <span className="font-black text-slate-700 uppercase tracking-tighter text-sm">{link.label}</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-brand-blue group-hover:text-white transition-all">
+                    <ChevronRight size={18} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-20 border-t border-slate-100 gap-8 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <ShieldCheck size={24} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Canteen Hub &bull; Protocolo 2026</p>
+        </div>
+        <div className="flex items-center gap-10">
+           <div className="flex items-center gap-4">
+              <Activity size={16} className="text-brand-blue animate-pulse" />
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Sistema Nominal</p>
+           </div>
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity Intelligence</p>
+        </div>
+      </div>
+
+      {/* --- Global Command FAB --- */}
+      <motion.button 
+        whileHover={{ scale: 1.1, rotate: 90 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => navigate('/config')}
+        className="fixed bottom-10 right-10 w-20 h-20 bg-slate-900 text-white rounded-[2rem] shadow-2xl flex items-center justify-center hover:bg-brand-blue transition-all border-8 border-white z-[60] group"
+      >
+        <Zap size={28} className="group-hover:text-brand-lime transition-colors" />
+      </motion.button>
+    </div>
+  );
+}

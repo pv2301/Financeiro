@@ -1,0 +1,615 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Save, CheckCircle2, ChevronDown, ChevronUp, Calendar, DollarSign, Activity, 
+  FileText, AlertTriangle, Settings, Shield, Users as UsersIcon, GraduationCap, 
+  Utensils, Zap, ShieldCheck, Database, Download, ArrowUpRight, Lock, Clock,
+  Percent, Calculator, Layers, HeartPulse
+} from 'lucide-react';
+import Tooltip from '../components/Tooltip';
+import { motion, AnimatePresence } from 'motion/react';
+import { finance } from '../services/finance';
+import * as XLSX from 'xlsx';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { cn, formatCurrencyBRL } from '../lib/utils';
+
+export default function Config() {
+  const navigate = useNavigate();
+  const { profile: currentUserProfile } = useAuth();
+  const [toast, setToast] = useState<string | null>(null);
+  
+  const showToast = (msg: string) => { 
+    setToast(msg); 
+    setTimeout(() => setToast(null), 3000); 
+  };
+  
+  // Sections state
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    academicYear: true,
+    financial: true,
+    summary: true
+  });
+  
+  const toggleSection = (id: string) => {
+    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Finance config state
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [scholasticDays, setScholasticDays] = useState<Record<string, number | string>>({});
+  const [boletoFee, setBoletoFee] = useState<number>(3.50);
+  const [boletoFeeInput, setBoletoFeeInput] = useState<string>("3,50");
+  const [defaultCollegeShare, setDefaultCollegeShare] = useState<number>(20);
+  const [ageRefDay, setAgeRefDay] = useState<number>(0); 
+  const [defaultDueDay, setDefaultDueDay] = useState<number>(10);
+  const [collegeShareBySegment, setCollegeShareBySegment] = useState<Record<string, number>>({
+    'Berçário': 20,
+    'Educação Infantil': 20,
+    'Ensino Fundamental I': 20
+  });
+  const [segments, setSegments] = useState<string[]>([]);
+
+  // Summary state
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [totalClasses, setTotalClasses] = useState(0);
+  const [totalServices, setTotalServices] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [globalConfig, students, classes, services] = await Promise.all([
+        finance.getGlobalConfig(),
+        finance.getStudents(),
+        finance.getClasses(),
+        finance.getServices()
+      ]);
+      
+      setTotalStudents(students.length);
+      setTotalClasses(classes.length);
+      setTotalServices(services.length);
+  
+      if (classes) {
+        const uniqueSegments = Array.from(new Set(classes.map(c => c.segment))).filter(Boolean).sort();
+        setSegments(uniqueSegments);
+      }
+
+      if (globalConfig) {
+        setScholasticDays(globalConfig.scholasticDays || {});
+        const fee = globalConfig.boletoEmissionFee ?? 3.50;
+        setBoletoFee(fee);
+        setBoletoFeeInput(fee.toFixed(2).replace('.', ','));
+        setDefaultCollegeShare(globalConfig.defaultCollegeSharePercent ?? 20);
+        setAgeRefDay(globalConfig.ageReferenceDay || 0);
+        setDefaultDueDay(globalConfig.defaultDueDay ?? 10);
+        if (globalConfig.collegeShareBySegment) {
+          setCollegeShareBySegment(globalConfig.collegeShareBySegment);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erro de Conexão');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveFinancialConfig = async (overrides?: {
+    scholasticDays?: Record<string, number | string>,
+    boletoEmissionFee?: number,
+    defaultCollegeSharePercent?: number,
+    ageReferenceDay?: number,
+    defaultDueDay?: number,
+    collegeShareBySegment?: Record<string, number>
+  }) => {
+    try {
+      await finance.saveGlobalConfig({ 
+        scholasticDays: overrides?.scholasticDays || scholasticDays, 
+        boletoEmissionFee: overrides?.boletoEmissionFee ?? boletoFee,
+        defaultDueDay: overrides?.defaultDueDay ?? defaultDueDay,
+        defaultCollegeSharePercent: overrides?.defaultCollegeSharePercent ?? defaultCollegeShare,
+        ageReferenceDay: overrides?.ageReferenceDay ?? ageRefDay,
+        collegeShareBySegment: overrides?.collegeShareBySegment || collegeShareBySegment
+      });
+      showToast('DNA do Sistema Atualizado!');
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao Salvar Protocolo');
+    }
+  };
+
+  const updateScholasticDay = (monthIdx: number, val: string) => {
+    const mmStr = String(monthIdx + 1).padStart(2, '0');
+    const key = `${selectedYear}-${mmStr}`;
+    let newValue: number | string = val;
+    
+    if (val.toLowerCase().trim() === 'férias' || val.toLowerCase().trim() === 'ferias') {
+      newValue = 'Férias';
+    } else {
+      const days = parseInt(val);
+      if (isNaN(days)) {
+        newValue = val; 
+      } else {
+        newValue = days;
+      }
+    }
+
+    const newScholasticDays = { ...scholasticDays, [key]: newValue };
+    setScholasticDays(newScholasticDays);
+    saveFinancialConfig({ scholasticDays: newScholasticDays });
+  };
+
+  const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const currentYearDays = MONTHS.map((_, i) => {
+    const mmStr = String(i + 1).padStart(2, '0');
+    const key = `${selectedYear}-${mmStr}`;
+    return scholasticDays[key] || 0;
+  });
+  
+  const configuredMonthsCount = currentYearDays.filter(d => d !== 0 && d !== '').length;
+  const missingMonthsCount = 12 - configuredMonthsCount;
+  const totalDaysCount = currentYearDays.reduce((a: number, b: string | number) => {
+    const num = typeof b === 'number' ? b : (parseInt(b as string) || 0);
+    return a + num;
+  }, 0);
+
+  const exportBackup = async () => {
+    try {
+      const [students, classes, services] = await Promise.all([
+        finance.getStudents(),
+        finance.getClasses(),
+        finance.getServices()
+      ]);
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(students), "Alunos");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(classes), "Turmas");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(services), "Serviços");
+      
+      XLSX.writeFile(wb, `canteen_vault_backup_${new Date().getTime()}.xlsx`);
+      showToast('Vault Backup Concluído!');
+    } catch (e) {
+      console.error(e);
+      showToast('Erro no Backup');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+             <div className="w-20 h-20 border-4 border-brand-blue/10 border-t-brand-blue rounded-full animate-spin" />
+             <div className="absolute inset-0 flex items-center justify-center text-brand-blue">
+                <Settings size={24} className="animate-pulse" />
+             </div>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Sincronizando Parâmetros...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 pb-32 max-w-[1600px] mx-auto space-y-12">
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-12 right-12 z-[100] bg-slate-900 text-white px-8 py-5 rounded-[2rem] font-black shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl"
+          >
+            <div className="w-10 h-10 bg-brand-lime rounded-xl flex items-center justify-center text-slate-900 shadow-lg">
+              <Zap size={20} />
+            </div>
+            <span className="uppercase tracking-widest text-[11px]">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Strategic Header 'Pro-Max' --- */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row xl:justify-between xl:items-center bg-white p-10 rounded-[4rem] shadow-xl shadow-slate-200/50 border border-slate-100 gap-10"
+      >
+        <div className="flex items-center gap-8">
+          <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl shadow-slate-900/30 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <Settings size={42} className="relative z-10" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="px-3 py-1 bg-slate-900/10 text-slate-900 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-900/20">Protocolos Globais</span>
+               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Integridade de Dados</span>
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">Configurações</h1>
+            <p className="text-slate-400 font-medium mt-3 text-lg">Ajustes estratégicos e <span className="text-slate-900 font-bold">parâmetros do vault</span>.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-[3rem] border border-slate-100 shadow-inner">
+          <div className="px-8 py-5 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600">
+                 <ShieldCheck size={18} />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Segurança</p>
+                 <p className="text-base font-black text-slate-900 mt-1">Auditada</p>
+              </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={exportBackup}
+            className="flex items-center gap-4 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-[11px] hover:bg-black transition-all shadow-xl shadow-slate-900/10 uppercase tracking-[0.2em]"
+          >
+            <Download size={20} className="text-brand-lime" /> Exportar Backup
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Critical Warnings */}
+      <AnimatePresence>
+        {ageRefDay === 0 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-red-50 border-2 border-red-100 p-10 rounded-[4rem] flex items-center gap-8 shadow-xl shadow-red-900/5"
+          >
+            <div className="w-20 h-20 bg-red-100 rounded-[2.5rem] flex items-center justify-center text-red-600 shrink-0 border-2 border-white shadow-lg animate-pulse">
+              <AlertTriangle size={36} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-2xl font-black text-red-900 uppercase tracking-tighter">Parâmetro Vital Pendente</h3>
+              <p className="text-red-700 font-medium leading-relaxed mt-2 text-lg">O <strong>Dia Base para Cálculo de Idade</strong> precisa ser definido para garantir a integridade dos faturamentos automáticos.</p>
+            </div>
+            <button 
+               onClick={() => {
+                 const el = document.getElementById('age-ref-input');
+                 el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                 el?.focus();
+               }}
+               className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-600/20"
+            >
+               Configurar Agora
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 gap-12">
+        {/* SECTION 1: CALENDARIO ESTRATEGICO */}
+        <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden group">
+          <button onClick={() => toggleSection('academicYear')} className="w-full flex items-center justify-between p-12 bg-slate-50/30 hover:bg-slate-50 transition-all">
+            <div className="flex items-center gap-8">
+              <div className="w-16 h-16 bg-brand-orange/10 rounded-[1.8rem] flex items-center justify-center text-brand-orange shadow-inner border border-brand-orange/10">
+                <Calendar size={32} />
+              </div>
+              <div className="text-left">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Calendário Letivo</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configuração de dias úteis por exercício anual</p>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center border border-slate-100 shadow-sm text-slate-300 group-hover:text-brand-blue group-hover:border-brand-blue/20 transition-all">
+              {openSections.academicYear ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {openSections.academicYear && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }} 
+                animate={{ height: 'auto', opacity: 1 }} 
+                exit={{ height: 0, opacity: 0 }} 
+                className="border-t border-slate-100"
+              >
+                <div className="p-12 space-y-12">
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-10 bg-slate-50 p-10 rounded-[3rem] border border-slate-100">
+                    <div className="flex items-center bg-white p-2 rounded-[2.2rem] border border-slate-100 shadow-sm">
+                      <button onClick={() => setSelectedYear(y => y - 1)} className="w-14 h-14 bg-slate-50 rounded-2xl shadow-inner flex items-center justify-center text-slate-400 hover:text-brand-blue hover:bg-white transition-all">◀</button>
+                      <span className="px-12 text-4xl font-black text-slate-900 tabular-nums tracking-tighter">{selectedYear}</span>
+                      <button onClick={() => setSelectedYear(y => y + 1)} className="w-14 h-14 bg-slate-50 rounded-2xl shadow-inner flex items-center justify-center text-slate-400 hover:text-brand-blue hover:bg-white transition-all">▶</button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-6 flex-1">
+                      {[
+                        { label: 'Meses Ativos', value: `${configuredMonthsCount} / 12`, icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
+                        { label: 'Dias Letivos', value: totalDaysCount, icon: Activity, color: 'text-brand-blue', bg: 'bg-brand-blue/5 border-brand-blue/10' },
+                        { label: 'Pêndencias BI', value: missingMonthsCount, icon: AlertTriangle, color: missingMonthsCount > 0 ? 'text-amber-600' : 'text-emerald-600', bg: missingMonthsCount > 0 ? 'bg-amber-50/50 border-amber-100' : 'bg-emerald-50/50 border-emerald-100' }
+                      ].map((s, idx) => (
+                        <div key={idx} className={cn("flex-1 min-w-[200px] rounded-[2.5rem] p-8 border flex items-center gap-6", s.bg)}>
+                          <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center opacity-20", s.bg.split(' ')[0].replace('/50','').replace('50','500'))}>
+                             <s.icon size={24} className={s.color} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{s.label}</p>
+                            <p className={cn("text-3xl font-black tabular-nums tracking-tighter", s.color)}>{s.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                    {MONTHS.map((m, i) => {
+                      const val = currentYearDays[i];
+                      const isVacation = val === 'Férias';
+                      const hasValue = val !== 0 && val !== '';
+                      
+                      return (
+                        <motion.div 
+                          key={i} 
+                          whileHover={{ y: -5 }}
+                          className={cn(
+                            "rounded-[3rem] p-10 text-center border transition-all relative overflow-hidden group/month shadow-lg",
+                            isVacation ? "bg-brand-blue/5 border-brand-blue/10 shadow-brand-blue/5" : 
+                            hasValue ? "bg-white border-slate-100 shadow-slate-200/40" : "bg-slate-50/50 border-transparent opacity-60"
+                          )}
+                        >
+                          {isVacation && <div className="absolute top-0 right-0 w-12 h-12 bg-brand-blue text-white flex items-center justify-center rounded-bl-3xl shadow-lg"><Clock size={16} /></div>}
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">{m}</p>
+                          <div className="flex flex-col items-center gap-6">
+                            <input 
+                              type="text" 
+                              value={val || ''} 
+                              onChange={e => updateScholasticDay(i, e.target.value)}
+                              className={cn(
+                                "w-full text-center font-black bg-transparent focus:outline-none transition-all",
+                                isVacation ? "text-brand-blue text-base" : "text-slate-900 text-4xl tracking-tighter"
+                              )}
+                              placeholder="0" 
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => updateScholasticDay(i, isVacation ? '0' : 'Férias')}
+                              className={cn(
+                                "w-full py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all",
+                                isVacation ? "bg-brand-blue text-white shadow-xl shadow-brand-blue/30" : "bg-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white"
+                              )}
+                            >
+                              {isVacation ? 'Férias' : 'Definir Férias'}
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 2: REGRAS OPERACIONAIS */}
+        <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden group">
+          <button onClick={() => toggleSection('financial')} className="w-full flex items-center justify-between p-12 bg-slate-50/30 hover:bg-slate-50 transition-all">
+            <div className="flex items-center gap-8">
+              <div className="w-16 h-16 bg-brand-blue/10 rounded-[1.8rem] flex items-center justify-center text-brand-blue shadow-inner border border-brand-blue/10">
+                <Calculator size={32} />
+              </div>
+              <div className="text-left">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Regras Operacionais</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Taxas bancárias, vencimentos e auditoria institucional</p>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center border border-slate-100 shadow-sm text-slate-300 group-hover:text-brand-blue group-hover:border-brand-blue/20 transition-all">
+              {openSections.financial ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </div>
+          </button>
+          
+          <AnimatePresence>
+            {openSections.financial && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }} 
+                animate={{ height: 'auto', opacity: 1 }} 
+                exit={{ height: 0, opacity: 0 }} 
+                className="border-t border-slate-100"
+              >
+                <div className="p-12 grid grid-cols-1 md:grid-cols-3 gap-12">
+                  <div className="space-y-6">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
+                      Taxa de Emissão (Boleto)
+                      <Tooltip title="Taxa Bancária" content="Custo operacional adicionado ao valor líquido de cada boleto gerado." />
+                    </label>
+                    <div className="relative group">
+                       <span className="absolute left-8 top-1/2 -translate-y-1/2 font-black text-slate-300 text-xl group-focus-within:text-brand-blue transition-colors">R$</span>
+                       <input type="text" value={boletoFeeInput} 
+                        onChange={e => setBoletoFeeInput(e.target.value)}
+                        onBlur={() => {
+                          const val = parseFloat(boletoFeeInput.replace(',', '.'));
+                          if (!isNaN(val)) {
+                            setBoletoFee(val);
+                            setBoletoFeeInput(val.toFixed(2).replace('.', ','));
+                            saveFinancialConfig({ boletoEmissionFee: val });
+                          } else {
+                            setBoletoFeeInput(boletoFee.toFixed(2).replace('.', ','));
+                          }
+                        }}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2rem] pl-18 pr-10 py-7 font-black text-slate-900 text-3xl tabular-nums focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none transition-all shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
+                      Dia Base de Auditoria
+                      <Tooltip title="Referência de Idade" content="Dia usado para o cálculo automático de mudança de categoria de berçário." />
+                    </label>
+                    <div className="relative group">
+                       <div className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-brand-blue transition-colors">
+                          <Activity size={28} />
+                       </div>
+                       <input 
+                        id="age-ref-input"
+                        type="number" value={ageRefDay || ''} onChange={e => setAgeRefDay(parseInt(e.target.value) || 0)}
+                        onBlur={() => saveFinancialConfig({ ageReferenceDay: ageRefDay })}
+                        className={cn(
+                          "w-full bg-slate-50 border-2 rounded-[2rem] pl-20 pr-10 py-7 font-black text-slate-900 text-3xl tabular-nums focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none transition-all shadow-inner",
+                          ageRefDay === 0 ? "border-red-200 bg-red-50/50" : "border-slate-100"
+                        )}
+                        min={1} max={31} placeholder="0" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3">
+                      Vencimento Global
+                      <Tooltip title="Vencimento Padrão" content="Dia base de vencimento para novos alunos e faturamentos em lote." />
+                    </label>
+                    <div className="relative group">
+                       <div className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-brand-blue transition-colors">
+                          <Calendar size={28} />
+                       </div>
+                       <input type="number" value={defaultDueDay} onChange={e => setDefaultDueDay(parseInt(e.target.value) || 0)}
+                        onBlur={() => saveFinancialConfig({ defaultDueDay })}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2rem] pl-20 pr-10 py-7 font-black text-slate-900 text-3xl tabular-nums focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none transition-all shadow-inner"
+                        min={1} max={31} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-12 bg-slate-50/50 border-t border-slate-100 space-y-12">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 bg-indigo-600/10 rounded-3xl flex items-center justify-center text-indigo-600 border border-indigo-100 shadow-sm">
+                      <Percent size={32} />
+                    </div>
+                    <div>
+                       <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Políticas de Repasse</h3>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Margem institucional devida por segmento acadêmico</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                    {Object.entries(collegeShareBySegment).map(([segment, percent]) => (
+                      <div key={segment} className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 group/segment transition-all hover:border-brand-blue/30">
+                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 group-hover/segment:text-brand-blue transition-colors">{segment}</label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            value={percent} 
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const newShares = { ...collegeShareBySegment, [segment]: val };
+                              setCollegeShareBySegment(newShares);
+                            }}
+                            onBlur={() => saveFinancialConfig({ collegeShareBySegment })}
+                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2rem] px-10 py-7 font-black text-slate-900 text-4xl focus:ring-8 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none transition-all pr-20 tabular-nums shadow-inner"
+                            min={0} max={100} 
+                          />
+                          <span className="absolute right-10 top-1/2 -translate-y-1/2 text-slate-300 font-black text-2xl">%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 3: VAULT & HEALTH */}
+        <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden group">
+          <button onClick={() => toggleSection('summary')} className="w-full flex items-center justify-between p-12 bg-slate-50/30 hover:bg-slate-50 transition-all">
+            <div className="flex items-center gap-8">
+              <div className="w-16 h-16 bg-slate-900/10 rounded-[1.8rem] flex items-center justify-center text-slate-900 shadow-inner border border-slate-900/10">
+                <Database size={32} />
+              </div>
+              <div className="text-left">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Ecossistema & Vault</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Diagnóstico de integridade e políticas de backup</p>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center border border-slate-100 shadow-sm text-slate-300 group-hover:text-brand-blue group-hover:border-brand-blue/20 transition-all">
+              {openSections.summary ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </div>
+          </button>
+          
+          <AnimatePresence>
+            {openSections.summary && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }} 
+                animate={{ height: 'auto', opacity: 1 }} 
+                exit={{ height: 0, opacity: 0 }} 
+                className="border-t border-slate-100"
+              >
+                <div className="p-12 space-y-12">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                    {[
+                      { label: 'Bio-Perfis Ativos', value: totalStudents, icon: UsersIcon, color: 'text-brand-blue', bg: 'bg-brand-blue/5' },
+                      { label: 'Clusters Operacionais', value: totalClasses, icon: GraduationCap, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                      { label: 'Protocolos de Serviço', value: totalServices, icon: Utensils, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    ].map((m, i) => (
+                      <motion.div 
+                        key={i} 
+                        whileHover={{ y: -8 }}
+                        className="bg-white p-12 rounded-[3.5rem] border border-slate-100 text-center flex flex-col items-center shadow-xl shadow-slate-100 group/card hover:border-brand-blue/30 transition-all"
+                      >
+                        <div className={cn("w-16 h-16 rounded-[2rem] flex items-center justify-center mb-8 shadow-inner", m.bg)}>
+                          <m.icon size={32} className={m.color} />
+                        </div>
+                        <p className={cn("text-6xl font-black mb-3 tabular-nums tracking-tighter leading-none", m.color)}>{m.value}</p>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{m.label}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="bg-slate-900 rounded-[4rem] p-12 flex flex-col xl:flex-row items-center justify-between gap-12 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-brand-blue/20 blur-[120px] rounded-full -mr-32 -mt-32 group-hover:scale-150 transition-transform duration-1000" />
+                    <div className="flex items-center gap-10 relative z-10">
+                       <div className="w-24 h-24 bg-white/10 rounded-[2.5rem] flex items-center justify-center text-white backdrop-blur-md border border-white/10 shadow-2xl">
+                          <ShieldCheck size={42} />
+                       </div>
+                       <div className="max-w-md">
+                          <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Vault Maintenance</h3>
+                          <p className="text-slate-400 font-medium mt-3 text-lg leading-relaxed">Ações críticas de salvaguarda de dados e acesso à central administrativa do sistema.</p>
+                       </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-6 relative z-10">
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={exportBackup} 
+                        className="flex items-center gap-5 bg-brand-blue text-white px-12 py-6 rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-brand-blue/30"
+                      >
+                        <Download size={24} className="text-brand-lime" /> Export Full Vault
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/system-center')}
+                        className="flex items-center gap-5 bg-white/10 text-white hover:bg-white/20 px-12 py-6 rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] backdrop-blur-md border border-white/10 transition-all"
+                      >
+                        <Lock size={24} className="text-emerald-400" /> System Control
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* --- Footer Signature --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center pt-20 border-t border-slate-100 gap-8 opacity-30 group hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-4">
+           <HeartPulse size={24} className="text-slate-400 group-hover:text-red-500 transition-colors" />
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Canteen Governance Hub &bull; 2026</p>
+        </div>
+        <div className="flex items-center gap-10">
+           <div className="flex items-center gap-3">
+              <Activity size={16} className="text-brand-blue animate-pulse" />
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Vitals: Nominal</p>
+           </div>
+           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Antigravity Intelligence</p>
+        </div>
+      </div>
+    </div>
+  );
+}

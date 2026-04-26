@@ -131,6 +131,9 @@ export interface Invoice {
   // Observações (editável pelo usuário, inclui divergências automáticas)
   notes?: string;
   error?: string;
+  isIntegral?: boolean;
+  hasImportedConsumption?: boolean;
+  items?: { description: string; type: string; amount: number }[]; // Added for detailed reports
 
   deletedAt?: string | null;
   deletedBy?: string | null;
@@ -182,6 +185,7 @@ export interface GlobalConfig {
     consumption: string;
     integral: string;
   };
+  presenceEnabled?: boolean;
 }
 
 // ─── Audit Log (Trilha de Auditoria) ──────────────────────────────────────
@@ -189,11 +193,15 @@ export interface AuditLog {
   id: string;
   action: string;
   collection: string;
+  collectionName?: string; // Alias for UI
   docId: string;
+  documentId?: string; // Alias for UI
   before: Record<string, any> | null;
   after: Record<string, any> | null;
   performedBy: string;
+  userEmail?: string; // Alias for UI
   performedAt: string;
+  timestamp: string; // Alias for UI (used as date string)
   deletedAt?: string | null;
 }
 
@@ -205,5 +213,7 @@ export interface BillingDraft {
   manualDueDates: Record<string, string>;
   invoiceNotes: Record<string, string>;
   integralItems: Record<string, { serviceId: string; quantity: number; price: number; name: string }[]>;
+  removedStudentIds?: string[];
+  selectedIds?: string[];
   lastUpdated: string;
 }

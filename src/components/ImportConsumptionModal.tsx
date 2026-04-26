@@ -102,16 +102,16 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
         continue;
       }
 
-      if (typeof row[0] === 'string' && row[0].trim() !== '' && typeof row[1] === 'string' && row[1].includes('/')) {
-        const rawName = row[0];
-        if (rawName.toLowerCase().startsWith('total')) continue;
-
+      // Check for Student Total row
+      if (typeof row[0] === 'string' && row[0].toLowerCase().startsWith('total')) {
+        const rawName = row[0].replace(/total\s+/i, '').trim();
         const student = findStudent(rawName);
-        if (!student) { unmatched.add(rawName); continue; }
+        if (!student) { 
+          unmatched.add(rawName); 
+          continue; 
+        }
 
-        const date = row[1];
         const recordId = `${student.id}_${monthYear.replace('/', '-')}`;
-
         if (!studentMap.has(recordId)) {
           studentMap.set(recordId, {
             id: recordId,
@@ -124,13 +124,47 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
         }
 
         const record = studentMap.get(recordId)!;
+        
+        // Reset summary if we are using the TOTAL row as the source of truth
+        record.summary = {};
+
+        serviceNames.forEach((svc, index) => {
+          const qty = Number(row[index + 2]) || 0;
+          if (qty > 0) {
+            record.summary[svc] = qty;
+          }
+        });
+        
+        continue;
+      }
+
+      // Collect daily details if needed for history, but summary comes from TOTAL row above
+      if (typeof row[0] === 'string' && row[0].trim() !== '' && typeof row[1] === 'string' && row[1].includes('/')) {
+        const rawName = row[0];
+        const student = findStudent(rawName);
+        if (!student) continue;
+
+        const recordId = `${student.id}_${monthYear.replace('/', '-')}`;
+        if (!studentMap.has(recordId)) {
+          studentMap.set(recordId, {
+            id: recordId,
+            studentId: student.id,
+            monthYear: monthYear.replace('/', '-'),
+            periodLabel: '',
+            summary: {},
+            dailyDetails: []
+          });
+        }
+
+        const record = studentMap.get(recordId)!;
+        const date = row[1];
         const dailyItems: { serviceName: string, quantity: number }[] = [];
 
         serviceNames.forEach((svc, index) => {
           const qty = Number(row[index + 2]) || 0;
           if (qty > 0) {
             dailyItems.push({ serviceName: svc, quantity: qty });
-            record.summary[svc] = (record.summary[svc] || 0) + qty;
+            // We DON'T add to summary here because we'll use the TOTAL row
           }
         });
 
@@ -175,7 +209,9 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
         unmatched.forEach(n => allUnmatched.add(n));
       }
 
-      const records = Array.from(mergedMap.values());
+      const records = Array.from(mergedMap.values())
+        .filter(r => Object.keys(r.summary).length > 0);
+      
       records.forEach(r => r.periodLabel = combinedPeriod);
 
       setResult(prev => {

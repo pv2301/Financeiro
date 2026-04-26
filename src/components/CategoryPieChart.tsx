@@ -2,7 +2,7 @@ import React from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 /** 
- * Brand-aligned palette — no purples per design rules.
+ * Brand-aligned palette — compliant with design rules.
  * Uses brand-blue, brand-orange, brand-lime + neutral tones.
  */
 const COLORS = [

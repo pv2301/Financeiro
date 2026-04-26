@@ -17,7 +17,14 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
   ConsumptionRecord,
   AuditLog,
-  GlobalConfig
+  GlobalConfig,
+  Invoice,
+  PaymentImportResult,
+  BillingDraft,
+  ClassInfo,
+  Student,
+  ServiceItem,
+  UserPresence
 } from '../types';
 
 // ─── Collection names ─────────────────────────────────────────────────────
@@ -102,15 +109,20 @@ async function createAuditLog(
     const authInstance = getAuth();
     const user = authInstance.currentUser;
     const logId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date().toISOString();
     await setDoc(doc(db, 'fin_audit_logs', logId), {
       id: logId,
       action,
       collection: col,
+      collectionName: col, // Fallback
       docId,
+      documentId: docId, // Fallback
       before: before ?? null,
       after: after ?? null,
       performedBy: user?.email ?? 'sistema',
-      performedAt: new Date().toISOString(),
+      userEmail: user?.email ?? 'sistema',
+      performedAt: now,
+      timestamp: now,
     });
   } catch {
     // Audit log failures are non-fatal — never block the main operation
@@ -398,11 +410,22 @@ export const finance = {
   },
 
   // ─── CONSUMPTION ──────────────────────────────────────────────────────────
+  getConsumption: () => getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION),
   getConsumptionByMonth: async (monthYear: string): Promise<ConsumptionRecord[]> => {
     try {
-      const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
+      const formatted = monthYear.replace('/', '-');
+      const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
+      const records = snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
+      
+      // Fallback: check with slash if nothing found (for legacy data)
+      if (records.length === 0 && monthYear.includes('/')) {
+        const q2 = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
+        const snap2 = await getDocs(q2);
+        return snap2.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
+      }
+      
+      return records;
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, C.CONSUMPTION);
       return [];
@@ -462,16 +485,54 @@ export const finance = {
 
   /** Deleta todos os dados financeiros (boletos e consumos) de um mês específico */
   deleteMonthlyData: async (monthYear: string) => {
-    const formattedMonth = monthYear.replace('/', '-'); // Standard used in DB
-    
+    const formatted = monthYear.replace('/', '-');
+    // 1. Delete Invoices (Invoices usually use slash)
     const invSnap = await getDocs(query(collection(db, C.INVOICES), where("monthYear", "==", monthYear)));
     for (const d of invSnap.docs) {
       await softDeleteItem(C.INVOICES, d.id);
     }
     
-    const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", formattedMonth)));
+    // 2. Delete Consumption (Supports both)
+    const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted)));
     for (const d of consSnap.docs) {
       await softDeleteItem(C.CONSUMPTION, d.id);
+    }
+    // Fallback for legacy consumption with slash
+    if (monthYear.includes('/')) {
+      const consSnap2 = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear)));
+      for (const d of consSnap2.docs) {
+        await softDeleteItem(C.CONSUMPTION, d.id);
+      }
+    }
+
+    // 3. Delete Billing Draft
+    await finance.clearBillingDraft(monthYear);
+  },
+
+  /** Deleta registros de consumo específicos de alunos em um mês */
+  deleteConsumptionByStudentMonth: async (studentIds: string[], monthYear: string) => {
+    try {
+      // O Firestore permite no máximo 30 valores no operador 'in'. 
+      // Processamos em lotes de 25 para segurança.
+      const CHUNK_SIZE = 25;
+      for (let i = 0; i < studentIds.length; i += CHUNK_SIZE) {
+        const chunk = studentIds.slice(i, i + CHUNK_SIZE);
+        const q = query(
+          collection(db, C.CONSUMPTION), 
+          where("monthYear", "==", monthYear),
+          where("studentId", "in", chunk)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+      invalidateCache(C.CONSUMPTION);
+    } catch (error) {
+      console.error('Error deleting specific consumption:', error);
+      throw error;
     }
   },
 
@@ -575,6 +636,15 @@ export const finance = {
     }
   },
 
+  getBillingDrafts: async (): Promise<any[]> => {
+    try {
+      const snap = await getDocs(collection(db, C.BILLING_DRAFTS));
+      return snap.docs.map(d => ({ ...d.data(), id: d.id.replace('-', '/') }));
+    } catch {
+      return [];
+    }
+  },
+
   saveBillingDraft: async (draft: BillingDraft): Promise<void> => {
     try {
       const id = draft.id.replace('/', '-');
@@ -592,6 +662,31 @@ export const finance = {
       const id = monthYear.replace('/', '-');
       await deleteDoc(doc(db, C.BILLING_DRAFTS, id));
     } catch { /* silent */ }
+  },
+
+  // ── Logo Management ──────────────────────────────────────────────────────
+  getLogo: async (): Promise<string | null> => {
+    try {
+      const docRef = doc(db, C.CONFIG, 'logo');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data().value as string;
+      }
+      return null;
+    } catch (error) {
+      console.warn("Error getting logo:", error);
+      return null;
+    }
+  },
+
+  saveLogo: async (logo: string | null): Promise<void> => {
+    try {
+      const docRef = doc(db, C.CONFIG, 'logo');
+      await setDoc(docRef, { value: logo });
+      window.dispatchEvent(new CustomEvent('cardapio:logoUpdated', { detail: logo }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `${C.CONFIG}/logo`);
+    }
   }
 };
 
@@ -612,8 +707,8 @@ export const presenceService = {
         lastSeen: Date.now(),
       };
       await setDoc(doc(db, C.PRESENCE, uid), JSON.parse(JSON.stringify(presenceData)));
-    } catch (error) {
-      console.error('Presence update failed:', error);
+    } catch {
+      // Silence presence errors as they are non-critical and often blocked by ad-blockers
     }
   },
 
@@ -636,6 +731,9 @@ export const presenceService = {
         .map(d => d.data() as UserPresence)
         .filter(u => now - u.lastSeen < INACTIVITY_LIMIT_MS);
       callback(active);
+    }, error => {
+      console.warn("Presence subscription error (likely permissions):", error);
+      callback([]); // Return empty list on error
     });
   },
 };

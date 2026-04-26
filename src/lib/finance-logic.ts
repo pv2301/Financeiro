@@ -75,8 +75,8 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
   let personalDiscountAmount = 0;
   let netAmount = 0;
   
-  // Se for férias (dias letivos = 0) e não houver consumo, zerar tudo para Pré-Pago
-  if (businessDays === 0 && studentClass.billingMode !== 'POSTPAID_CONSUMPTION') {
+  // Se for férias (dias letivos = 0) e não houver consumo, zerar tudo para Pré-Pago (exceto Fixo)
+  if (businessDays === 0 && studentClass.billingMode === 'PREPAID_DAYS') {
     return {
       grossAmount: 0,
       absenceDiscountAmount: 0,
@@ -144,30 +144,30 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
   }
   else {
     // PREPAID_FIXED
-    grossAmount = typeof studentClass.basePrice === 'number' ? studentClass.basePrice : 0;
+    const rawBasePrice = studentClass.basePrice;
+    if (typeof rawBasePrice === 'number') {
+      grossAmount = rawBasePrice;
+    } else {
+      // Handle strings with commas, currency symbols, or empty values
+      const cleaned = String(rawBasePrice || '0').replace(',', '.').replace(/[^\d.-]/g, '');
+      grossAmount = parseFloat(cleaned) || 0;
+    }
     
-    if (studentClass.applyAbsenceDiscount) {
-      const priceKey = getPriceKey(studentClass, student, monthYear, ageRefDay);
-      const mandatoryId = mandatorySnackBySegment ? mandatorySnackBySegment[studentClass.segment] : null;
-      
-      const baseService = services.find(s => s.id === mandatoryId);
-      
+    // Always calculate absence discount if manualAbsences > 0 for PREPAID_FIXED
+    const priceKey = getPriceKey(studentClass, student, monthYear, ageRefDay);
+    const mandatoryId = mandatorySnackBySegment ? mandatorySnackBySegment[studentClass.segment] : null;
+    
+    const baseService = services.find(s => s.id === mandatoryId);
+    
+    if (manualAbsences > 0) {
       if (!baseService) {
-        return {
-          grossAmount: studentClass.basePrice || 0,
-          absenceDiscountAmount: 0,
-          personalDiscountAmount: 0,
-          netAmount: 0,
-          totalServices: 0,
-          collegeShareAmount: 0,
-          collegeSharePercent: 0,
-          billingMode: studentClass.billingMode,
-          error: `Lanche referencial não configurado para ${studentClass.segment}`
-        };
+        // Se não achar o serviço, não desconta nada, mas mantém o bruto
+        // Flag error but don't return early
+        (input as any)._error = `Lanche referencial não configurado para ${studentClass.segment}`;
+      } else {
+        const unitPrice = baseService.priceByKey[priceKey] || 0;
+        absenceDiscountAmount = manualAbsences * unitPrice;
       }
-
-      const unitPrice = baseService.priceByKey[priceKey] || 0;
-      absenceDiscountAmount = manualAbsences * unitPrice;
     }
 
     netAmount = grossAmount - absenceDiscountAmount;
@@ -179,11 +179,10 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     personalDiscountAmount = baseAfterAbsence * (student.personalDiscount / 100);
   }
   
-  // netAmount is Base - Absence Discount - Personal Discount (Emission Fee removed from calculations as per request)
-  netAmount = Math.max(0, grossAmount - absenceDiscountAmount - personalDiscountAmount);
+  // netAmount calculation - Remove personal discount from subtraction as it is informative only
+  netAmount = Math.max(0, grossAmount - absenceDiscountAmount);
 
   // 4. College Share calculation
-  // Precedence: Class Specific > Segment Default > 0
   const segmentShare = collegeShareBySegment ? (collegeShareBySegment[studentClass.segment] || 0) : 0;
   const effectiveSharePercent = (studentClass.collegeSharePercent > 0) 
     ? studentClass.collegeSharePercent 
@@ -201,6 +200,6 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     collegeShareAmount,
     collegeSharePercent: effectiveSharePercent,
     billingMode: studentClass.billingMode,
-    error: undefined
+    error: (input as any)._error
   };
 }
