@@ -29,29 +29,32 @@ export default function ImportPaymentsModal({ boletoFee, onClose, onComplete }: 
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
 
       const bankRows = json.map(row => {
+        // Mapeamento exato conforme imagem da planilha do banco
         const nossoNumero = String(
           row['Nosso Número'] || row['NossoNumero'] || row['NOSSO NUMERO'] || row['Titulo'] || ''
         ).trim();
         
         const paymentDate = String(
-          row['DT Liquidação'] || row['Data Pagamento'] || row['DT_LIQUIDACAO'] || row['Data'] || ''
+          row['Data da Liquidação'] || row['DT Liquidação'] || row['Data Pagamento'] || row['DT_LIQUIDACAO'] || ''
         ).trim();
         
         const amountCharged = parseFloat(
-          String(row['Vr cobrado'] || row['VR_COBRADO'] || row['Valor Pago'] || row['ValorPago'] || 0)
+          String(row['Valor Cobrado (R$)'] || row['Vr cobrado'] || row['VR_COBRADO'] || row['Valor Pago'] || 0)
+            .replace(/[^\d,.-]/g, '') // Remove R$ etc
             .replace(',', '.')
         ) || 0;
         
-        const oscilacao = parseFloat(
-          String(row['Oscilação'] || row['Oscilacao'] || row['Diferença'] || 0)
+        const originalAmount = parseFloat(
+          String(row['Valor do Título (R$)'] || row['Valor do Titulo'] || 0)
+            .replace(/[^\d,.-]/g, '')
             .replace(',', '.')
         ) || 0;
         
         const pagador = String(
-          row['Pagador'] || row['Nome'] || row['Aluno'] || ''
+          row['Pagador'] || row['Nome do Pagador'] || ''
         ).trim();
 
-        return { nossoNumero, paymentDate, amountCharged, oscilacao, pagador };
+        return { nossoNumero, paymentDate, amountCharged, originalAmount, pagador };
       }).filter(r => r.nossoNumero && r.amountCharged > 0);
 
       if (bankRows.length === 0) {

@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import ImportStudentsModal from '../components/ImportStudentsModal';
 import StudentModal from '../components/StudentModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { usePersistentSelection } from '../hooks/usePersistentSelection';
 
 export default function Students() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export default function Students() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [dbConsumption, setDbConsumption] = useState<any[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { selectedIds, setSelectedIds, toggleId, toggleAll, clearAll } = usePersistentSelection('students_selected_ids');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -223,14 +224,10 @@ export default function Students() {
                         <input 
                           type="checkbox" 
                           className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
-                          checked={selectedIds.size === filteredStudents.length && filteredStudents.length > 0}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedIds(new Set(filteredStudents.map(s => s.id)));
-                            } else {
-                              setSelectedIds(new Set());
-                            }
-                          }}
+                                                     checked={selectedIds.size > 0 && selectedIds.size === filteredStudents.length}
+
+                           onChange={() => toggleAll(filteredStudents.map(s => s.id))}
+
                         />
                      </th>
                      <th className="p-6 w-12 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">#</th>
@@ -249,8 +246,6 @@ export default function Students() {
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Modalidade</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Venc.</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Desc.</th>
-                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Consumo</th>
-                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                      <th className="p-6 w-20"></th>
                   </tr>
                </thead>
@@ -262,11 +257,8 @@ export default function Students() {
                              type="checkbox" 
                              className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
                              checked={selectedIds.has(s.id)}
-                             onChange={() => {
-                               const next = new Set(selectedIds);
-                               next.has(s.id) ? next.delete(s.id) : next.add(s.id);
-                               setSelectedIds(next);
-                             }}
+                              onChange={() => toggleId(s.id)}
+
                            />
                         </td>
                         <td className="p-4 text-center">
@@ -274,9 +266,6 @@ export default function Students() {
                         </td>
                         <td className="p-4 px-6 sticky left-0 bg-white group-hover:bg-slate-50 transition-colors z-10">
                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 text-xs">
-                                 {s.name.charAt(0)}
-                              </div>
                               <div>
                                  <p className="font-black text-slate-900 uppercase tracking-tight text-sm leading-none mb-1">{s.name}</p>
                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
@@ -318,32 +307,6 @@ export default function Students() {
                         </td>
                         <td className="p-4 px-6 text-right">
                            <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">{s.personalDiscount ? `${s.personalDiscount}%` : '---'}</span>
-                        </td>
-                        <td className="p-4 px-6">
-                           <div className="flex items-center gap-2">
-                              {(() => {
-                                 const cons = dbConsumption.find(d => d.studentId === s.id);
-                                 const total = Object.values(cons?.summary || {}).reduce((a: any, b: any) => a + b, 0) as number;
-                                 const percent = Math.min(100, (total * 20) / 5); // Dummy calculation for visual
-                                 return (
-                                    <>
-                                       <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
-                                          <div className={cn("h-full transition-all duration-1000", total > 0 ? "bg-brand-blue" : "bg-slate-200")} style={{ width: `${percent}%` }} />
-                                       </div>
-                                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{percent}%</span>
-                                    </>
-                                 );
-                              })()}
-                           </div>
-                        </td>
-                        <td className="p-4 px-6 text-center">
-                           <div className={cn(
-                               "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                               !s.deletedAt ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-400 border-slate-200"
-                           )}>
-                              <div className={cn("w-1.5 h-1.5 rounded-full", !s.deletedAt ? "bg-emerald-500" : "bg-slate-400")} />
-                              {!s.deletedAt ? 'Ativo' : 'Inativo'}
-                           </div>
                         </td>
                         <td className="p-4 px-6 text-center">
                             <div className="flex items-center justify-center gap-2">

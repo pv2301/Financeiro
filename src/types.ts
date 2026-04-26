@@ -119,8 +119,12 @@ export interface Invoice {
   // Pagamento
   paymentStatus: PaymentStatus;
   paymentDate?: string;             // Data da Liquidação (vem da planilha do banco)
+  paymentMethod?: 'PIX' | 'BOLETO'; // Método de pagamento (preenchido na baixa manual)
   amountCharged?: number;           // Valor Cobrado pelo banco (pode ter juros/multa)
+  pagador?: string;                 // Nome de quem pagou (vem da planilha do banco)
   oscilacao?: number;               // Diferença entre netAmount e amountCharged
+  
+  createdAt?: string;               // Data de geração da fatura (ISO)
 
   // Relatório colégio
   collegeSharePercent: number;      // % do colégio definido na turma

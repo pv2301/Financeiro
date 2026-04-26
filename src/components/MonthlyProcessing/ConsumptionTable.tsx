@@ -11,8 +11,8 @@ interface ConsumptionTableProps {
   classes: ClassInfo[];
   services: ServiceItem[];
   dbConsumption: any[];
-  selectedIds: string[];
-  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedIds: Set<string>;
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   classFilter: string;
   segmentFilter: string;
   studentSearch: string;
@@ -100,13 +100,17 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                 className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all focus:ring-4 focus:ring-brand-blue/10"
                 onChange={(e) => {
                   if (e.target.checked) {
-                    setSelectedIds(prev => Array.from(new Set([...prev, ...visibleInvoices.map(v => v.id)])));
+                    setSelectedIds(prev => new Set([...prev, ...visibleInvoices.map(v => v.id)]));
                   } else {
-                    const visibleIds = visibleInvoices.map(v => v.id);
-                    setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+                    const visibleIds = new Set(visibleInvoices.map(v => v.id));
+                    setSelectedIds(prev => {
+                      const next = new Set(prev);
+                      visibleIds.forEach(id => next.delete(id));
+                      return next;
+                    });
                   }
                 }}
-                checked={visibleInvoices.length > 0 && visibleInvoices.every(v => selectedIds.includes(v.id))}
+                checked={visibleInvoices.length > 0 && visibleInvoices.every(v => selectedIds.has(v.id))}
               />
             </th>
             <th className="pb-4 px-4 text-center w-10">#</th>
@@ -139,7 +143,7 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
               return formatFullAge(s.birthDate, refDate);
             })() : "-";
 
-            const isSelected = selectedIds.includes(inv.id);
+            const isSelected = selectedIds.has(inv.id);
 
             return (
               <motion.tr 
@@ -153,8 +157,15 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                     className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all focus:ring-4 focus:ring-brand-blue/10"
                     checked={isSelected}
                     onChange={(e) => {
-                      if (e.target.checked) setSelectedIds(prev => [...prev, inv.id]);
-                      else setSelectedIds(prev => prev.filter(id => id !== inv.id));
+                      if (e.target.checked) {
+                        setSelectedIds(prev => new Set([...prev, inv.id]));
+                      } else {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          next.delete(inv.id);
+                          return next;
+                        });
+                      }
                     }}
                   />
                 </td>
@@ -259,8 +270,8 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                       onChange={(e) => {
                         const val = e.target.value;
                         setBankSlipNumbers(prev => ({ ...prev, [inv.studentId]: val }));
-                        if (val.trim() !== "" && !selectedIds.includes(inv.id)) {
-                          setSelectedIds(prev => [...prev, inv.id]);
+                        if (val.trim() !== "" && !selectedIds.has(inv.id)) {
+                          setSelectedIds(prev => new Set([...prev, inv.id]));
                         }
                       }}
                       placeholder="Nº TÍTULO"

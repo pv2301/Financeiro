@@ -274,7 +274,7 @@ export const finance = {
       nossoNumero: string;
       paymentDate: string;
       amountCharged: number;
-      oscilacao: number;
+      originalAmount?: number;
       pagador: string;
     }>,
     emissionFee: number
@@ -305,13 +305,17 @@ export const finance = {
         continue;
       }
 
-      // Verifica divergência de valor (tolerância de R$0,01)
-      const hasDivergence = Math.abs(row.amountCharged - invoice.netAmount) > 0.01;
+      // Verifica divergência de valor entre o que foi pago e o valor do título no banco
+      // Ou entre o pago e o líquido do sistema se o originalAmount não vier
+      const referenceAmount = row.originalAmount || invoice.netAmount;
+      const hasDivergence = Math.abs(row.amountCharged - referenceAmount) > 0.01;
+      const oscilacao = row.amountCharged - referenceAmount;
+      
       let notes = invoice.notes || '';
 
       if (hasDivergence) {
         result.divergences++;
-        const divergenceNote = `[DIVERGÊNCIA] Valor do título: R$${invoice.netAmount.toFixed(2)} | Valor cobrado pelo banco: R$${row.amountCharged.toFixed(2)} | Oscilação: R$${row.oscilacao.toFixed(2)}`;
+        const divergenceNote = `[DIVERGÊNCIA BANCO] Título: R$${referenceAmount.toFixed(2)} | Pago: R$${row.amountCharged.toFixed(2)} | Dif: R$${oscilacao.toFixed(2)}`;
         notes = notes ? `${notes}\n${divergenceNote}` : divergenceNote;
       }
 
@@ -324,7 +328,8 @@ export const finance = {
         paymentStatus: 'PAID',
         paymentDate: row.paymentDate,
         amountCharged: row.amountCharged,
-        oscilacao: row.oscilacao,
+        oscilacao,
+        pagador: row.pagador,
         collegeShareAmount,
         notes
       };
@@ -336,7 +341,7 @@ export const finance = {
         nossoNumero: row.nossoNumero,
         studentName: row.pagador,
         status: hasDivergence ? 'VALUE_DIVERGENCE' : 'OK',
-        divergenceNote: hasDivergence ? `Cobrado R$${row.amountCharged.toFixed(2)} vs Título R$${invoice.netAmount.toFixed(2)}` : undefined
+        divergenceNote: hasDivergence ? `Cobrado R$${row.amountCharged.toFixed(2)} vs Título R$${referenceAmount.toFixed(2)}` : undefined
       });
     }
 

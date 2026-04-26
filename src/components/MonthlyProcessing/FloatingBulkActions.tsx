@@ -5,8 +5,8 @@ import { Invoice, Student } from '../../types';
 import { cn } from '../../lib/utils';
 
 interface FloatingBulkActionsProps {
-  selectedIds: string[];
-  setSelectedIds: (ids: string[]) => void;
+  selectedIds: Set<string>;
+  setSelectedIds: (ids: Set<string>) => void;
   activeTab: string;
   getStudentMessage: (inv: Invoice) => string;
   invoices: Invoice[];
@@ -24,7 +24,7 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
   const [showCopySuccess, setShowCopySuccess] = React.useState(false);
 
   const handleBulkCopy = () => {
-    const selectedInvoices = invoices.filter(inv => selectedIds.includes(inv.id));
+    const selectedInvoices = invoices.filter(inv => selectedIds.has(inv.id));
     const messages = selectedInvoices.map(inv => getStudentMessage(inv)).join('\n\n---\n\n');
     navigator.clipboard.writeText(messages);
     setShowCopySuccess(true);
@@ -32,14 +32,10 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
   };
 
   const handleBulkRemove = () => {
-    // This typically logic is handled in the parent via state, 
-    // but the component should at least trigger something.
-    // In this codebase, removal is handled by setRemovedStudentIds in parent.
-    // Since we don't have that prop here yet, we'll just show the UI for now.
-    // Ideally, the parent would pass onRemove.
+    // handled in parent
   };
 
-  if (selectedIds.length === 0) return null;
+  if (selectedIds.size === 0) return null;
 
   return (
     <AnimatePresence>
@@ -51,7 +47,7 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
       >
         <div className="flex items-center gap-4 shrink-0">
            <div className="w-12 h-12 bg-brand-blue rounded-2xl flex items-center justify-center text-white">
-              <span className="font-black text-lg">{selectedIds.length}</span>
+              <span className="font-black text-lg">{selectedIds.size}</span>
            </div>
            <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 leading-none mb-1">Ações em Massa</p>
@@ -74,7 +70,7 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
            </button>
            
            <button 
-            onClick={() => setSelectedIds([])} 
+            onClick={() => setSelectedIds(new Set())} 
             className="flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all text-slate-300"
            >
               <X size={16} /> Cancelar

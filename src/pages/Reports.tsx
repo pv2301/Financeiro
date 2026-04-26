@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Download, TrendingUp, Users, Search, DollarSign, Wallet,
+  Download, Users, Search, DollarSign, Wallet,
   AlertCircle, Zap, ShieldCheck, LayoutDashboard, List as ListIcon,
-  GraduationCap, Layers, ChevronDown, ArrowUpRight, Percent, Receipt
+  GraduationCap, Layers, ChevronDown, ArrowUpRight, Percent, Receipt,
+  Calendar, Table as TableIcon, TrendingUp
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -13,8 +14,10 @@ import { Invoice, ClassInfo, Student } from '../types';
 import { finance } from '../services/finance';
 import { formatCurrencyBRL, cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-type ViewMode = 'dashboard' | 'turmas' | 'dados';
+type ViewMode = 'dashboard' | 'turmas' | 'dados' | 'anual';
 
 const SEGMENT_COLORS: Record<string, string> = {
   'Berçário': '#3B82F6',
@@ -23,6 +26,11 @@ const SEGMENT_COLORS: Record<string, string> = {
   'Ensino Fundamental II': '#8B5CF6',
   'Outros': '#94A3B8',
 };
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
@@ -36,6 +44,8 @@ export default function ReportsTest() {
   const [period, setPeriod] = useState('2026');
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -139,6 +149,67 @@ export default function ReportsTest() {
     }).filter(x => x.faturado > 0).sort((a, b) => b.recebido - a.recebido);
   }, [classes, filteredData]);
 
+  // --- Annual Report Specific Logic ---
+  const annualData = useMemo(() => {
+    const yearSummary = MONTH_NAMES.map((name, index) => {
+      const monthInvoices = invoices.filter(inv => {
+        if (!inv.monthYear?.includes(period)) return false;
+        const mNum = (index + 1).toString().padStart(2, '0');
+        const invMonth = inv.monthYear.split(/[\/-]/)[0];
+        return invMonth === mNum;
+      });
+
+      const boletos = monthInvoices
+        .filter(i => i.paymentStatus === 'PAID')
+        .reduce((sum, i) => sum + (i.amountCharged || i.netAmount || 0), 0);
+      
+      return { name, index, cobranca: 0, boletos, total: boletos };
+    });
+
+    let cumulative = 0;
+    const summary = yearSummary.map(m => {
+      cumulative += m.total;
+      return { ...m, acumulado: cumulative };
+    });
+
+    return { summary };
+  }, [invoices, period]);
+
+  const dailyBreakdown = useMemo(() => {
+    const year = parseInt(period);
+    const startDate = new Date(year, selectedMonth, 1);
+    const endDate = new Date(year, selectedMonth + 1, 0);
+    const days: any[] = [];
+    let cumulative = 0;
+
+    const monthInvoices = invoices.filter(inv => {
+      const mNum = (selectedMonth + 1).toString().padStart(2, '0');
+      return inv.monthYear?.startsWith(`${mNum}/${period}`) || inv.monthYear?.startsWith(`${mNum}-${period}`);
+    });
+
+    for (let d = 1; d <= endDate.getDate(); d++) {
+      const currentDay = new Date(year, selectedMonth, d);
+      const paidThisDay = monthInvoices.filter(inv => {
+        if (!inv.paymentDate) return false;
+        const pDate = new Date(inv.paymentDate);
+        return pDate.getDate() === d && pDate.getMonth() === selectedMonth && pDate.getFullYear() === year;
+      });
+
+      const totalDia = paidThisDay.reduce((sum, i) => sum + (i.amountCharged || i.netAmount || 0), 0);
+      cumulative += totalDia;
+
+      days.push({
+        date: currentDay,
+        formattedDate: format(currentDay, "eeee, d 'de' MMMM", { locale: ptBR }),
+        pagtoBoleto: totalDia,
+        totalDia,
+        acumulado: cumulative,
+        isWeekend: currentDay.getDay() === 0 || currentDay.getDay() === 6
+      });
+    }
+    return days;
+  }, [invoices, period, selectedMonth]);
+
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
     // Sheet 1: Resumo financeiro
@@ -196,9 +267,9 @@ export default function ReportsTest() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-            {(['dashboard', 'turmas', 'dados'] as ViewMode[]).map((v, i) => {
-              const labels = ['Painel', 'Turmas', 'Dados'];
-              const icons = [LayoutDashboard, Layers, ListIcon];
+            {(['dashboard', 'turmas', 'dados', 'anual'] as ViewMode[]).map((v, i) => {
+              const labels = ['Painel', 'Turmas', 'Dados', 'Anual'];
+              const icons = [LayoutDashboard, Layers, ListIcon, Calendar];
               const Icon = icons[i];
               return (
                 <button key={v} onClick={() => setViewMode(v)}
@@ -286,8 +357,8 @@ export default function ReportsTest() {
                     <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500" /><span className="text-[8px] font-black text-slate-400 uppercase">Realizado</span></div>
                   </div>
                 </div>
-                <div style={{ height: 240 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[240px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" debounce={50}>
                     <AreaChart data={revenueByMonth} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gPrev" x1="0" y1="0" x2="0" y2="1">
@@ -316,8 +387,8 @@ export default function ReportsTest() {
                   <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Por Segmento</h3>
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Receita recebida</p>
                 </div>
-                <div style={{ height: 180 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[180px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" debounce={50}>
                     <PieChart>
                       <Pie data={bySegment} dataKey="recebido" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
                         {bySegment.map((entry, i) => (
@@ -571,6 +642,89 @@ export default function ReportsTest() {
                   })}
                 </tbody>
               </table>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ─── ANUAL VIEW ─── */}
+        {viewMode === 'anual' && (
+          <motion.div key="anual" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Summary Table */}
+              <div className="lg:col-span-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Consolidado Mensal</h3>
+                  <TrendingUp size={16} className="text-brand-blue" />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="p-3 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest">Mês</th>
+                        <th className="p-3 px-4 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Boletos</th>
+                        <th className="p-3 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {annualData.summary.map((m, i) => (
+                        <tr key={m.name} onClick={() => setSelectedMonth(i)}
+                          className={cn("cursor-pointer transition-all hover:bg-slate-50", selectedMonth === i ? "bg-brand-blue/5 border-l-4 border-l-brand-blue" : "border-l-4 border-l-transparent")}>
+                          <td className="p-3 px-6 text-[10px] font-black text-slate-900 uppercase">{m.name}</td>
+                          <td className="p-3 px-4 text-right text-[10px] font-bold text-slate-600">{formatCurrencyBRL(m.boletos)}</td>
+                          <td className="p-3 px-6 text-right text-[10px] font-black text-brand-blue">{formatCurrencyBRL(m.acumulado)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Daily Breakdown Table */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-brand-blue/10 text-brand-blue rounded-xl flex items-center justify-center"><TableIcon size={20} /></div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{MONTH_NAMES[selectedMonth]}</h3>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Detalhamento Diário</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 overflow-x-auto max-w-[300px] no-scrollbar">
+                    {MONTH_NAMES.map((m, i) => (
+                      <button key={m} onClick={() => setSelectedMonth(i)}
+                        className={cn("px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all", selectedMonth === i ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-400")}>
+                        {m.substring(0, 3)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="p-4 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest">Data</th>
+                        <th className="p-4 px-4 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Pagto Boleto</th>
+                        <th className="p-4 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {dailyBreakdown.map((d, i) => (
+                        <tr key={i} className={cn(d.isWeekend ? "bg-amber-50/20" : "hover:bg-slate-50")}>
+                          <td className="p-3 px-6 text-[9px] font-bold text-slate-600 uppercase">{d.formattedDate}</td>
+                          <td className="p-3 px-4 text-right text-[10px] font-black text-slate-900">{formatCurrencyBRL(d.pagtoBoleto)}</td>
+                          <td className="p-3 px-6 text-right text-[10px] font-black text-brand-blue">{formatCurrencyBRL(d.acumulado)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-slate-900 text-white">
+                        <td className="p-4 px-6 text-[10px] font-black uppercase">Total {MONTH_NAMES[selectedMonth]}</td>
+                        <td className="p-4 px-4 text-right text-[10px] font-black">{formatCurrencyBRL(dailyBreakdown[dailyBreakdown.length - 1]?.acumulado || 0)}</td>
+                        <td className="p-4 px-6 text-right text-[11px] font-black text-brand-lime">{formatCurrencyBRL(dailyBreakdown[dailyBreakdown.length - 1]?.acumulado || 0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}

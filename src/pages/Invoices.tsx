@@ -7,15 +7,18 @@ import {
   CreditCard, ShieldCheck, ArrowUpRight, ChevronRight,
   MoreVertical, Layers, Activity, MousePointer2,
   PieChart, DollarSign, Wallet, ShieldAlert,
-  Globe
+  Globe, Smartphone, Barcode, LayoutList, Columns
 } from 'lucide-react';
 import { Invoice, Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
-import { format } from 'date-fns';
+import { format, isSameDay, parseISO, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ImportPaymentsModal from '../components/ImportPaymentsModal';
 import { formatCurrencyBRL, cn } from '../lib/utils';
+import { usePersistentSelection } from '../hooks/usePersistentSelection';
+
+type FilterCategory = 'ALL' | 'FIXED' | 'CONSUMPTION' | 'INTEGRAL';
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -25,13 +28,17 @@ export default function Invoices() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'PAID'>('ALL');
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   const [filterMonth, setFilterMonth] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [groupByDate, setGroupByDate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [payTarget, setPayTarget] = useState<{ id: string; name: string } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { selectedIds, toggleId, toggleAll, clearAll } = usePersistentSelection('invoices_selected_ids');
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'dueDate', direction: 'desc' });
   const [boletoFee, setBoletoFee] = useState(3.5);
+  const [editPaymentDate, setEditPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [editAmountCharged, setEditAmountCharged] = useState<number>(0);
 
   useEffect(() => { loadData(); }, []);
 
@@ -61,17 +68,34 @@ export default function Invoices() {
 
   const getStudentName = (id: string) => students.find(s => s.id === id)?.name || 'Desconhecido';
 
-  const handleMarkAsPaid = async (id?: string) => {
-    const targetId = id || payTarget?.id;
-    if (!targetId) return;
-    const inv = invoices.find(i => i.id === targetId);
+  const handleMarkAsPaid = async (method: 'PIX' | 'BOLETO') => {
+    if (!payTarget) return;
+    const inv = invoices.find(i => i.id === payTarget.id);
     if (inv) {
-      await finance.saveInvoice({ ...inv, paymentStatus: 'PAID' });
-      showToast('Fatura Paga!');
+      const referenceAmount = inv.netAmount;
+      const oscilacao = editAmountCharged - referenceAmount;
+
+      await finance.saveInvoice({ 
+        ...inv, 
+        paymentStatus: 'PAID',
+        paymentMethod: method,
+        paymentDate: editPaymentDate,
+        amountCharged: editAmountCharged,
+        oscilacao
+      });
+      showToast(`Fatura Paga via ${method}!`);
       await loadData();
     }
     setPayTarget(null);
   };
+
+  useEffect(() => {
+    if (payTarget) {
+      const inv = invoices.find(i => i.id === payTarget.id);
+      setEditPaymentDate(format(new Date(), "yyyy-MM-dd"));
+      setEditAmountCharged(inv?.netAmount || 0);
+    }
+  }, [payTarget, invoices]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -87,7 +111,14 @@ export default function Invoices() {
       if (action === 'PAY') {
         await Promise.all(ids.map(id => {
           const inv = invoices.find(i => i.id === id);
-          return inv ? finance.saveInvoice({ ...inv, paymentStatus: 'PAID' }) : Promise.resolve();
+          return inv ? finance.saveInvoice({ 
+            ...inv, 
+            paymentStatus: 'PAID',
+            paymentMethod: 'PIX', // Default bulk to PIX for manual
+            paymentDate: new Date().toISOString(),
+            amountCharged: inv.netAmount,
+            oscilacao: 0
+          }) : Promise.resolve();
         }));
       } else {
         await Promise.all(ids.map(id => finance.deleteInvoice(id)));
@@ -101,20 +132,19 @@ export default function Invoices() {
     }
   };
 
-  const toggleSelect = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
-  };
-
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
       const name = getStudentName(inv.studentId).toLowerCase();
       const matchesSearch = name.includes(searchTerm.toLowerCase()) || inv.id.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === 'ALL' || inv.paymentStatus === filterStatus;
       const matchesMonth = !filterMonth || inv.monthYear === filterMonth;
-      return matchesSearch && matchesStatus && matchesMonth;
+      
+      let matchesCategory = true;
+      if (filterCategory === 'FIXED') matchesCategory = (inv.billingMode !== 'POSTPAID_CONSUMPTION' && !inv.isIntegral);
+      if (filterCategory === 'CONSUMPTION') matchesCategory = (inv.billingMode === 'POSTPAID_CONSUMPTION');
+      if (filterCategory === 'INTEGRAL') matchesCategory = !!inv.isIntegral;
+
+      return matchesSearch && matchesStatus && matchesMonth && matchesCategory;
     }).sort((a, b) => {
       if (!sortConfig) return 0;
       const valA = a[sortConfig.key as keyof Invoice];
@@ -124,7 +154,29 @@ export default function Invoices() {
       if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [invoices, searchTerm, filterStatus, filterMonth, sortConfig, students]);
+  }, [invoices, searchTerm, filterStatus, filterCategory, filterMonth, sortConfig, students]);
+
+  const groupedInvoices = useMemo(() => {
+    if (!groupByDate) return { 'Tudo': filteredInvoices };
+    
+    const groups: Record<string, Invoice[]> = {};
+    filteredInvoices.forEach(inv => {
+      let dateKey = 'Histórico';
+      if (inv.createdAt) {
+        const date = parseISO(inv.createdAt);
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+
+        if (isSameDay(date, today)) dateKey = 'HOJE';
+        else if (isSameDay(date, yesterday)) dateKey = 'ONTEM';
+        else dateKey = format(date, "EEEE, dd 'de' MMMM", { locale: ptBR }).toUpperCase();
+      }
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(inv);
+    });
+    return groups;
+  }, [filteredInvoices, groupByDate]);
 
   const stats = useMemo(() => {
     const totalCount = invoices.length;
@@ -158,6 +210,16 @@ export default function Invoices() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setGroupByDate(!groupByDate)} 
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border",
+              groupByDate ? "bg-brand-blue/5 border-brand-blue text-brand-blue" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
+            )}
+          >
+            {groupByDate ? <LayoutList size={16} /> : <Columns size={16} />}
+            {groupByDate ? "Visão Agrupada" : "Visão em Lista"}
+          </button>
           <button onClick={() => setShowImportModal(true)} className="flex items-center gap-3 bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-md">
              <Upload size={16} className="text-brand-lime" /> Importar Retorno
           </button>
@@ -187,86 +249,150 @@ export default function Invoices() {
       </div>
 
       {/* --- Filter & Bulk - Compact --- */}
-      <div className="flex flex-col lg:flex-row gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 items-center">
-        <div className="relative flex-1 group w-full">
-           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-           <input 
-             type="text" placeholder="BUSCAR FATURA OU ALUNO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-             className="w-full pl-12 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:border-brand-blue outline-none font-bold text-slate-700 text-sm shadow-inner"
-           />
-        </div>
-        
-        <div className="flex items-center gap-3 w-full lg:w-auto">
-           <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-              {(['ALL', 'PENDING', 'PAID'] as const).map(st => (
-                <button key={st} onClick={() => setFilterStatus(st)} className={cn("px-4 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all", filterStatus === st ? "bg-white shadow-sm text-slate-900 border border-slate-100" : "text-slate-400")}>
-                  {st === 'ALL' ? 'Todas' : st === 'PENDING' ? 'Pendentes' : 'Pagas'}
-                </button>
-              ))}
-           </div>
+      <div className="space-y-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+        <div className="flex flex-col lg:flex-row gap-4 items-center">
+          <div className="relative flex-1 group w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+            <input 
+              type="text" placeholder="BUSCAR FATURA OU ALUNO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-brand-blue outline-none font-bold text-slate-700 text-sm shadow-inner transition-all"
+            />
+          </div>
+          
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
+                {(['ALL', 'PENDING', 'PAID'] as const).map(st => (
+                  <button key={st} onClick={() => setFilterStatus(st)} className={cn("px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all", filterStatus === st ? "bg-white shadow-md text-slate-900 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
+                    {st === 'ALL' ? 'Todas' : st === 'PENDING' ? 'Pendentes' : 'Pagas'}
+                  </button>
+                ))}
+            </div>
 
-           {selectedIds.size > 0 && (
-             <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-xl">
-                <button onClick={() => handleBulkAction('PAY')} className="px-3 py-2 text-emerald-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-lg">Baixar</button>
-                <button onClick={() => handleBulkAction('DELETE')} className="px-3 py-2 text-red-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-lg">Excluir</button>
-             </div>
-           )}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl shadow-lg border border-white/10">
+                  <button onClick={() => handleBulkAction('PAY')} className="px-4 py-2.5 text-emerald-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Baixar</button>
+                  <button onClick={() => handleBulkAction('DELETE')} className="px-4 py-2.5 text-rose-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Excluir</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Categoria Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {(['ALL', 'FIXED', 'CONSUMPTION', 'INTEGRAL'] as const).map(cat => (
+            <button 
+              key={cat} 
+              onClick={() => setFilterCategory(cat)} 
+              className={cn(
+                "px-5 py-2 rounded-full font-black text-[8px] uppercase tracking-[0.15em] transition-all border",
+                filterCategory === cat 
+                  ? "bg-slate-900 text-white border-slate-900 shadow-md" 
+                  : "bg-white text-slate-400 border-slate-200 hover:border-slate-400"
+              )}
+            >
+              {cat === 'ALL' ? 'Todos os Tipos' : cat === 'FIXED' ? 'Mensalidade' : cat === 'CONSUMPTION' ? 'Consumo' : 'Integral'}
+            </button>
+          ))}
+          
+          <div className="ml-auto flex items-center gap-3">
+             <select 
+               value={sortConfig?.key || 'dueDate'} 
+               onChange={(e) => setSortConfig({ key: e.target.value, direction: 'desc' })}
+               className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 focus:outline-none"
+             >
+                <option value="dueDate">Ordenar por Vencimento</option>
+                <option value="createdAt">Ordenar por Geração</option>
+                <option value="netAmount">Ordenar por Valor</option>
+             </select>
+          </div>
         </div>
       </div>
 
       {/* --- Invoices List - Compact Table --- */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 w-10">
-                   <input type="checkbox" checked={selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0} 
-                     onChange={() => {
-                       if (selectedIds.size === filteredInvoices.length) setSelectedIds(new Set());
-                       else setSelectedIds(new Set(filteredInvoices.map(i => i.id)));
-                     }}
-                     className="w-4 h-4 rounded border-slate-300" />
+                <th className="px-8 py-5 w-10">
+                   <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredInvoices.length} 
+                     onChange={() => toggleAll(filteredInvoices.map(i => i.id))}
+                     className="w-4 h-4 rounded border-slate-300 accent-brand-blue" />
                 </th>
-                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Aluno</th>
-                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
-                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 w-16"></th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Aluno / Pagador</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Boleto</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Liquidação</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Cobrado</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-8 py-5 w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredInvoices.map((inv) => (
-                <tr key={inv.id} className={cn("group transition-all hover:bg-slate-50", selectedIds.has(inv.id) ? "bg-brand-blue/5" : "")}>
-                  <td className="px-6 py-3">
-                     <input type="checkbox" checked={selectedIds.has(inv.id)} onChange={() => toggleSelect(inv.id)} className="w-4 h-4 rounded border-slate-300" />
-                  </td>
-                  <td className="px-4 py-3">
-                     <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{getStudentName(inv.studentId)}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{format(new Date(inv.dueDate), "dd 'de' MMM", { locale: ptBR })}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                     <span className="text-sm font-black text-slate-900 tracking-tight">{formatCurrencyBRL(inv.netAmount)}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                     <span className={cn(
-                       "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
-                       inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                     )}>
-                       {inv.paymentStatus === 'PAID' ? 'Pago' : 'Pendente'}
-                     </span>
-                  </td>
-                  <td className="px-6 py-3 text-right">
-                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        {inv.paymentStatus === 'PENDING' && (
-                          <button onClick={() => setPayTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-1.5 text-slate-400 hover:text-emerald-500 transition-colors"><CheckCircle2 size={16} /></button>
-                        )}
-                        <button onClick={() => setDeleteTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                     </div>
-                  </td>
-                </tr>
+              {Object.entries(groupedInvoices).map(([group, invs]) => (
+                <React.Fragment key={group}>
+                  {groupByDate && (
+                    <tr className="bg-slate-50/80">
+                      <td colSpan={9} className="px-8 py-3 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] shadow-inner">
+                         {group}
+                      </td>
+                    </tr>
+                  )}
+                  {invs.map((inv) => (
+                    <tr key={inv.id} className={cn("group transition-all hover:bg-slate-50", selectedIds.has(inv.id) ? "bg-brand-blue/5" : "")}>
+                      <td className="px-8 py-4">
+                         <input type="checkbox" checked={selectedIds.has(inv.id)} onChange={() => toggleId(inv.id)} className="w-4 h-4 rounded border-slate-300 accent-brand-blue" />
+                      </td>
+                      <td className="px-4 py-4">
+                         <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{getStudentName(inv.studentId)}</p>
+                         {inv.pagador && (
+                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Pago por: {inv.pagador}</p>
+                         )}
+                      </td>
+                      <td className="px-4 py-4">
+                         <span className="text-[10px] font-bold text-slate-600 tracking-wider font-mono">{inv.bankSlipNumber || inv.nossoNumero || '-'}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{format(new Date(inv.dueDate), "dd/MM/yyyy")}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                         <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                           {inv.paymentDate ? format(new Date(inv.paymentDate), "dd/MM/yyyy") : '-'}
+                         </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                         <span className="text-sm font-black text-slate-900 tracking-tight">{formatCurrencyBRL(inv.netAmount)}</span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                         <span className="text-sm font-black text-slate-700 tracking-tight">
+                           {inv.amountCharged !== undefined ? formatCurrencyBRL(inv.amountCharged) : '-'}
+                         </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                         <div className="flex flex-col items-center gap-1">
+                           <span className={cn(
+                             "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
+                             inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                           )}>
+                             {inv.paymentStatus === 'PAID' ? 'Pago' : 'Pendente'}
+                           </span>
+                           {inv.paymentMethod && (
+                             <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">{inv.paymentMethod}</span>
+                           )}
+                         </div>
+                      </td>
+                      <td className="px-8 py-4 text-right">
+                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            {inv.paymentStatus === 'PENDING' && (
+                              <button onClick={() => setPayTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"><CheckCircle2 size={18} /></button>
+                            )}
+                            <button onClick={() => setDeleteTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={18} /></button>
+                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -274,7 +400,85 @@ export default function Invoices() {
       </div>
 
       <ConfirmDialog isOpen={!!deleteTarget} title="Excluir" message={`Deseja excluir a fatura de "${deleteTarget?.name}"?`} confirmLabel="Excluir" variant="danger" onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
-      <ConfirmDialog isOpen={!!payTarget} title="Liquidar" message={`Confirmar recebimento de "${payTarget?.name}"?`} confirmLabel="Liquidar" variant="info" onConfirm={() => handleMarkAsPaid()} onCancel={() => setPayTarget(null)} />
+      
+      {/* Modal de Método de Pagamento */}
+      <AnimatePresence>
+        {payTarget && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+             <motion.div 
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+               className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl border border-white/20"
+             >
+                <div className="text-center mb-8">
+                   <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+                      <DollarSign size={32} />
+                   </div>
+                   <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Baixa Manual</h3>
+                   <p className="text-sm text-slate-500 font-medium mt-2">Informe os detalhes do recebimento para <br/><span className="text-slate-900 font-black uppercase">{payTarget.name}</span></p>
+                </div>
+
+                <div className="space-y-6 mb-8">
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Liquidação</label>
+                         <input 
+                           type="date" 
+                           value={editPaymentDate} 
+                           onChange={(e) => setEditPaymentDate(e.target.value)}
+                           className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-brand-blue outline-none transition-all"
+                         />
+                      </div>
+                      <div className="space-y-1.5">
+                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor Cobrado</label>
+                         <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-300">R$</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={editAmountCharged} 
+                              onChange={(e) => setEditAmountCharged(Number(e.target.value))}
+                              className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-4 py-3 text-sm font-black focus:border-brand-blue outline-none transition-all"
+                            />
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                   <button 
+                     onClick={() => handleMarkAsPaid('PIX')}
+                     className="flex flex-col items-center gap-4 p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
+                   >
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-emerald-500 shadow-sm transition-all">
+                        <Smartphone size={24} />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-emerald-600">Baixar via PIX</span>
+                   </button>
+
+                   <button 
+                     onClick={() => handleMarkAsPaid('BOLETO')}
+                     className="flex flex-col items-center gap-4 p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:border-brand-blue hover:bg-brand-blue/5 transition-all group"
+                   >
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-brand-blue shadow-sm transition-all">
+                        <Barcode size={24} />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-brand-blue">Baixar via Boleto</span>
+                   </button>
+                </div>
+
+                <button 
+                  onClick={() => setPayTarget(null)}
+                  className="w-full mt-8 py-4 text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] hover:text-slate-600 transition-all"
+                >
+                  Cancelar
+                </button>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {showImportModal && <ImportPaymentsModal boletoFee={boletoFee} onClose={() => setShowImportModal(false)} onComplete={loadData} />}
     </div>
   );
