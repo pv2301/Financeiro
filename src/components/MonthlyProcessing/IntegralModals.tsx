@@ -16,14 +16,9 @@ interface IntegralModalsProps {
   setIntegralItems: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
   monthYear: string;
   ageRefDay: number;
-  modalStudentSearch: string;
-  setModalStudentSearch: (search: string) => void;
-  modalSegmentFilter: string;
-  setModalSegmentFilter: (filter: string) => void;
-  modalClassFilter: string;
-  setModalClassFilter: (filter: string) => void;
   saveCurrentDraft: (overrideData?: any, silent?: boolean) => Promise<void>;
   getPriceKey: (cls: Class, student: Student | null, monthYear: string, refDay: number) => string;
+  onConfirmSelection: (selectedIds: string[]) => void;
 }
 
 export const IntegralModals: React.FC<IntegralModalsProps> = ({
@@ -38,15 +33,25 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
   setIntegralItems,
   monthYear,
   ageRefDay,
-  modalStudentSearch,
-  setModalStudentSearch,
-  modalSegmentFilter,
-  setModalSegmentFilter,
-  modalClassFilter,
-  setModalClassFilter,
   saveCurrentDraft,
   getPriceKey,
+  onConfirmSelection
 }) => {
+  const [localSearch, setLocalSearch] = React.useState('');
+  const [localSegment, setLocalSegment] = React.useState('all');
+  const [localClass, setLocalClass] = React.useState('all');
+  const [localSelected, setLocalSelected] = React.useState<string[]>([]);
+
+  // Initialize local selection when modal opens
+  React.useEffect(() => {
+    if (showIntegralSelectModal) {
+      setLocalSelected([]);
+      setLocalSearch('');
+      setLocalSegment('all');
+      setLocalClass('all');
+    }
+  }, [showIntegralSelectModal]);
+
   return (
     <>
       {/* Modal: Adicionar/Remover Serviços do Aluno */}
@@ -364,17 +369,17 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
                       <input
                         type="text"
                         placeholder="Pesquisar aluno pelo nome..."
-                        value={modalStudentSearch}
-                        onChange={(e) => setModalStudentSearch(e.target.value)}
+                        value={localSearch}
+                        onChange={(e) => setLocalSearch(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-brand-blue/10 text-sm font-medium"
                       />
                     </div>
                     <div className="flex gap-3">
                       <select
-                        value={modalSegmentFilter}
+                        value={localSegment}
                         onChange={(e) => {
-                          setModalSegmentFilter(e.target.value);
-                          setModalClassFilter('all');
+                          setLocalSegment(e.target.value);
+                          setLocalClass('all');
                         }}
                         className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-xs uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
                       >
@@ -384,13 +389,13 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
                       </select>
                       
                       <select
-                        value={modalClassFilter}
-                        onChange={(e) => setModalClassFilter(e.target.value)}
+                        value={localClass}
+                        onChange={(e) => setLocalClass(e.target.value)}
                         className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-xs uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-brand-blue/10"
                       >
                         <option value="all">Todas as turmas</option>
                         {classes
-                          .filter(c => modalSegmentFilter === 'all' || c.segment === modalSegmentFilter)
+                          .filter(c => localSegment === 'all' || c.segment === localSegment)
                           .filter(c => c.segment === 'Educação Infantil' || c.segment === 'Ensino Fundamental I')
                           .map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
@@ -405,27 +410,23 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
                         const cls = classes.find(c => c.id === s.classId);
                         if (!cls) return false;
                         const isTargetSegment = cls.segment === 'Educação Infantil' || cls.segment === 'Ensino Fundamental I';
-                        const matchesSegment = modalSegmentFilter === 'all' || cls.segment === modalSegmentFilter;
-                        const matchesClass = modalClassFilter === 'all' || s.classId === modalClassFilter;
-                        const matchesSearch = !modalStudentSearch || s.name.toLowerCase().includes(modalStudentSearch.toLowerCase());
-                        return isTargetSegment && matchesSegment && matchesClass && matchesSearch;
+                        const matchesSegment = localSegment === 'all' || cls.segment === localSegment;
+                        const matchesClass = localClass === 'all' || s.classId === localClass;
+                        const matchesSearch = !localSearch || s.name.toLowerCase().includes(localSearch.toLowerCase());
+                        const isNotAlreadyAdded = !integralItems[s.id];
+                        return isTargetSegment && matchesSegment && matchesClass && matchesSearch && isNotAlreadyAdded;
                       })
                       .sort((a, b) => a.name.localeCompare(b.name))
                       .map(student => {
-                        const isSelected = !!integralItems[student.id];
+                        const isSelected = localSelected.includes(student.id);
                         return (
                           <div
                             key={student.id}
                             onClick={() => {
                               if (isSelected) {
-                                const newItems = { ...integralItems };
-                                delete newItems[student.id];
-                                setIntegralItems(newItems);
+                                setLocalSelected(prev => prev.filter(id => id !== student.id));
                               } else {
-                                setIntegralItems({
-                                  ...integralItems,
-                                  [student.id]: []
-                                });
+                                setLocalSelected(prev => [...prev, student.id]);
                               }
                             }}
                             className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left cursor-pointer ${
@@ -437,7 +438,7 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}} // Handled by div onClick
+                              onChange={() => {}} 
                               className="w-5 h-5 rounded-lg border-2 border-slate-300 accent-brand-blue cursor-pointer transition-all focus:ring-4 focus:ring-brand-blue/10"
                             />
                             <div className="flex-1">
@@ -455,12 +456,12 @@ export const IntegralModals: React.FC<IntegralModalsProps> = ({
               </div>
 
               <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
-                <button
-                  onClick={() => setShowIntegralSelectModal(false)}
-                  className="px-10 py-4 bg-brand-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-blue/30 hover:scale-105 transition-transform"
-                >
-                  Concluir Seleção
-                </button>
+                  <button
+                    onClick={() => onConfirmSelection(localSelected)}
+                    className="px-10 py-4 bg-brand-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-blue/30 hover:scale-105 transition-transform"
+                  >
+                    Adicionar Alunos Selecionados ({localSelected.length})
+                  </button>
               </div>
             </motion.div>
           </div>

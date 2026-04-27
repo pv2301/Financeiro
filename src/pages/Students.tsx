@@ -3,7 +3,7 @@ import {
   Users, Search, Plus, Filter,
   Mail, Phone, Calendar,
   Download, ArrowUpRight, ShieldCheck, UserPlus, Trash2, Pencil,
-  CreditCard, Clock, MapPin, Percent
+  CreditCard, Clock, MapPin, Percent, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { finance } from '../services/finance';
@@ -240,7 +240,6 @@ export default function Students() {
                           <Filter size={10} className={cn(sortOrder === 'desc' && "rotate-180 transition-transform")} />
                         </div>
                      </th>
-                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Idade</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável & Contato</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Turma</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Modalidade</th>
@@ -267,17 +266,14 @@ export default function Students() {
                         <td className="p-4 px-6 sticky left-0 bg-white group-hover:bg-slate-50 transition-colors z-10">
                            <div className="flex items-center gap-4">
                               <div>
-                                 <p className="font-black text-slate-900 uppercase tracking-tight text-sm leading-none mb-1">{s.name}</p>
+                                 <p className="font-black text-slate-900 uppercase tracking-tight text-sm leading-none mb-1">
+                                    {s.name.replace(/^\([AEIOU]\)\s+/i, '')}
+                                 </p>
                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                    <MapPin size={10} /> {s.segment || 'N/A'}
+                                    <MapPin size={10} /> {s.segment || 'N/A'} {s.birthDate ? `| ${formatFullAge(s.birthDate)}` : ''}
                                  </p>
                               </div>
                            </div>
-                        </td>
-                        <td className="p-4 px-6 text-center">
-                           <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">
-                              {s.birthDate ? formatFullAge(s.birthDate) : '---'}
-                           </span>
                         </td>
                         <td className="p-4 px-6">
                            <div>
@@ -293,9 +289,21 @@ export default function Students() {
                            </div>
                         </td>
                         <td className="p-4 px-6">
-                           <span className="px-3 py-1 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-100">
-                              {classes.find(c => c.id === s.classId)?.name || 'S/ TURMA'}
-                           </span>
+                           {(() => {
+                             const studentClass = classes.find(c => c.id === s.classId);
+                             if (!studentClass) {
+                               return (
+                                 <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-rose-100 flex items-center gap-1 w-fit">
+                                   <AlertCircle size={12} /> S/ TURMA
+                                 </span>
+                               );
+                             }
+                             return (
+                               <span className="px-3 py-1 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-100">
+                                 {studentClass.name}
+                               </span>
+                             );
+                           })()}
                         </td>
                         <td className="p-4 px-6">
                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">

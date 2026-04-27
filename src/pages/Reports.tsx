@@ -82,15 +82,26 @@ export default function ReportsTest() {
     const totalRecebido = paid.reduce((a, c) => a + (c?.amountCharged || c?.netAmount || 0), 0);
     const totalPendente = pending.reduce((a, c) => a + (c?.netAmount || 0), 0);
     const totalVencido = overdue.reduce((a, c) => a + (c?.netAmount || 0), 0);
-    const repasseColegio = paid.reduce((a, c) => a + (c?.collegeShareAmount || 0), 0);
+    const repasseColegio = paid.reduce((a, inv) => {
+      const student = students.find(s => s.id === inv.studentId);
+      const isPaidInTime = inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
+      let effectiveValor = inv.netAmount;
+      if (isPaidInTime && student?.hasTimelyPaymentDiscount && (student.personalDiscount || 0) > 0) {
+        effectiveValor = inv.netAmount - (inv.personalDiscountAmount || 0);
+      }
+      const valorCobrado = inv.amountCharged ?? inv.netAmount;
+      const baseRepasse = Math.min(effectiveValor, valorCobrado);
+      const sharePercent = inv.collegeSharePercent ?? 0;
+      return a + (baseRepasse * (sharePercent / 100));
+    }, 0);
     const taxasBancarias = paid.reduce((a, c) => a + (c?.boletoEmissionFee || 0), 0);
     const margemCanteen = totalRecebido - repasseColegio - taxasBancarias;
     const inadimplencia = totalFaturado > 0 ? (totalPendente / totalFaturado) * 100 : 0;
     const totalBruto = filteredData.reduce((a, c) => a + (c?.grossAmount || 0), 0);
     const descontoPessoal = filteredData.reduce((a, c) => a + (c?.personalDiscountAmount || 0), 0);
     const descontoFaltas = filteredData.reduce((a, c) => a + (c?.absenceDiscountAmount || 0), 0);
-    const uniqueStudentsPaid = new Set(paid.map(i => i.studentId)).size;
-    const ticketMedio = uniqueStudentsPaid > 0 ? totalRecebido / uniqueStudentsPaid : 0;
+    const totalInvoices = filteredData.length;
+    const ticketMedio = totalInvoices > 0 ? totalFaturado / totalInvoices : 0;
 
     const debtMap: Record<string, number> = {};
     overdue.forEach(inv => { debtMap[inv.studentId] = (debtMap[inv.studentId] || 0) + (inv.netAmount || 0); });
@@ -332,7 +343,7 @@ export default function ReportsTest() {
               {[
                 { label: 'Inadimplência', value: `${stats.inadimplencia.toFixed(1)}%`, color: stats.inadimplencia > 20 ? 'text-rose-600' : 'text-amber-600' },
                 { label: 'Repasse Colégio', value: formatCurrencyBRL(stats.repasseColegio), color: 'text-slate-600' },
-                { label: 'Ticket Médio / Aluno', value: formatCurrencyBRL(stats.ticketMedio), color: 'text-brand-blue' },
+                { label: 'Ticket Médio / Boleto', value: formatCurrencyBRL(stats.ticketMedio), color: 'text-brand-blue' },
                 { label: 'Total de Descontos', value: formatCurrencyBRL(stats.descontoPessoal + stats.descontoFaltas), color: 'text-indigo-600' },
               ].map((item, i) => (
                 <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
@@ -603,8 +614,30 @@ export default function ReportsTest() {
                           </td>
                           <td className="p-4 px-6 text-xs font-bold text-slate-600 tabular-nums">{inv.monthYear}</td>
                           <td className="p-4 px-6 text-xs font-black text-slate-500 tabular-nums">{formatCurrencyBRL(inv.grossAmount)}</td>
-                          <td className="p-4 px-6 text-xs font-black text-slate-900 tabular-nums">{formatCurrencyBRL(inv.netAmount)}</td>
-                          <td className="p-4 px-6 text-xs font-black text-rose-500 tabular-nums">{formatCurrencyBRL(inv.collegeShareAmount || 0)}</td>
+                          <td className="p-4 px-6 text-xs font-black text-slate-900 tabular-nums">
+                            {(() => {
+                              const student = students.find(s => s.id === inv.studentId);
+                              const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
+                              if (isPaidInTime && student?.hasTimelyPaymentDiscount && (student.personalDiscount || 0) > 0) {
+                                return formatCurrencyBRL(inv.netAmount - (inv.personalDiscountAmount || 0));
+                              }
+                              return formatCurrencyBRL(inv.netAmount);
+                            })()}
+                          </td>
+                          <td className="p-4 px-6 text-xs font-black text-rose-500 tabular-nums">
+                            {(() => {
+                              const student = students.find(s => s.id === inv.studentId);
+                              const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
+                              let effectiveValor = inv.netAmount;
+                              if (isPaidInTime && student?.hasTimelyPaymentDiscount && (student.personalDiscount || 0) > 0) {
+                                effectiveValor = inv.netAmount - (inv.personalDiscountAmount || 0);
+                              }
+                              const valorCobrado = inv.amountCharged ?? inv.netAmount;
+                              const baseRepasse = Math.min(effectiveValor, valorCobrado);
+                              const sharePercent = inv.collegeSharePercent ?? 0;
+                              return formatCurrencyBRL(baseRepasse * (sharePercent / 100));
+                            })()}
+                          </td>
                           <td className="p-4 px-6">
                             <span className={cn("px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
                               inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>

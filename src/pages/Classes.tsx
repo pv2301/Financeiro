@@ -48,17 +48,9 @@ export default function ClassesTest() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
-    return (localStorage.getItem('classesViewMode') as 'cards' | 'list') || 'cards';
-  });
-
   const [filterSegment, setFilterSegment] = useState<string>('all');
   const [filterBilling, setFilterBilling] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    localStorage.setItem('classesViewMode', viewMode);
-  }, [viewMode]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -89,6 +81,14 @@ export default function ClassesTest() {
   const save = async () => {
     if (!modal) return;
     if (!modal.name.trim()) return alert('Nome da turma obrigatório.');
+    
+    // Validation for PREPAID_FIXED: Must contain GRUPO or MATERNAL
+    if (modal.billingMode === 'PREPAID_FIXED') {
+      const nameUpper = modal.name.toUpperCase();
+      if (!nameUpper.includes('GRUPO') && !nameUpper.includes('MATERNAL')) {
+        return alert('Turmas com Mensalidade Fixa devem conter "GRUPO" ou "MATERNAL" no nome.');
+      }
+    }
     
     setSaving(true);
     try {
@@ -188,22 +188,6 @@ export default function ClassesTest() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
-            <button 
-              onClick={() => setViewMode('cards')} 
-              className={cn("p-3 rounded-xl transition-all flex items-center gap-2", viewMode === 'cards' ? "bg-white shadow-md text-brand-blue border border-slate-100" : "text-slate-400 hover:text-slate-600")}
-            >
-              <LayoutGrid size={18} />
-              {viewMode === 'cards' && <span className="text-[10px] font-black uppercase tracking-widest">Cards</span>}
-            </button>
-            <button 
-              onClick={() => setViewMode('list')} 
-              className={cn("p-3 rounded-xl transition-all flex items-center gap-2", viewMode === 'list' ? "bg-white shadow-md text-brand-blue border border-slate-100" : "text-slate-400 hover:text-slate-600")}
-            >
-              <List size={18} />
-              {viewMode === 'list' && <span className="text-[10px] font-black uppercase tracking-widest">Lista</span>}
-            </button>
-          </div>
           <motion.button 
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -230,7 +214,7 @@ export default function ClassesTest() {
              <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
              <select 
                 value={filterSegment} onChange={(e) => setFilterSegment(e.target.value)}
-                className="w-full lg:w-48 pl-12 pr-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
+                className="w-full lg:w-64 pl-12 pr-8 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
              >
                 <option value="all">TODOS SEGMENTOS</option>
                 {SEGMENT_OPTIONS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
@@ -242,7 +226,7 @@ export default function ClassesTest() {
              <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
              <select 
                 value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)}
-                className="w-full lg:w-48 pl-12 pr-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
+                className="w-full lg:w-64 pl-12 pr-8 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] text-slate-600 outline-none hover:border-brand-blue transition-all appearance-none cursor-pointer"
              >
                 <option value="all">TODOS FATURAMENTOS</option>
                 {(Object.keys(BILLING_LABELS) as BillingMode[]).map(mode => (
@@ -343,85 +327,48 @@ export default function ClassesTest() {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{segClasses.length} turmas</span>
                 </div>
 
-                {viewMode === 'cards' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {segClasses.map((cls) => {
-                      const count = studentCounts[cls.id] || 0;
-                      return (
-                        <div key={cls.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 flex flex-col gap-6 hover:border-brand-blue/30 hover:shadow-xl hover:shadow-slate-200/50 transition-all group relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-4">
-                             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-brand-blue/10 group-hover:text-brand-blue transition-all">
-                               <Users size={20} />
-                             </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <span className="text-[10px] font-black text-brand-blue uppercase tracking-[0.2em]">{BILLING_LABELS[cls.billingMode]}</span>
-                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight group-hover:text-brand-blue transition-colors">{cls.name}</h3>
-                          </div>
-
-                          <div className="flex items-end justify-between mt-auto pt-4 border-t border-slate-50">
-                            <div className="space-y-1">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
-                              <p className="text-xl font-black text-slate-900 tabular-nums">{count}</p>
+                {/* Grid de Turmas Unificado */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {segClasses.map((cls) => {
+                    const count = studentCounts[cls.id] || 0;
+                    return (
+                      <div key={cls.id} className="group bg-white rounded-3xl border border-slate-100 p-5 hover:border-brand-blue/30 hover:shadow-xl hover:shadow-slate-200/40 transition-all relative overflow-hidden flex flex-col gap-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-xs font-black shadow-lg shadow-slate-200 shrink-0 group-hover:scale-110 transition-transform">
+                              {cls.name.substring(0, 2).toUpperCase()}
                             </div>
-                            <div className="flex items-center gap-2">
-                               <button onClick={() => openEdit(cls)} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-                                 <Pencil size={18} />
-                               </button>
-                               <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-500 hover:text-white transition-all shadow-sm">
-                                 <Trash2 size={18} />
-                               </button>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{cls.name}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] truncate">{cls.segment}</span>
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50">
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação da Turma</th>
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Modelo de Faturamento</th>
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Base</th>
-                          <th className="px-8 py-6 w-32"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {segClasses.map((cls) => (
-                          <tr key={cls.id} className="group hover:bg-slate-50/50 transition-all">
-                            <td className="px-8 py-6">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white text-[10px] font-black">
-                                  {cls.name.substring(0, 2).toUpperCase()}
-                                </div>
-                                <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cls.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-8 py-6">
-                               <div className="inline-flex items-center px-3 py-1 bg-slate-100 rounded-full">
-                                 <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</span>
-                               </div>
-                            </td>
-                            <td className="px-8 py-6 text-right">
-                              <span className="text-base font-black text-brand-blue tracking-tight tabular-nums">
-                                 {cls.billingMode === 'PREPAID_DAYS' ? 'PORDIA' : formatCurrencyBRL(cls.basePrice)}
-                              </span>
-                            </td>
-                            <td className="px-8 py-6 text-right">
-                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => openEdit(cls)} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-blue hover:border-brand-blue shadow-sm transition-all"><Pencil size={16} /></button>
-                                <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 hover:border-red-500 shadow-sm transition-all"><Trash2 size={16} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                          <div className="flex items-center gap-2">
+                            <div className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{BILLING_LABELS[cls.billingMode]}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50/50 rounded-lg border border-blue-100/50">
+                              <Users size={12} className="text-brand-blue" />
+                              <span className="text-[10px] font-black text-brand-blue tabular-nums">{count}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                            <button onClick={() => openEdit(cls)} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-blue hover:border-brand-blue transition-all shadow-sm">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => setDeleteTarget({ id: cls.id, name: cls.name })} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 hover:border-red-500 transition-all shadow-sm">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -481,19 +428,30 @@ export default function ClassesTest() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor Base</label>
-                      <input type="number" value={typeof modal.basePrice === 'number' ? modal.basePrice : 0} onChange={e => setModal({ ...modal, basePrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:border-brand-blue outline-none font-black text-brand-blue text-xl tabular-nums shadow-inner" min={0} step={0.01} />
-                   </div>
-                   <div className="flex items-end">
-                      <button onClick={() => setModal({ ...modal, applyAbsenceDiscount: !modal.applyAbsenceDiscount })}
-                         className={cn("w-full px-4 py-3 rounded-xl border transition-all text-center font-black text-[9px] uppercase tracking-widest", modal.applyAbsenceDiscount ? "bg-amber-500 text-white border-amber-500 shadow-md" : "bg-white border-slate-100 text-slate-400")}>
-                         Desconto Faltas {modal.applyAbsenceDiscount ? 'Ativo' : 'Inativo'}
-                      </button>
-                   </div>
-                </div>
+                {modal.billingMode !== 'PREPAID_FIXED' && modal.billingMode !== 'PREPAID_DAYS' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor Base</label>
+                        <input type="number" value={typeof modal.basePrice === 'number' ? modal.basePrice : 0} onChange={e => setModal({ ...modal, basePrice: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:border-brand-blue outline-none font-black text-brand-blue text-xl tabular-nums shadow-inner" min={0} step={0.01} />
+                    </div>
+                    <div className="flex items-end">
+                        <button onClick={() => setModal({ ...modal, applyAbsenceDiscount: !modal.applyAbsenceDiscount })}
+                          className={cn("w-full px-4 py-3 rounded-xl border transition-all text-center font-black text-[9px] uppercase tracking-widest", modal.applyAbsenceDiscount ? "bg-amber-500 text-white border-amber-500 shadow-md" : "bg-white border-slate-100 text-slate-400")}>
+                          Desconto Faltas {modal.applyAbsenceDiscount ? 'Ativo' : 'Inativo'}
+                        </button>
+                    </div>
+                  </div>
+                )}
+                
+                {(modal.billingMode === 'PREPAID_FIXED' || modal.billingMode === 'PREPAID_DAYS') && (
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-relaxed">
+                      💡 Configurações Automáticas: <br/>
+                      <span className="opacity-70">Desconto de faltas permanentemente ATIVO. {modal.billingMode === 'PREPAID_FIXED' ? 'Valor mensal definido no Fechamento.' : ''}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="p-6 bg-slate-50 flex justify-end gap-3">

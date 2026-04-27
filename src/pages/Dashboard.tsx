@@ -18,10 +18,12 @@ import { cn, formatCurrencyBRL } from '../lib/utils';
 import { format } from 'date-fns';
 import { finance } from '../services/finance';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Student, Invoice } from '../types';
 
 export default function DashboardTest() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,16 +59,21 @@ export default function DashboardTest() {
     const overdueInvoices = pendingInvoices.filter(inv => new Date(inv.dueDate) < now);
     const paidInvoices = realInvoices.filter(inv => inv.paymentStatus === 'PAID');
     
-    const currentMonthTotal = realInvoices
-      .filter(inv => inv.monthYear === currentMonthStr)
-      .reduce((acc, inv) => acc + (inv.netAmount || 0), 0);
+      const currentMonthInvoices = realInvoices.filter(inv => inv.monthYear === currentMonthStr);
+      const currentMonthTotal = currentMonthInvoices.reduce((acc, inv) => acc + (inv.netAmount || 0), 0);
+      const averageTicket = currentMonthInvoices.length > 0 
+        ? currentMonthTotal / currentMonthInvoices.length 
+        : 0;
 
     return {
       totalStudents: students.filter(s => !s.name.includes('Exemplo')).length,
+      currentMonthInvoicesCount: currentMonthInvoices.length,
       currentMonthTotal,
       pendingCount: pendingInvoices.length,
+      overdueValue: overdueInvoices.reduce((acc, inv) => acc + (inv.netAmount || 0), 0),
       overdueInvoices: overdueInvoices.slice(0, 5),
-      collectionRate: realInvoices.length > 0 ? (paidInvoices.length / realInvoices.length) * 100 : 0
+      collectionRate: realInvoices.length > 0 ? (paidInvoices.length / realInvoices.length) * 100 : 0,
+      averageTicket
     };
   }, [students, invoices]);
 
@@ -90,12 +97,17 @@ export default function DashboardTest() {
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-3">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tempo Real</span>
-          </div>
-          <button className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-900/10 flex items-center gap-3">
-            <Plus size={16} className="text-brand-lime" /> Novo Registro
+          <button 
+            onClick={() => navigate('/students')}
+            className="bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm flex items-center gap-3"
+          >
+            <Plus size={16} className="text-brand-blue" /> Cadastrar Aluno
+          </button>
+          <button 
+            onClick={() => navigate('/monthly')}
+            className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-900/10 flex items-center gap-3"
+          >
+            <Activity size={16} className="text-brand-lime" /> Iniciar Fechamento
           </button>
         </div>
       </motion.header>
@@ -103,18 +115,19 @@ export default function DashboardTest() {
       {/* Bento Grid - Unified Card Sizes */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Alunos', value: stats.totalStudents, icon: Users, color: 'text-brand-blue', bg: 'bg-brand-blue/5', detail: '+4 ativos' },
-          { label: 'Receita', value: formatCurrencyBRL(stats.currentMonthTotal), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', detail: 'Mês atual' },
-          { label: 'Cobrança', value: `${stats.collectionRate.toFixed(1)}%`, icon: Percent, color: 'text-white', bg: 'bg-slate-900', detail: 'Taxa líquida' },
-          { label: 'Pendências', value: stats.pendingCount, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', detail: 'Atenção' }
+          { label: 'Ticket Médio', value: formatCurrencyBRL(stats.averageTicket), icon: TrendingUp, color: 'text-brand-blue', bg: 'bg-brand-blue/5', detail: `${stats.currentMonthInvoicesCount} boletos`, path: '/students' },
+          { label: 'Receita Mês', value: formatCurrencyBRL(stats.currentMonthTotal), icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50', detail: 'Faturamento Bruto', path: '/reports' },
+          { label: 'Liquidez', value: `${stats.collectionRate.toFixed(1)}%`, icon: Percent, color: 'text-white', bg: 'bg-slate-900', detail: 'Eficiência Pago', path: '/invoices' },
+          { label: 'Inadimplência', value: formatCurrencyBRL(stats.overdueValue), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', detail: `${stats.overdueInvoices.length} títulos atrasados`, path: '/invoices' }
         ].map((stat, i) => (
           <motion.div 
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
+            onClick={() => stat.path && navigate(stat.path)}
             className={cn(
-              "p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all",
+              "p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all cursor-pointer",
               stat.bg === 'bg-slate-900' ? "bg-slate-900 border-slate-800 text-white" : "bg-white"
             )}
           >
@@ -140,7 +153,12 @@ export default function DashboardTest() {
               <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Pendências Críticas</h3>
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Ações necessárias</p>
             </div>
-            <button className="h-8 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest transition-all">Ver Lista</button>
+            <button 
+              onClick={() => navigate('/invoices')}
+              className="h-8 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest transition-all"
+            >
+              Ver Lista
+            </button>
           </div>
           
           <div className="divide-y divide-slate-50">
@@ -164,7 +182,10 @@ export default function DashboardTest() {
                   </div>
                   <div className="text-right">
                     <p className="text-base font-black text-slate-900 tabular-nums">{formatCurrencyBRL(inv.netAmount)}</p>
-                    <button className="text-brand-blue text-[9px] font-black uppercase tracking-widest mt-1 hover:underline flex items-center gap-1 ml-auto">
+                    <button 
+                      onClick={() => navigate('/invoices')}
+                      className="text-brand-blue text-[9px] font-black uppercase tracking-widest mt-1 hover:underline flex items-center gap-1 ml-auto"
+                    >
                       Cobranca <ArrowUpRight size={10} />
                     </button>
                   </div>
@@ -189,25 +210,28 @@ export default function DashboardTest() {
               </div>
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight">Fechamento</h3>
-                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mt-1 opacity-60">Próximo: Maio 2026</p>
+                <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest mt-1 opacity-60">Mensalidade e Consumo</p>
               </div>
-              <button className="w-full py-3 bg-white text-brand-blue rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all shadow-md">
-                Iniciar Ciclo
+              <button 
+                onClick={() => navigate('/monthly')}
+                className="w-full py-3 bg-white text-brand-blue rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all shadow-md"
+              >
+                Iniciar Fechamento Mensal
               </button>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atividade</h4>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo de Operações</h4>
               <Activity size={14} className="text-emerald-500" />
             </div>
             
             <div className="space-y-6">
               {[
-                { label: 'Importação OK', time: '14:20', icon: Receipt, color: 'text-brand-blue', bg: 'bg-brand-blue/5' },
-                { label: '5 Pagamentos', time: '10:05', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                { label: 'Backup Nuvem', time: '04:00', icon: Clock, color: 'text-slate-400', bg: 'bg-slate-50' }
+                { label: 'Consumo Importado', time: 'Sistema', icon: Receipt, color: 'text-brand-blue', bg: 'bg-brand-blue/5' },
+                { label: 'Pagamentos Identificados', time: 'Conciliação', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                { label: 'Sincronização Nuvem', time: 'Automatizado', icon: Clock, color: 'text-slate-400', bg: 'bg-slate-50' }
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-4 group">
                   <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", item.bg, item.color)}>
@@ -223,7 +247,10 @@ export default function DashboardTest() {
               ))}
             </div>
             
-            <button className="mt-8 w-full py-3 rounded-xl border border-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-600 transition-all">
+            <button 
+              onClick={() => navigate('/reports')}
+              className="mt-8 w-full py-3 rounded-xl border border-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-600 transition-all"
+            >
               Log Completo
             </button>
           </div>

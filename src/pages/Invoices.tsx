@@ -362,7 +362,37 @@ export default function Invoices() {
                          </span>
                       </td>
                       <td className="px-4 py-4 text-right">
-                         <span className="text-sm font-black text-slate-900 tracking-tight">{formatCurrencyBRL(inv.netAmount)}</span>
+                         <div className="flex flex-col items-end">
+                           <span className={cn(
+                             "text-sm font-black tracking-tight",
+                             inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate) && students.find(s => s.id === inv.studentId)?.hasTimelyPaymentDiscount
+                               ? "text-emerald-600"
+                               : "text-slate-900"
+                           )}>
+                             {(() => {
+                               const student = students.find(s => s.id === inv.studentId);
+                               const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
+                               const hasDiscount = student?.hasTimelyPaymentDiscount && student.personalDiscount > 0;
+                               
+                               if (isPaidInTime && hasDiscount) {
+                                 return formatCurrencyBRL(inv.netAmount - (inv.personalDiscountAmount || 0));
+                               }
+                               return formatCurrencyBRL(inv.netAmount);
+                             })()}
+                           </span>
+                           {(() => {
+                             const student = students.find(s => s.id === inv.studentId);
+                             const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
+                             if (isPaidInTime && student?.hasTimelyPaymentDiscount && student.personalDiscount > 0) {
+                               return (
+                                 <span className="text-[8px] font-black text-emerald-500 uppercase tracking-tighter">
+                                   Desc. Pontualidade Aplicado
+                                 </span>
+                               );
+                             }
+                             return null;
+                           })()}
+                         </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                          <span className="text-sm font-black text-slate-700 tracking-tight">
@@ -462,9 +492,9 @@ export default function Invoices() {
                      className="flex flex-col items-center gap-4 p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:border-brand-blue hover:bg-brand-blue/5 transition-all group"
                    >
                       <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-brand-blue shadow-sm transition-all">
-                        <Barcode size={24} />
+                        <DollarSign size={24} />
                       </div>
-                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-brand-blue">Baixar via Boleto</span>
+                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-brand-blue">Baixar via Espécie</span>
                    </button>
                 </div>
 

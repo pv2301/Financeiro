@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { 
   Calculator, Upload, CheckCircle2, Settings, Calendar, Search, X as XIcon, 
   Clock, AlertTriangle, Filter, Zap, MoreVertical, MessageSquare, ShieldCheck, 
-  Copy, User, Receipt, Download, Layers, BarChart3, Pencil, Trash2, ArrowUpRight
+  Copy, User, Receipt, Download, Layers, BarChart3, Pencil, Trash2, ArrowUpRight,
+  CreditCard, Plus
 } from "lucide-react";
 import { FixedBillingTable } from '../components/MonthlyProcessing/FixedBillingTable';
 import { ConsumptionTable } from '../components/MonthlyProcessing/ConsumptionTable';
@@ -18,9 +19,9 @@ import {
 import { finance } from "../services/finance";
 import { format } from "date-fns";
 import { formatCurrencyBRL, cn } from "../lib/utils";
-import { useMonthlyInvoices } from "../hooks/useMonthlyInvoices";
 import { calculateStudentInvoice, getPriceKey } from "../lib/finance-logic";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { useMonthlyInvoices } from "../hooks/useMonthlyInvoices";
 import ImportConsumptionModal from "../components/ImportConsumptionModal";
 import { TemplateModal } from "../components/MonthlyProcessing/TemplateModal";
 import { IntegralModals } from "../components/MonthlyProcessing/IntegralModals";
@@ -48,8 +49,11 @@ export default function MonthlyProcessing() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [monthYear, setMonthYear] = useState(format(new Date(), "MM/yyyy"));
   const [scholasticDays, setScholasticDays] = useState<Record<string, number | string>>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [categoryPrices, setCategoryPrices] = useState<Record<string, number>>({ GRUPO: 0, MATERNAL: 0 });
+  const [showCopyConfirm, setShowCopyConfirm] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [isSavingInvoices, setIsSavingInvoices] = useState(false);
   const [previewInvoices, setPreviewInvoices] = useState<Invoice[]>([]);
   const [activeTab, setActiveTab] = useState<"fixed" | "consumption" | "integral">("fixed");
@@ -85,13 +89,9 @@ export default function MonthlyProcessing() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showIntegralSelectModal, setShowIntegralSelectModal] = useState(false);
   const [showIntegralServiceModal, setShowIntegralServiceModal] = useState<string | null>(null);
-  const [modalStudentSearch, setModalStudentSearch] = useState("");
-  const [modalSegmentFilter, setModalSegmentFilter] = useState("all");
-  const [modalClassFilter, setModalClassFilter] = useState("all");
   const [consumptionFilter, setConsumptionFilter] = useState<'all' | 'imported' | 'pending'>('all');
   const [recentlyImportedIds, setRecentlyImportedIds] = useState<string[]>([]);
   const [showStudentNotes, setShowStudentNotes] = useState<Record<string, boolean>>({});
-  const [toast, setToast] = useState<string | null>(null);
   const lastSavedRef = useRef<string>("");
   const isFirstRender = useRef(true);
 
@@ -99,9 +99,6 @@ export default function MonthlyProcessing() {
     students, classes, services, messageTemplates, mandatorySnackBySegment,
     activeTab, integralItems, dbConsumption
   });
-
-  // Handle persistent selection
-  // Note: We removed the auto-clear on activeTab change to respect the user's request for persistence
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -138,69 +135,6 @@ export default function MonthlyProcessing() {
     load();
   }, []);
 
-  // --- Draft Loading from DB ---
-  useEffect(() => {
-    async function loadDraft() {
-      setIsLoadingDraft(true);
-      try {
-        const draft = await finance.getBillingDraft(monthYear);
-        if (draft) {
-          if (draft.manualAbsences) setManualAbsences(draft.manualAbsences);
-          if (draft.bankSlipNumbers) setBankSlipNumbers(draft.bankSlipNumbers);
-          if (draft.manualDueDates) setManualDueDates(draft.manualDueDates);
-          if (draft.invoiceNotes) setInvoiceNotes(draft.invoiceNotes);
-          if (draft.integralItems) setIntegralItems(draft.integralItems);
-          if (draft.removedStudentIds) setRemovedStudentIds(draft.removedStudentIds);
-          setSelectedIds(new Set(draft.selectedIds || []));
-        } else {
-          // Reset if no draft found for this month
-          setManualAbsences({});
-          setBankSlipNumbers({});
-          setManualDueDates({});
-          setInvoiceNotes({});
-          setIntegralItems({});
-          setRemovedStudentIds([]);
-        }
-      } finally {
-        setIsLoadingDraft(false);
-      }
-    }
-    loadDraft();
-  }, [monthYear, setSelectedIds]);
-
-  // --- Draft Saving to DB (Debounced) ---
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      const draftData = {
-        id: monthYear,
-        manualAbsences,
-        bankSlipNumbers,
-        manualDueDates,
-        invoiceNotes,
-        integralItems,
-        removedStudentIds,
-        selectedIds: Array.from(selectedIds),
-        lastUpdated: new Date().toISOString()
-      };
-      await finance.saveBillingDraft(draftData);
-    }, 2000); // 2 second debounce
-
-    return () => clearTimeout(timer);
-  }, [monthYear, manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds]);
-
-  const getCurrentMonthDays = (): number => {
-    const parts = monthYear.split("/");
-    if (parts.length !== 2) return 0;
-    const key = `${parts[1]}-${parts[0]}`;
-    const val = scholasticDays[key];
-    return typeof val === "number" ? val : parseInt(val as string) || 0;
-  };
-
   // --- Calculation Logic ---
   const generatePreview = useCallback((consumptionData: any[]) => {
     const newInvoices: Invoice[] = [];
@@ -220,6 +154,7 @@ export default function MonthlyProcessing() {
         manualAbsences: manualAbsences[student.id] || 0,
         businessDays, monthYear, ageRefDay, emissionFee: boletoFee,
         collegeShareBySegment, mandatorySnackBySegment,
+        categoryPrices
       });
 
       let dueDate = manualDueDates[student.id];
@@ -257,7 +192,6 @@ export default function MonthlyProcessing() {
       const student = students.find(s => s.id === studentId);
       if (!student) return;
       const amount = items.reduce((a: any, b: any) => a + (b.price * b.quantity), 0);
-      // if (amount <= 0) return; // Allow students with no services to appear in the table
 
       const studentClass = classes.find(c => c.id === student.classId);
       const dueDate = manualDueDates[studentId] || format(new Date(monthYear.split('/')[1] as any, parseInt(monthYear.split('/')[0]) as any, student.dueDay || defaultDueDay), "yyyy-MM-dd");
@@ -291,7 +225,7 @@ export default function MonthlyProcessing() {
       const nameB = students.find(s => s.id === b.studentId)?.name || "";
       return nameA.localeCompare(nameB);
     }));
-  }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay]);
+  }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay, categoryPrices]);
 
   const getDraftData = useCallback(() => ({
     manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, 
@@ -326,10 +260,12 @@ export default function MonthlyProcessing() {
           setInvoiceNotes(draft.invoiceNotes || {});
           setIntegralItems(draft.integralItems || {});
           setRemovedStudentIds(draft.removedStudentIds || []);
+          setCategoryPrices(draft.categoryPrices || { GRUPO: 0, MATERNAL: 0 });
           setSelectedIds(new Set(draft.selectedIds || []));
         } else {
           setManualAbsences({}); setBankSlipNumbers({}); setManualDueDates({});
           setInvoiceNotes({}); setIntegralItems({}); setRemovedStudentIds([]); setSelectedIds(new Set());
+          setCategoryPrices({ GRUPO: 0, MATERNAL: 0 });
         }
         const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
         setDbConsumption(consumption || []);
@@ -339,7 +275,7 @@ export default function MonthlyProcessing() {
       }
     }
     init();
-  }, [monthYear, students.length]);
+  }, [monthYear, students.length, generatePreview]);
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
@@ -347,44 +283,34 @@ export default function MonthlyProcessing() {
     return () => clearTimeout(timer);
   }, [manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds, saveCurrentDraft]);
 
-  // --- Filtering ---
-  const filteredInvoices = useMemo(() => {
-    return previewInvoices.filter(inv => {
-      const student = students.find(s => s.id === inv.studentId);
-      if (!student) return false;
-      const matchesSearch = student.name.toLowerCase().includes(studentSearch.toLowerCase());
-      const matchesClass = classFilter === "all" || student.classId === classFilter;
-      const matchesSegment = segmentFilter === "all" || student.segment === segmentFilter;
-      const matchesTab = activeTab === "integral" ? inv.isIntegral : 
-                        activeTab === "consumption" ? (inv.billingMode === "POSTPAID_CONSUMPTION" && !inv.isIntegral) :
-                        (inv.billingMode !== "POSTPAID_CONSUMPTION" && !inv.isIntegral);
-      
-      return matchesSearch && matchesClass && matchesSegment && matchesTab;
-    });
-  }, [previewInvoices, students, studentSearch, classFilter, segmentFilter, activeTab]);
+  const getCurrentMonthDays = (): number => {
+    const parts = monthYear.split("/");
+    if (parts.length !== 2) return 0;
+    const key = `${parts[1]}-${parts[0]}`;
+    const val = scholasticDays[key];
+    return typeof val === "number" ? val : parseInt(val as string) || 0;
+  };
 
-  const tabStats = useMemo(() => {
-    const stats = { fixed: { total: 0, selected: 0 }, consumption: { total: 0, selected: 0 }, integral: { total: 0, selected: 0 } };
-    previewInvoices.forEach(inv => {
-      let type: "fixed" | "consumption" | "integral" = "fixed";
-      if (inv.isIntegral) type = "integral";
-      else if (inv.billingMode === "POSTPAID_CONSUMPTION") type = "consumption";
-      stats[type].total++;
-      if (selectedIds.has(inv.id)) stats[type].selected++;
+  const handleConfirmSelection = useCallback(async (selectedIds: string[]) => {
+    const newItems = { ...integralItems };
+    
+    // Add new ones (don't remove existing ones)
+    selectedIds.forEach(id => {
+      if (!newItems[id]) newItems[id] = [];
     });
-    return stats;
-  }, [previewInvoices, selectedIds]);
 
-  const canGenerate = useMemo(() => {
-    return selectedIds.size > 0 && Array.from(selectedIds).some(id => {
-      const inv = previewInvoices.find(i => i.id === id);
-      return inv && !!bankSlipNumbers[inv.studentId];
+    setIntegralItems(newItems);
+    setShowIntegralSelectModal(false);
+    
+    // Force preview update and save
+    const draftData = { ...getDraftData(), integralItems: newItems };
+    await finance.saveBillingDraft({
+      id: monthYear,
+      ...draftData,
+      lastUpdated: new Date().toISOString(),
     });
-  }, [selectedIds, previewInvoices, bankSlipNumbers]);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [activeTab]);
+    showToast("Lista de alunos atualizada!");
+  }, [integralItems, getDraftData, monthYear, showToast]);
 
   const handleRemoveStudent = useCallback(async (studentId: string) => {
     const newRemoved = [...removedStudentIds, studentId];
@@ -412,6 +338,23 @@ export default function MonthlyProcessing() {
     showToast(`${studentIdsToRemove.length} alunos removidos!`);
   };
 
+  const handleCopyPreviousPrices = async () => {
+    const parts = monthYear.split("/");
+    let m = parseInt(parts[0]);
+    let y = parseInt(parts[1]);
+    if (m === 1) { m = 12; y--; } else { m--; }
+    const prevMonthYear = `${m.toString().padStart(2, '0')}/${y}`;
+    
+    const prevDraft = await finance.getBillingDraft(prevMonthYear);
+    if (prevDraft && prevDraft.categoryPrices) {
+      setCategoryPrices(prevDraft.categoryPrices);
+      showToast("Valores copiados de " + prevMonthYear);
+    } else {
+      showToast("Nenhum valor encontrado no mês anterior.");
+    }
+    setShowCopyConfirm(false);
+  };
+
   const handleSaveInvoices = async () => {
     setIsSavingInvoices(true);
     try {
@@ -420,7 +363,6 @@ export default function MonthlyProcessing() {
 
       const toSave = previewInvoices.filter(inv => selectedIds.has(inv.id) && !!bankSlipNumbers[inv.studentId]);
       
-      // Duplicate detection
       const duplicates = toSave.filter(inv => 
         currentMonthInvoices.some(ex => ex.studentId === inv.studentId && Math.abs(ex.netAmount - inv.netAmount) < 0.01)
       );
@@ -463,10 +405,8 @@ export default function MonthlyProcessing() {
         </div>
       </header>
 
-      {/* Referência do Período */}
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card: Período Selecionado */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-brand-blue/30 transition-all">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center text-brand-blue shadow-inner group-hover:scale-110 transition-transform">
@@ -479,13 +419,11 @@ export default function MonthlyProcessing() {
                 </span>
               </div>
             </div>
-            {/* Visual Indicator of Year */}
             <div className="hidden lg:flex px-4 py-2 bg-slate-50 rounded-full border border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
               Ciclo {monthYear.split("/")[1]}
             </div>
           </div>
 
-          {/* Card: Dias Letivos */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-brand-blue/30 transition-all">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-brand-blue/5 rounded-3xl flex items-center justify-center text-brand-blue shadow-inner group-hover:scale-110 transition-transform">
@@ -502,7 +440,6 @@ export default function MonthlyProcessing() {
           </div>
         </div>
 
-        {/* Seletor de Meses */}
         <div className="bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm">
           <div className="grid grid-cols-6 lg:grid-cols-12 gap-2">
             {MONTHS_FULL.map((m, i) => {
@@ -534,7 +471,6 @@ export default function MonthlyProcessing() {
         </div>
       </div>
 
-      {/* Tabela e Controles */}
       <div className="space-y-8">
         <div className="sticky top-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4 w-full lg:flex-1">
@@ -551,14 +487,6 @@ export default function MonthlyProcessing() {
                  <option value="all">Turmas</option>
                  {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                </select>
-               {activeTab === 'consumption' && (
-                 <button 
-                   onClick={() => setShowImportModal(true)} 
-                   className="flex items-center gap-2 bg-brand-blue/5 text-brand-blue px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-brand-blue/10 hover:bg-brand-blue/10 transition-all shadow-sm"
-                 >
-                   <Upload size={16} /> Importar Consumo
-                 </button>
-               )}
             </div>
              <button 
                disabled={selectedIds.size === 0 || previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length === 0} 
@@ -573,7 +501,11 @@ export default function MonthlyProcessing() {
         <div className="flex bg-white p-2 rounded-2xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
           {(["fixed", "consumption", "integral"] as const).map((tab) => {
             const isSel = activeTab === tab;
-            const stats = tabStats[tab];
+            const stats = {
+              fixed: previewInvoices.filter(i => !i.isIntegral && i.billingMode !== "POSTPAID_CONSUMPTION").length,
+              consumption: previewInvoices.filter(i => !i.isIntegral && i.billingMode === "POSTPAID_CONSUMPTION").length,
+              integral: previewInvoices.filter(i => i.isIntegral).length
+            };
             return (
                <button key={tab} onClick={() => { setActiveTab(tab); setSelectedIds(new Set()); }} className={cn(
                 "flex-1 px-6 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex flex-col items-center gap-1",
@@ -581,7 +513,7 @@ export default function MonthlyProcessing() {
               )}>
                 <span>{tab === "fixed" ? "Mensalidades" : tab === "consumption" ? "Consumo" : "Integral"}</span>
                 <span className={cn("text-[9px] opacity-60", isSel ? "text-brand-lime" : "")}>
-                   {stats.selected > 0 ? `${stats.selected} / ` : ""}{stats.total} Alunos
+                   {stats[tab]} Alunos
                 </span>
               </button>
             );
@@ -590,7 +522,60 @@ export default function MonthlyProcessing() {
 
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden min-h-[400px]">
           {activeTab === 'fixed' && (
-            <FixedBillingTable 
+            <>
+               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+                 <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+                   <div className="flex items-center gap-6">
+                     <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                       <CreditCard size={24} className="text-brand-lime" />
+                     </div>
+                     <div>
+                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Configuração de Mensalidades</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Defina os valores base para este mês ({monthYear})</p>
+                     </div>
+                   </div>
+                   
+                   <div className="flex flex-wrap items-center gap-6">
+                     <div className="flex flex-col gap-2">
+                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Turmas GRUPO</label>
+                       <div className="relative">
+                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                         <input 
+                           type="number" 
+                           value={categoryPrices.GRUPO || ''} 
+                           onChange={(e) => setCategoryPrices(prev => ({ ...prev, GRUPO: parseFloat(e.target.value) || 0 }))}
+                           className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:border-brand-blue outline-none font-bold text-slate-700 w-32 shadow-sm transition-all"
+                           placeholder="0,00"
+                         />
+                       </div>
+                     </div>
+                     
+                     <div className="flex flex-col gap-2">
+                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Turmas MATERNAL</label>
+                       <div className="relative">
+                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                         <input 
+                           type="number" 
+                           value={categoryPrices.MATERNAL || ''} 
+                           onChange={(e) => setCategoryPrices(prev => ({ ...prev, MATERNAL: parseFloat(e.target.value) || 0 }))}
+                           className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:border-brand-blue outline-none font-bold text-slate-700 w-32 shadow-sm transition-all"
+                           placeholder="0,00"
+                         />
+                       </div>
+                     </div>
+ 
+                     <div className="h-12 w-px bg-slate-200 mx-2 hidden lg:block" />
+ 
+                      <button 
+                        onClick={() => setShowCopyConfirm(true)}
+                        className="flex items-center gap-3 px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                      >
+                        <Copy size={16} /> Copiar Mês Anterior
+                      </button>
+                    </div>
+                 </div>
+               </div>
+               <FixedBillingTable 
               previewInvoices={previewInvoices}
               students={students}
               classes={classes}
@@ -623,10 +608,36 @@ export default function MonthlyProcessing() {
               setToast={showToast}
               onRemoveStudent={handleRemoveStudent}
             />
+            </>
           )}
 
           {activeTab === 'consumption' && (
-            <ConsumptionTable 
+             <>
+               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+                 <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+                   <div className="flex items-center gap-6">
+                     <div className="w-14 h-14 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue shadow-lg">
+                       <Upload size={24} />
+                     </div>
+                     <div>
+                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Gestão de Consumo</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Importe os dados da planilha de cantina ({monthYear})</p>
+                     </div>
+                   </div>
+                   
+                   <div className="flex items-center gap-4">
+                     <motion.button 
+                       whileHover={{ scale: 1.02 }}
+                       whileTap={{ scale: 0.98 }}
+                       onClick={() => setShowImportModal(true)} 
+                       className="flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-blue transition-all shadow-xl shadow-slate-900/20"
+                     >
+                       <Upload size={18} /> Importar Arquivo de Consumo
+                     </motion.button>
+                   </div>
+                 </div>
+               </div>
+               <ConsumptionTable 
               previewInvoices={previewInvoices}
               students={students}
               classes={classes}
@@ -654,10 +665,36 @@ export default function MonthlyProcessing() {
               setToast={showToast}
               onRemoveStudent={handleRemoveStudent}
             />
+             </>
           )}
 
           {activeTab === 'integral' && (
-            <IntegralBillingTable 
+             <>
+               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+                 <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+                   <div className="flex items-center gap-6">
+                     <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 shadow-lg">
+                       <User size={24} />
+                     </div>
+                     <div>
+                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Serviços e Integral</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Adicione serviços avulsos ou alunos no integral</p>
+                     </div>
+                   </div>
+                   
+                   <div className="flex items-center gap-4">
+                     <motion.button 
+                       whileHover={{ scale: 1.02 }}
+                       whileTap={{ scale: 0.98 }}
+                       onClick={() => setShowIntegralSelectModal(true)}
+                       className="flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-blue transition-all shadow-xl shadow-slate-900/20"
+                     >
+                       <Plus size={18} className="text-brand-lime" /> Adicionar Aluno
+                     </motion.button>
+                   </div>
+                 </div>
+               </div>
+               <IntegralBillingTable 
               previewInvoices={previewInvoices}
               students={students}
               classes={classes}
@@ -683,6 +720,7 @@ export default function MonthlyProcessing() {
               setToast={showToast}
               onRemoveStudent={handleRemoveStudent}
             />
+            </>
           )}
         </div>
       </div>
@@ -736,6 +774,19 @@ export default function MonthlyProcessing() {
           )}
         </AnimatePresence>
 
+      {showCopyConfirm && (
+        <ConfirmDialog
+          isOpen={true}
+          title="COPIAR VALORES?"
+          message={`Deseja realmente carregar os valores de mensalidade do mês anterior? Isso irá substituir os valores atuais.`}
+          confirmLabel="COPIAR AGORA"
+          cancelLabel="CANCELAR"
+          onConfirm={handleCopyPreviousPrices}
+          onCancel={() => setShowCopyConfirm(false)}
+          variant="warning"
+        />
+      )}
+
       <ConfirmDialog isOpen={showSaveConfirm} title="Gerar Boletos Oficiais" message={`Você está prestes a gerar faturas para ${previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length} alunos selecionados. Prosseguir?`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
       <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={() => { setMonthYear(monthYear); showToast("Consumo Importado!"); }} monthYear={monthYear} students={students} />
       <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} messageTemplates={messageTemplates} setMessageTemplates={setMessageTemplates} setToast={showToast} />
@@ -752,13 +803,8 @@ export default function MonthlyProcessing() {
         monthYear={monthYear} 
         saveCurrentDraft={saveCurrentDraft} 
         ageRefDay={ageRefDay}
-        modalStudentSearch={modalStudentSearch}
-        setModalStudentSearch={setModalStudentSearch}
-        modalSegmentFilter={modalSegmentFilter}
-        setModalSegmentFilter={setModalSegmentFilter}
-        modalClassFilter={modalClassFilter}
-        setModalClassFilter={setModalClassFilter}
         getPriceKey={getPriceKey}
+        onConfirmSelection={handleConfirmSelection}
       />
     </div>
   );

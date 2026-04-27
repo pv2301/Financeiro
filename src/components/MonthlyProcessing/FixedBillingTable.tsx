@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Copy, AlertTriangle, User, Receipt, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Copy, AlertTriangle, User, Receipt, ArrowUpDown } from 'lucide-react';
 import { Invoice, Student, ClassInfo, ServiceItem } from '../../types';
 import { cn, formatCurrencyBRL, formatFullAge } from '../../lib/utils';
 import { calculateStudentInvoice } from '../../lib/finance-logic';
@@ -68,8 +68,7 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
   setManualDueDates,
   formatStudentCopyId,
   getStudentMessage,
-  setToast,
-  onRemoveStudent
+  setToast
 }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -129,7 +128,6 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
             <th className="pb-4 px-4 text-right">Descontos</th>
             <th className="pb-4 px-4 text-center">Boleto / Obs</th>
             <th className="pb-4 px-4 text-center">Vencimento</th>
-            <th className="pb-4 px-4 text-center">Status</th>
             <th className="pb-4 px-4 text-right">Líquido</th>
           </tr>
         </thead>
@@ -177,7 +175,7 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                   <div className="flex flex-col min-w-[250px]">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-black text-slate-800 leading-none uppercase tracking-tight">
-                        {s?.name || "Desconhecido"}
+                        {s?.name?.replace(/^\([AEIOU]\)\s+/i, '') || "Desconhecido"}
                       </p>
                       <button 
                         onClick={() => { navigator.clipboard.writeText(formatStudentCopyId(s?.name || "")); setToast(`ID de ${s?.name} copiado!`); }} 
@@ -269,14 +267,9 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                 </td>
                 <td className="py-4 px-4 text-right border-y border-transparent group-hover:border-slate-100 transition-colors">
                   <div className="flex flex-col items-end gap-1">
-                    {inv.absenceDiscountAmount > 0 ? (
-                      <span className="text-[11px] font-black text-red-500 uppercase tracking-tighter">
-                        -{formatCurrencyBRL(inv.absenceDiscountAmount)} FALTAS
-                      </span>
-                    ) : null}
                     {s?.personalDiscount ? (
                       <span className="text-[11px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 uppercase tracking-tighter">
-                        {s.personalDiscount}% PONTUAL
+                        {s.personalDiscount}% ({formatCurrencyBRL(inv.personalDiscountAmount)})
                       </span>
                     ) : null}
                     {!inv.absenceDiscountAmount && !s?.personalDiscount && (
@@ -319,15 +312,6 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                     className="text-[10px] font-black text-slate-600 bg-slate-50 border-2 border-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue transition-all uppercase"
                   />
                 </td>
-                <td className="py-4 px-4 text-center border-y border-transparent group-hover:border-slate-100 transition-colors">
-                  <div className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
-                    bankSlipNumbers[inv.studentId] ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                  )}>
-                    <div className={cn("w-1 h-1 rounded-full", bankSlipNumbers[inv.studentId] ? "bg-emerald-500" : "bg-amber-500")} />
-                    {bankSlipNumbers[inv.studentId] ? "PRONTO" : "PENDENTE"}
-                  </div>
-                </td>
                 <td className="py-4 px-4 text-right rounded-r-2xl border-y border-r border-transparent group-hover:border-slate-100 transition-colors">
                   <div className="group relative cursor-help flex flex-col items-end">
                     <span className="text-base font-black text-brand-blue tracking-tight">{formatCurrencyBRL(inv.netAmount)}</span>
@@ -343,21 +327,20 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                         </div>
                         {inv.absenceDiscountAmount > 0 && (
                           <div className="flex justify-between items-center text-rose-400">
-                            <span className="font-black uppercase tracking-widest text-[9px]">Desconto por Faltas:</span> 
+                            <span className="font-black uppercase tracking-widest text-[9px]">Desconto Faltas ({manualAbsences[inv.studentId]} {manualAbsences[inv.studentId] === 1 ? 'dia' : 'dias'}):</span> 
                             <span className="font-mono text-xs">- {formatCurrencyBRL(inv.absenceDiscountAmount)}</span>
-                          </div>
-                        )}
-                         {/* Desconto Pessoal removido a pedido do usuário */}
-                        {(inv.totalServices || businessDays) > 0 && (
-                          <div className="flex justify-between items-center text-slate-300">
-                            <span className="font-black uppercase tracking-widest text-[9px]">Consumo:</span> 
-                            <span className="font-mono text-xs">{(inv.totalServices || businessDays) - (manualAbsences[inv.studentId] || 0)} {(inv.totalServices || businessDays) - (manualAbsences[inv.studentId] || 0) === 1 ? 'dia' : 'dias'}</span>
                           </div>
                         )}
                         <div className="flex justify-between items-center pt-3 border-t border-white/10 font-black text-emerald-400 text-sm">
                           <span className="uppercase tracking-widest text-[10px]">Líquido Final:</span> 
                           <span className="font-mono">{formatCurrencyBRL(inv.netAmount)}</span>
                         </div>
+                        {s?.personalDiscount ? (
+                          <div className="flex justify-between items-center pt-2 border-t border-white/5 text-amber-400/60 italic">
+                            <span className="font-black uppercase tracking-tight text-[8px]">DESC. PONTUAL ({s.personalDiscount}%):</span> 
+                            <span className="font-mono text-[9px]">{formatCurrencyBRL(inv.personalDiscountAmount)}</span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -370,4 +353,3 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
     </div>
   );
 };
-

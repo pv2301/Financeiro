@@ -123,9 +123,7 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                 <ArrowUpDown size={12} className={cn("transition-opacity", sortOrder === 'asc' ? "opacity-40" : "opacity-100")} />
               </button>
             </th>
-            <th className="pb-4 px-4">Status</th>
             <th className="pb-4 px-4 text-right">Valor Base</th>
-            <th className="pb-4 px-4">Resumo Consumo</th>
             <th className="pb-4 px-4 text-center">Boleto / Obs</th>
             <th className="pb-4 px-4 text-center">Vencimento</th>
             <th className="pb-4 px-4 text-right">Líquido</th>
@@ -176,7 +174,7 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                   <div className="flex flex-col min-w-[250px]">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-black text-slate-800 leading-none uppercase tracking-tight">
-                        {s?.name || "Desconhecido"}
+                        {s?.name?.replace(/^\([AEIOU]\)\s+/i, '') || "Desconhecido"}
                       </p>
                       <button
                         onClick={() => {
@@ -232,35 +230,8 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                     </div>
                   </div>
                 </td>
-                <td className="py-4 px-4 border-y border-transparent group-hover:border-slate-100 transition-colors">
-                  {consumption ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
-                      <CheckCircle2 size={12} /> Importado
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-50 text-slate-400 border border-slate-100">
-                      <Receipt size={12} /> Pendente
-                    </span>
-                  )}
-                </td>
                 <td className="py-4 px-4 text-right border-y border-transparent group-hover:border-slate-100 transition-colors">
                   <span className="text-sm font-bold text-slate-500">{formatCurrencyBRL(inv.grossAmount)}</span>
-                </td>
-                <td className="py-4 px-4 border-y border-transparent group-hover:border-slate-100 transition-colors">
-                  {consumption ? (
-                    <div className="flex flex-wrap gap-1.5 max-w-[250px]">
-                      {Object.entries(consumption.summary).map(([name, qty]) => (
-                        <span key={name} className="text-[9px] font-black uppercase tracking-tighter bg-white text-slate-600 px-2 py-1 rounded-lg border border-slate-200 shadow-sm whitespace-nowrap">
-                          {(qty as number)}x {services.find(svc => svc.name.toLowerCase() === name.toLowerCase())?.name || name}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-slate-300">
-                      <AlertTriangle size={12} />
-                      <span className="text-[10px] font-bold italic">Sem consumo registrado</span>
-                    </div>
-                  )}
                 </td>
                 <td className="py-4 px-4 border-y border-transparent group-hover:border-slate-100 transition-colors">
                   <div className="flex flex-col gap-1.5 min-w-[120px]">
@@ -311,6 +282,12 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
                           <span className="uppercase tracking-widest text-[10px]">Líquido Final:</span> 
                           <span className="font-mono">{formatCurrencyBRL(inv.netAmount)}</span>
                         </div>
+                        {s?.personalDiscount ? (
+                          <div className="flex justify-between items-center pt-2 border-t border-white/5 text-amber-400/60 italic">
+                            <span className="font-black uppercase tracking-tight text-[8px]">DESC. PONTUAL ({s.personalDiscount}%):</span> 
+                            <span className="font-mono text-[9px]">{formatCurrencyBRL(inv.personalDiscountAmount)}</span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>

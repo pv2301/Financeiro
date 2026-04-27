@@ -214,10 +214,11 @@ export interface BillingDraft {
   id: string; // monthYear (e.g., "04-2026")
   manualAbsences: Record<string, number>;
   bankSlipNumbers: Record<string, string>;
-  manualDueDates: Record<string, string>;
-  invoiceNotes: Record<string, string>;
-  integralItems: Record<string, { serviceId: string; quantity: number; price: number; name: string }[]>;
+  manualDueDates?: Record<string, string>;
+  invoiceNotes?: Record<string, string>;
+  integralItems?: Record<string, any>;
   removedStudentIds?: string[];
   selectedIds?: string[];
-  lastUpdated: string;
+  categoryPrices?: Record<string, number>; // New: Category-based monthly prices
+  lastUpdated?: string;
 }
