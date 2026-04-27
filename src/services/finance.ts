@@ -28,18 +28,17 @@ import {
   UserPresence
 } from '../types';
 
-// ─── Collection names ─────────────────────────────────────────────────────
 const C = {
   STUDENTS:  'fin_students',
   CLASSES:   'fin_classes',
-  SERVICES:  'fin_snacks', // Kept as fin_snacks to match firestore.rules
+  SERVICES:  'fin_snacks', 
   INVOICES:  'fin_invoices',
   CONFIG:    'fin_config',
   PRESENCE:  'fin_presence',
   CONSUMPTION: 'fin_consumption',
   AUDIT_LOGS: 'fin_audit_logs',
   BILLING_DRAFTS: 'fin_billing_drafts',
-  STATS: 'fin_config', // stats doc lives here
+  STATS: 'fin_config', 
 };
 
 const STATS_DOC_ID = 'stats';
@@ -158,10 +157,6 @@ function invalidateCache(key?: string) {
 }
 
 async function getAllFromCollection<T extends { deletedAt?: string | null }>(col: string): Promise<T[]> {
-  // Try cache first
-  const cached = getCachedData<T>(col);
-  if (cached) return cached;
-
   try {
     const snap = await getDocs(collection(db, col));
     const data = snap.docs.map(d => {
@@ -171,7 +166,6 @@ async function getAllFromCollection<T extends { deletedAt?: string | null }>(col
       return item as T;
     }).filter(item => !item.deletedAt);
     
-    setCachedData(col, data);
     return data;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, col);

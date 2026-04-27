@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Shield, Clock, Trash2, RotateCcw, AlertTriangle, ShieldAlert, 
   UserCheck, UserX, Plus, Database, FileText, CheckCircle2,
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { finance } from '../services/finance';
 import { useAuth } from '../hooks/useAuth';
-import { profilesService, UserProfile, UserRole } from '../services/profiles';
+import { profilesService, UserProfile } from '../services/profiles';
 import { AuditLog } from '../types';
 import DeleteDataModal from '../components/DeleteDataModal';
 import * as XLSX from 'xlsx';
@@ -35,8 +35,7 @@ export default function SystemCenterTest() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [preApproveEmail, setPreApproveEmail] = useState('');
-  const [preApproveFinanceRole, setPreApproveFinanceRole] = useState<UserRole>('EDITOR');
-  const [preApproveMenuRole, setPreApproveMenuRole] = useState<UserRole>('NONE');
+  const [preApproveRole, setPreApproveRole] = useState<'ADMIN' | 'EDITOR' | 'VIEWER'>('EDITOR');
   const [isPreApproving, setIsPreApproving] = useState(false);
   const [presenceEnabled, setPresenceEnabled] = useState(true);
 
@@ -113,7 +112,7 @@ export default function SystemCenterTest() {
     if (!preApproveEmail) return;
     setIsPreApproving(true);
     try {
-      await profilesService.preApproveEmail(preApproveEmail, preApproveFinanceRole, preApproveMenuRole);
+      await profilesService.preApproveEmail(preApproveEmail, preApproveRole);
       showToast('E-mail Autorizado!');
       setPreApproveEmail('');
       loadData();
@@ -148,7 +147,7 @@ export default function SystemCenterTest() {
   const handleUpdateAppRole = async (uid: string, app: 'finance' | 'menu', role: UserRole) => {
     try {
       await profilesService.updateAppRole(uid, app, role);
-      showToast('Permissão Atualizada');
+      showToast('PermissÃ£o Atualizada');
       loadData();
     } catch (e) {
       console.error(e);
@@ -163,7 +162,7 @@ export default function SystemCenterTest() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(students), "Alunos");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(classes), "Turmas");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(services), "Serviços");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(services), "ServiÃ§os");
       XLSX.writeFile(wb, `backup_sistema_${new Date().toLocaleDateString('pt-BR')}.xlsx`);
       showToast('Backup Exportado!');
     } catch (e) {
@@ -179,7 +178,7 @@ export default function SystemCenterTest() {
         </div>
         <div className="text-center">
           <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Acesso Restrito</h2>
-          <p className="text-sm font-medium text-slate-400">Somente administradores podem acessar esta área.</p>
+          <p className="text-sm font-medium text-slate-400">Somente administradores podem acessar esta Ã¡rea.</p>
         </div>
       </div>
     );
@@ -207,7 +206,7 @@ export default function SystemCenterTest() {
           </div>
           <div>
             <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Sistema</h1>
-            <p className="text-slate-500 font-medium text-xs mt-1">Ajustes avançados e manutenção.</p>
+            <p className="text-slate-500 font-medium text-xs mt-1">Ajustes avanÃ§ados e manutenÃ§Ã£o.</p>
           </div>
         </div>
 
@@ -247,7 +246,7 @@ export default function SystemCenterTest() {
           {activeTab === 'audit' && (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="flex bg-slate-50 border-b border-slate-100 p-1">
-                <button onClick={() => setAuditSubTab('logs')} className={cn("flex-1 py-2 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all", auditSubTab === 'logs' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400')}>Histórico</button>
+                <button onClick={() => setAuditSubTab('logs')} className={cn("flex-1 py-2 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all", auditSubTab === 'logs' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400')}>HistÃ³rico</button>
                 <button onClick={() => setAuditSubTab('trash')} className={cn("flex-1 py-2 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all", auditSubTab === 'trash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400')}>Lixeira</button>
               </div>
 
@@ -258,10 +257,10 @@ export default function SystemCenterTest() {
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 text-slate-400 font-black uppercase tracking-widest text-[9px]">
                       <tr>
-                        <th className="px-6 py-4">Horário</th>
-                        <th className="px-6 py-4">Usuário</th>
-                        <th className="px-6 py-4">Ação</th>
-                        <th className="px-6 py-4">Área</th>
+                        <th className="px-6 py-4">HorÃ¡rio</th>
+                        <th className="px-6 py-4">UsuÃ¡rio</th>
+                        <th className="px-6 py-4">AÃ§Ã£o</th>
+                        <th className="px-6 py-4">Ãrea</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-xs">
@@ -290,7 +289,7 @@ export default function SystemCenterTest() {
                         <tr>
                            <th className="px-6 py-4">Removido em</th>
                            <th className="px-6 py-4">Nome</th>
-                           <th className="px-6 py-4 text-right">Ação</th>
+                           <th className="px-6 py-4 text-right">AÃ§Ã£o</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 text-xs">
@@ -317,44 +316,25 @@ export default function SystemCenterTest() {
                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                     <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3"><Lock size={20} className="text-brand-blue" /> Liberar Acesso</h3>
                     <form onSubmit={handlePreApprove} className="space-y-4">
-                        <input type="email" placeholder="EMAIL DO USUÁRIO..." value={preApproveEmail} onChange={e => setPreApproveEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-900 outline-none focus:border-brand-blue transition-all" required />
-                        
-                        <div className="space-y-1">
-                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Acesso Financeiro</label>
-                           <select value={preApproveFinanceRole} onChange={e => setPreApproveFinanceRole(e.target.value as any)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer">
-                              <option value="ADMIN">ADMINISTRADOR</option>
-                              <option value="EDITOR">EDITOR</option>
-                              <option value="VIEWER">VISUALIZADOR</option>
-                              <option value="NONE">NENHUM</option>
-                           </select>
-                        </div>
-
-                        <div className="space-y-1">
-                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Acesso Cardápio</label>
-                           <select value={preApproveMenuRole} onChange={e => setPreApproveMenuRole(e.target.value as any)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer">
-                              <option value="ADMIN">ADMINISTRADOR</option>
-                              <option value="EDITOR">EDITOR</option>
-                              <option value="VIEWER">VISUALIZADOR</option>
-                              <option value="NONE">NENHUM</option>
-                           </select>
-                        </div>
+                       <input type="email" placeholder="EMAIL DO USUÃRIO..." value={preApproveEmail} onChange={e => setPreApproveEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-900 outline-none focus:border-brand-blue transition-all" required />
+                       <select value={preApproveRole} onChange={e => setPreApproveRole(e.target.value as any)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer">
+                          <option value="EDITOR">EDITOR</option>
+                          <option value="VIEWER">VISUALIZADOR</option>
+                          <option value="ADMIN">ADMINISTRADOR</option>
+                       </select>
                        <button type="submit" disabled={isPreApproving || !isSuperAdmin} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-md disabled:opacity-50">Autorizar</button>
                     </form>
                  </div>
                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                     <button onClick={handleTogglePresence} className={cn("w-full flex items-center justify-between px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all", presenceEnabled ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-400')}>
-                       <span>Rastreio de Usuários</span>
+                       <span>Rastreio de UsuÃ¡rios</span>
                        {presenceEnabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                     </button>
                  </div>
               </div>
               <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center">
-                    <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm flex-1">Usuários Ativos</h3>
-                    <div className="flex gap-20 pr-16 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                       <span className="w-24 text-center">Financeiro</span>
-                       <span className="w-24 text-center">Cardápio</span>
-                    </div>
+                 <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">UsuÃ¡rios Ativos</h3>
                  </div>
                  <div className="divide-y divide-slate-50">
                     {profiles.map(p => (
@@ -368,37 +348,12 @@ export default function SystemCenterTest() {
                                <p className="text-[9px] font-bold text-slate-400">{p.email}</p>
                             </div>
                          </div>
-                         <div className="flex items-center gap-6">
-                            {/* Financeiro Role */}
-                            <div className="flex flex-col items-center gap-1">
-                              <select 
-                                value={p.financeRole || p.role} 
-                                onChange={(e) => handleUpdateAppRole(p.uid, 'finance', e.target.value as any)} 
-                                disabled={!isSuperAdmin || p.uid === currentUserProfile?.uid} 
-                                className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase tracking-widest outline-none disabled:opacity-50 w-28"
-                              >
-                                 <option value="ADMIN">ADMIN</option>
-                                 <option value="EDITOR">EDITOR</option>
-                                 <option value="VIEWER">VIEWER</option>
-                                 <option value="NONE">NENHUM</option>
-                              </select>
-                            </div>
-
-                            {/* Cardápio Role */}
-                            <div className="flex flex-col items-center gap-1">
-                              <select 
-                                value={p.menuRole || 'NONE'} 
-                                onChange={(e) => handleUpdateAppRole(p.uid, 'menu', e.target.value as any)} 
-                                disabled={!isSuperAdmin || p.uid === currentUserProfile?.uid} 
-                                className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase tracking-widest outline-none disabled:opacity-50 w-28"
-                              >
-                                 <option value="ADMIN">ADMIN</option>
-                                 <option value="EDITOR">EDITOR</option>
-                                 <option value="VIEWER">VIEWER</option>
-                                 <option value="NONE">NENHUM</option>
-                              </select>
-                            </div>
-
+                         <div className="flex items-center gap-4">
+                            <select value={p.role} onChange={(e) => handleUpdateRole(p.uid, e.target.value as any)} disabled={!isSuperAdmin || p.uid === currentUserProfile?.uid} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-widest outline-none disabled:opacity-50">
+                               <option value="EDITOR">EDITOR</option>
+                               <option value="VIEWER">VIEWER</option>
+                               <option value="ADMIN">ADMIN</option>
+                            </select>
                             <button onClick={() => handleUpdateStatus(p.uid, p.status === 'APPROVED' ? 'BLOCKED' : 'APPROVED')} disabled={!isSuperAdmin || p.uid === currentUserProfile?.uid} className={cn("p-1.5 rounded-lg transition-all", p.status === 'APPROVED' ? 'text-red-400 hover:bg-red-50' : 'text-emerald-400 hover:bg-emerald-50', (!isSuperAdmin || p.uid === currentUserProfile?.uid) && "hidden")}>
                                {p.status === 'APPROVED' ? <UserX size={16} /> : <UserCheck size={16} />}
                             </button>
@@ -415,7 +370,7 @@ export default function SystemCenterTest() {
                 <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                   <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600"><Download size={24} /></div>
                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Exportar Backup</h3>
-                  <p className="text-xs text-slate-400 font-medium">Baixar planilha completa com todos os dados de alunos, turmas e serviços.</p>
+                  <p className="text-xs text-slate-400 font-medium">Baixar planilha completa com todos os dados de alunos, turmas e serviÃ§os.</p>
                   <button onClick={exportBackup} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-3">
                      Gerar Planilha
                   </button>
@@ -424,13 +379,13 @@ export default function SystemCenterTest() {
                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                   <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600"><Zap size={24} /></div>
                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Performance</h3>
-                  <p className="text-xs text-slate-400 font-medium">Recalcular o documento de estatísticas do Dashboard para garantir precisão.</p>
+                  <p className="text-xs text-slate-400 font-medium">Recalcular o documento de estatÃ­sticas do Dashboard para garantir precisÃ£o.</p>
                   <button 
                     onClick={async () => {
                       setLoading(true);
                       try {
                         await finance.recomputeStats();
-                        showToast('Estatísticas Sincronizadas!');
+                        showToast('EstatÃ­sticas Sincronizadas!');
                       } catch (e) {
                         console.error(e);
                       } finally {
@@ -439,14 +394,14 @@ export default function SystemCenterTest() {
                     }} 
                     className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-3"
                   >
-                     Recalcular Estatísticas
+                     Recalcular EstatÃ­sticas
                   </button>
                </div>
                <div className="bg-slate-900 p-8 rounded-3xl shadow-xl space-y-6">
-                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-3">Informações</h3>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-3">InformaÃ§Ãµes</h3>
                   <div className="space-y-2">
                      <div className="p-3 bg-white/5 rounded-xl border border-white/5 text-[9px] font-black text-white uppercase tracking-widest flex justify-between">
-                        <span>Versão</span>
+                        <span>VersÃ£o</span>
                         <span>4.2.0</span>
                      </div>
                      <div className="p-3 bg-white/5 rounded-xl border border-white/5 text-[9px] font-black text-white uppercase tracking-widest flex justify-between">
@@ -464,9 +419,9 @@ export default function SystemCenterTest() {
                   <AlertTriangle size={32} />
                </div>
                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Zerar Dados</h2>
-               <p className="text-xs text-slate-400 font-medium leading-relaxed">Esta ação excluirá permanentemente todas as informações do sistema. Use com extrema cautela.</p>
+               <p className="text-xs text-slate-400 font-medium leading-relaxed">Esta aÃ§Ã£o excluirÃ¡ permanentemente todas as informaÃ§Ãµes do sistema. Use com extrema cautela.</p>
                <button onClick={() => setIsDeleteModalOpen(true)} className="w-full bg-red-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:bg-red-700 transition-all">
-                  Confirmar Exclusão Total
+                  Confirmar ExclusÃ£o Total
                </button>
             </div>
           )}

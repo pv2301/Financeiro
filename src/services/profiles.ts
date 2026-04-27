@@ -13,14 +13,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export type UserRole = 'ADMIN' | 'EDITOR' | 'VIEWER';
+export type UserRole = 'ADMIN' | 'EDITOR' | 'VIEWER' | 'NONE';
 export type UserStatus = 'PENDING' | 'APPROVED' | 'BLOCKED';
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  role: UserRole;
+  role: UserRole; // Legacy role (will map to financeRole if needed)
+  financeRole?: UserRole;
+  menuRole?: UserRole;
   status: UserStatus;
   createdAt: Timestamp;
   lastLogin: Timestamp;
@@ -36,18 +38,29 @@ export const profilesService = {
       const currentData = docSnap.data() as UserProfile;
       const isSuperAdmin = email === 'paulovictorsilva2301@gmail.com';
       
+      // Migration: If financeRole or menuRole are missing, use 'role' as fallback
+      const financeRole = currentData.financeRole || currentData.role || 'NONE';
+      const menuRole = currentData.menuRole || (currentData.role === 'ADMIN' ? 'ADMIN' : 'NONE');
+
       if (isSuperAdmin && (currentData.role !== 'ADMIN' || currentData.status !== 'APPROVED')) {
         await updateDoc(docRef, {
           role: 'ADMIN',
+          financeRole: 'ADMIN',
+          menuRole: 'ADMIN',
           status: 'APPROVED',
           lastLogin: serverTimestamp()
         });
-        return { ...currentData, role: 'ADMIN', status: 'APPROVED' } as UserProfile;
+        return { ...currentData, role: 'ADMIN', financeRole: 'ADMIN', menuRole: 'ADMIN', status: 'APPROVED' } as UserProfile;
+      }
+
+      // Ensure roles are synced for everyone if missing
+      if (!currentData.financeRole || !currentData.menuRole) {
+        await updateDoc(docRef, { financeRole, menuRole });
       }
 
       // Update last login in background
       updateDoc(docRef, { lastLogin: serverTimestamp() }).catch(err => console.warn("Last login update failed:", err));
-      return { ...currentData, uid } as UserProfile;
+      return { ...currentData, uid, financeRole, menuRole } as UserProfile;
     }
 
     // If not found by UID, try finding by email (for pre-approvals)
@@ -114,12 +127,18 @@ export const profilesService = {
         }
       }
 
+      const role = (isFirstUser || isSuperAdmin) ? 'ADMIN' : 'EDITOR';
+      const financeRole = role;
+      const menuRole = isSuperAdmin ? 'ADMIN' : 'NONE';
+
       // Create new profile
       const newProfile: UserProfile = {
         uid,
         email,
         displayName,
-        role: (isFirstUser || isSuperAdmin) ? 'ADMIN' : 'EDITOR',
+        role,
+        financeRole,
+        menuRole,
         status: (isFirstUser || isSuperAdmin) ? 'APPROVED' : 'PENDING',
         createdAt: serverTimestamp() as any,
         lastLogin: serverTimestamp() as any
@@ -151,16 +170,27 @@ export const profilesService = {
 
   async updateRole(uid: string, role: UserRole): Promise<void> {
     const docRef = doc(db, 'profiles', uid);
-    await updateDoc(docRef, { role });
+    await updateDoc(docRef, { role, financeRole: role });
   },
 
-  async preApproveEmail(email: string, role: UserRole): Promise<void> {
+  async updateAppRole(uid: string, app: 'finance' | 'menu', role: UserRole): Promise<void> {
+    const docRef = doc(db, 'profiles', uid);
+    if (app === 'finance') {
+      await updateDoc(docRef, { financeRole: role, role }); // Keep 'role' synced for legacy
+    } else {
+      await updateDoc(docRef, { menuRole: role });
+    }
+  },
+
+  async preApproveEmail(email: string, financeRole: UserRole, menuRole: UserRole): Promise<void> {
     const id = `pre_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
     const newProfile: UserProfile = {
       uid: id,
       email,
       displayName: 'Usuário Convidado',
-      role,
+      role: financeRole, // legacy fallback
+      financeRole,
+      menuRole,
       status: 'APPROVED',
       createdAt: serverTimestamp() as any,
       lastLogin: serverTimestamp() as any

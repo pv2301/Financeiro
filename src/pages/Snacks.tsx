@@ -14,10 +14,37 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { cn, formatCurrencyBRL } from '../lib/utils';
 import EditServiceModal, { ALL_SEGMENTS } from '../components/EditServiceModal';
 
-const SEGMENT_THEMES: Record<string, { text: string; bg: string; accent: string; shadow: string; iconBg: string }> = {
-  'Berçário':              { text: 'text-amber-600', bg: 'bg-amber-500', accent: 'bg-amber-50', shadow: 'shadow-amber-500/20', iconBg: 'bg-amber-100' },
-  'Educação Infantil':     { text: 'text-emerald-600', bg: 'bg-emerald-500', accent: 'bg-emerald-50', shadow: 'shadow-emerald-500/20', iconBg: 'bg-emerald-100' },
-  'Ensino Fundamental I':  { text: 'text-sky-600', bg: 'bg-brand-blue', accent: 'bg-brand-blue/5', shadow: 'shadow-brand-blue/20', iconBg: 'bg-sky-100' },
+const SEGMENT_THEMES: Record<string, { text: string; bg: string; accent: string; shadow: string; iconBg: string; cardBg: string; border: string; title: string }> = {
+  'Berçário':              { 
+    text: 'text-amber-600', 
+    bg: 'bg-amber-500', 
+    accent: 'bg-amber-50', 
+    shadow: 'shadow-amber-500/20', 
+    iconBg: 'bg-amber-100',
+    cardBg: 'bg-[#FFFDF2]', // Muito claro, quase creme
+    border: 'border-[#FFECB3]',
+    title: 'text-[#A1887F]'
+  },
+  'Educação Infantil':     { 
+    text: 'text-emerald-600', 
+    bg: 'bg-emerald-500', 
+    accent: 'bg-emerald-50', 
+    shadow: 'shadow-emerald-500/20', 
+    iconBg: 'bg-emerald-100',
+    cardBg: 'bg-[#F1FBF4]', // Verde muito claro
+    border: 'border-[#C8E6C9]',
+    title: 'text-[#2E7D32]'
+  },
+  'Ensino Fundamental I':  { 
+    text: 'text-sky-600', 
+    bg: 'bg-brand-blue', 
+    accent: 'bg-brand-blue/5', 
+    shadow: 'shadow-brand-blue/20', 
+    iconBg: 'bg-sky-100',
+    cardBg: 'bg-[#F0F9FF]', // Azul muito claro
+    border: 'border-[#B3E5FC]',
+    title: 'text-[#1565C0]'
+  },
 };
 
 export default function SnacksTest() {
@@ -208,14 +235,13 @@ export default function SnacksTest() {
           return (
             <div key={seg.key} className="space-y-4">
               <div className="flex items-center gap-4 px-2">
-                <div className={cn("w-1 h-6 rounded-full", theme.bg)} />
-                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">{seg.label}</h2>
+                <h2 className={cn("text-2xl font-black uppercase tracking-widest", theme.title)}>{seg.label}</h2>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className={cn("rounded-[2.5rem] border shadow-sm overflow-hidden transition-all", theme.cardBg, theme.border)}>
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-50/50">
+                    <tr className="bg-white/40">
                       <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Serviço</th>
                       {seg.subKeys.map(sk => (
                         <th key={sk.key} className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">{sk.label}</th>
@@ -223,9 +249,9 @@ export default function SnacksTest() {
                       <th className="px-6 py-4 w-20"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-black/5">
                     {segServices.map((svc) => (
-                      <tr key={svc.id} className="group hover:bg-slate-50 transition-all">
+                      <tr key={svc.id} className="group hover:bg-white/60 transition-all">
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-3">
                              <p className="text-xs font-black text-slate-900 uppercase tracking-tight group-hover:text-brand-blue transition-colors">{svc.name}</p>
