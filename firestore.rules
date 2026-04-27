@@ -42,9 +42,58 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // Cardápio Baby Collections
+    // Cardápio Canteen Collections (menu_*)
     // ===============================================================
 
+    match /menu_items/{itemId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_recipes/{recipeId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_substitutions/{subId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_daily/{dayId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_groups/{groupId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_config/{configId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    match /menu_snapshots/{snapshotId} {
+      allow read: if isApproved();
+      allow write: if canWrite();
+    }
+
+    match /menu_categories/{catId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    match /menu_restrictions/{restrId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Cardápio Baby Collections (Legacy - To be removed)
+    // ===============================================================
+    
     match /items/{itemId} {
       allow read: if isApproved();
       allow write: if canWrite();
@@ -78,6 +127,14 @@ service cloud.firestore {
     match /menuSnapshots/{snapshotId} {
       allow read: if isApproved();
       allow write: if canWrite();
+    }
+
+    match /categories/{catId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /restrictions/{restrId} {
+      allow read, write: if isAdmin();
     }
 
     // ===============================================================

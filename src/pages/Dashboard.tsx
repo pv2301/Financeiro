@@ -19,19 +19,25 @@ import { format } from 'date-fns';
 import { finance } from '../services/finance';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Student, Invoice } from '../types';
+import { Student, Invoice, SystemStats } from '../types';
 
 export default function DashboardTest() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [sysStats, setSysStats] = useState<SystemStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        // Fast path: Load stats first
+        const stats = await finance.getStats();
+        setSysStats(stats);
+        
+        // Background path: Load lists for the table
         const [s, inv] = await Promise.all([
           finance.getStudents(),
           finance.getInvoices()
@@ -47,9 +53,8 @@ export default function DashboardTest() {
     loadData();
   }, []);
 
-  const stats = useMemo(() => {
+  const computedStats = useMemo(() => {
     const now = new Date();
-    const currentMonthStr = format(now, 'MM/yyyy');
     const realInvoices = invoices.filter(inv => {
       const s = students.find(x => x.id === inv.studentId);
       return s && !s.name.includes('Exemplo') && !s.id.includes('fake');
@@ -59,23 +64,26 @@ export default function DashboardTest() {
     const overdueInvoices = pendingInvoices.filter(inv => new Date(inv.dueDate) < now);
     const paidInvoices = realInvoices.filter(inv => inv.paymentStatus === 'PAID');
     
-      const currentMonthInvoices = realInvoices.filter(inv => inv.monthYear === currentMonthStr);
-      const currentMonthTotal = currentMonthInvoices.reduce((acc, inv) => acc + (inv.netAmount || 0), 0);
-      const averageTicket = currentMonthInvoices.length > 0 
-        ? currentMonthTotal / currentMonthInvoices.length 
-        : 0;
+    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+    const monthlyData = sysStats?.monthlySummary?.[currentMonth] || { faturado: 0, paidCount: 0, pendingCount: 0 };
+    const currentMonthTotal = sysStats?.revenueCurrentMonth ?? 0;
+    const totalInvoicesMonth = (monthlyData.paidCount || 0) + (monthlyData.pendingCount || 0);
 
+    // Use sysStats if available, otherwise fallback to computed
     return {
-      totalStudents: students.filter(s => !s.name.includes('Exemplo')).length,
-      currentMonthInvoicesCount: currentMonthInvoices.length,
-      currentMonthTotal,
-      pendingCount: pendingInvoices.length,
-      overdueValue: overdueInvoices.reduce((acc, inv) => acc + (inv.netAmount || 0), 0),
+      totalStudents: sysStats?.totalStudents ?? students.filter(s => !s.name.includes('Exemplo')).length,
+      currentMonthTotal: currentMonthTotal, 
+      pendingCount: sysStats?.totalUnpaidInvoices ?? pendingInvoices.length,
+      overdueValue: sysStats?.unpaidAmount ?? overdueInvoices.reduce((acc, inv) => acc + (inv.netAmount || 0), 0),
       overdueInvoices: overdueInvoices.slice(0, 5),
-      collectionRate: realInvoices.length > 0 ? (paidInvoices.length / realInvoices.length) * 100 : 0,
-      averageTicket
+      collectionRate: sysStats 
+        ? (sysStats.paidInvoicesMonth / (sysStats.totalInvoices || 1)) * 100 
+        : (realInvoices.length > 0 ? (paidInvoices.length / realInvoices.length) * 100 : 0),
+      averageTicket: totalInvoicesMonth > 0 
+        ? (monthlyData.faturado / totalInvoicesMonth) 
+        : 0
     };
-  }, [students, invoices]);
+  }, [students, invoices, sysStats]);
 
   if (isLoading) {
     return (
@@ -115,10 +123,10 @@ export default function DashboardTest() {
       {/* Bento Grid - Unified Card Sizes */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Ticket Médio', value: formatCurrencyBRL(stats.averageTicket), icon: TrendingUp, color: 'text-brand-blue', bg: 'bg-brand-blue/5', detail: `${stats.currentMonthInvoicesCount} boletos`, path: '/students' },
-          { label: 'Receita Mês', value: formatCurrencyBRL(stats.currentMonthTotal), icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50', detail: 'Faturamento Bruto', path: '/reports' },
-          { label: 'Liquidez', value: `${stats.collectionRate.toFixed(1)}%`, icon: Percent, color: 'text-white', bg: 'bg-slate-900', detail: 'Eficiência Pago', path: '/invoices' },
-          { label: 'Inadimplência', value: formatCurrencyBRL(stats.overdueValue), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', detail: `${stats.overdueInvoices.length} títulos atrasados`, path: '/invoices' }
+          { label: 'Ticket Médio', value: formatCurrencyBRL(computedStats.averageTicket), icon: TrendingUp, color: 'text-brand-blue', bg: 'bg-brand-blue/5', detail: `${sysStats?.paidInvoicesMonth || 0} boletos`, path: '/students' },
+          { label: 'Receita Mês', value: formatCurrencyBRL(computedStats.currentMonthTotal), icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50', detail: 'Faturamento Bruto', path: '/reports' },
+          { label: 'Liquidez', value: `${computedStats.collectionRate.toFixed(1)}%`, icon: Percent, color: 'text-white', bg: 'bg-slate-900', detail: 'Eficiência Pago', path: '/invoices' },
+          { label: 'Inadimplência', value: formatCurrencyBRL(computedStats.overdueValue), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', detail: `${computedStats.overdueInvoices.length} títulos atrasados`, path: '/invoices' }
         ].map((stat, i) => (
           <motion.div 
             key={stat.label}
@@ -162,7 +170,7 @@ export default function DashboardTest() {
           </div>
           
           <div className="divide-y divide-slate-50">
-            {stats.overdueInvoices.length > 0 ? stats.overdueInvoices.map((inv) => {
+            {computedStats.overdueInvoices.length > 0 ? computedStats.overdueInvoices.map((inv) => {
               const s = students.find(x => x.id === inv.studentId);
               return (
                 <div key={inv.id} className="p-4 flex items-center justify-between group hover:bg-slate-50 transition-all">

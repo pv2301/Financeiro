@@ -222,3 +222,42 @@ export interface BillingDraft {
   categoryPrices?: Record<string, number>; // New: Category-based monthly prices
   lastUpdated?: string;
 }
+
+// ─── SystemStats (Dashboard High Performance) ─────────────────────────────
+export interface SystemStats {
+  totalStudents: number;
+  totalClasses: number;
+  totalInvoices: number;
+  totalUnpaidInvoices: number;
+  unpaidAmount: number;
+  revenueCurrentMonth: number;
+  paidInvoicesMonth: number;
+  
+  // Reports Support
+  monthlySummary: Record<string, {
+    faturado: number;
+    recebido: number;
+    paidCount: number;
+    pendingCount: number;
+  }>;
+  segmentSummary: Record<string, {
+    faturado: number;
+    recebido: number;
+  }>;
+  topDevedores: Array<{
+    studentId: string;
+    studentName: string;
+    amount: number;
+  }>;
+
+  lastUpdated: string;
+}
+
+export interface DataVersions {
+  students: string;
+  classes: string;
+  services: string;
+  invoices: Record<string, string>;
+  drafts: Record<string, string>;
+}
+

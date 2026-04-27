@@ -367,12 +367,34 @@ export default function SystemCenterTest() {
 
           {activeTab === 'maintenance' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                   <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600"><Download size={24} /></div>
                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Exportar Backup</h3>
                   <p className="text-xs text-slate-400 font-medium">Baixar planilha completa com todos os dados de alunos, turmas e serviços.</p>
                   <button onClick={exportBackup} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-3">
                      Gerar Planilha
+                  </button>
+               </div>
+               
+               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600"><Zap size={24} /></div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Performance</h3>
+                  <p className="text-xs text-slate-400 font-medium">Recalcular o documento de estatísticas do Dashboard para garantir precisão.</p>
+                  <button 
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        await finance.recomputeStats();
+                        showToast('Estatísticas Sincronizadas!');
+                      } catch (e) {
+                        console.error(e);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }} 
+                    className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-3"
+                  >
+                     Recalcular Estatísticas
                   </button>
                </div>
                <div className="bg-slate-900 p-8 rounded-3xl shadow-xl space-y-6">

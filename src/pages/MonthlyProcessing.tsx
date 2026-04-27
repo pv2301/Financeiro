@@ -358,8 +358,7 @@ export default function MonthlyProcessing() {
   const handleSaveInvoices = async () => {
     setIsSavingInvoices(true);
     try {
-      const existingInvoices = await finance.getInvoices();
-      const currentMonthInvoices = existingInvoices.filter(i => i.monthYear === monthYear);
+      const currentMonthInvoices = await finance.getInvoicesByMonth(monthYear);
 
       const toSave = previewInvoices.filter(inv => selectedIds.has(inv.id) && !!bankSlipNumbers[inv.studentId]);
       

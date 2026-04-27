@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   query,
   where,
-  Unsubscribe
+  Unsubscribe,
+  increment
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -38,40 +39,120 @@ const C = {
   CONSUMPTION: 'fin_consumption',
   AUDIT_LOGS: 'fin_audit_logs',
   BILLING_DRAFTS: 'fin_billing_drafts',
+  STATS: 'fin_config', // stats doc lives here
 };
 
-// ─── Cache Helpers ────────────────────────────────────────────────────────
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const STATS_DOC_ID = 'stats';
 
-function getCachedData<T>(key: string): T[] | null {
-  const cached = localStorage.getItem(`fin_cache_${key}`);
-  if (!cached) return null;
+// Mapping for Metadata Versioning keys
+const VERSION_BUCKETS: Record<string, string> = {
+  [C.STUDENTS]: 'students',
+  [C.CLASSES]: 'classes',
+  [C.SERVICES]: 'services',
+  [C.INVOICES]: 'invoices',
+  [C.BILLING_DRAFTS]: 'drafts',
+  [C.CONSUMPTION]: 'consumption',
+  'consumption': 'consumption'
+};
+
+function getVersionBucket(bucket: string): string {
+  return VERSION_BUCKETS[bucket] || bucket;
+}
+
+// ─── Metadata Versioning (Semáforo) ───────────────────────────────────────
+async function getCachedOrFetch<T>(
+  bucket: string,
+  fetchFn: () => Promise<T[]>,
+  subKey?: string
+): Promise<T[]> {
   try {
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp > CACHE_TTL) {
-      localStorage.removeItem(`fin_cache_${key}`);
-      return null;
+    const cacheKey = subKey ? `${bucket}_${subKey.replace(/[\/-]/g, '-')}` : bucket;
+    
+    const versions = await getRemoteVersions();
+    const localVer = getLocalVersion(cacheKey);
+    const vBucket = getVersionBucket(bucket);
+    
+    const remoteVer = subKey 
+      ? (versions as any)?.[vBucket]?.[subKey.replace(/[\/-]/g, '-')] 
+      : (versions as any)?.[vBucket];
+
+    // If version matches, return local cache
+    if (remoteVer && localVer === remoteVer) {
+      const cached = getLocalCache<T>(cacheKey);
+      if (cached) return cached;
     }
+
+    // Otherwise, fetch from Firestore
+    const data = await fetchFn();
+    
+    // Update local cache if we have a remote version to lock on
+    if (remoteVer) {
+      setLocalCache(cacheKey, data, remoteVer);
+    }
+    
     return data;
+  } catch (error) {
+    console.error(`Error in getCachedOrFetch for ${bucket}:`, error);
+    return fetchFn();
+  }
+}
+
+async function bumpVersion(bucket: string, subKey?: string): Promise<void> {
+  try {
+    const vRef = doc(db, C.CONFIG, 'versions');
+    const update: any = {};
+    const vBucket = getVersionBucket(bucket);
+    
+    if (subKey) {
+      const cleanSub = subKey.replace(/[\/-]/g, '-');
+      update[`${vBucket}.${cleanSub}`] = new Date().getTime().toString();
+      update[`${vBucket}_all`] = new Date().getTime().toString();
+    } else {
+      update[vBucket] = new Date().getTime().toString();
+      // If we update students or classes, we might want to invalidate global caches too
+      update[`${vBucket}_all`] = new Date().getTime().toString();
+    }
+    await setDoc(vRef, update, { merge: true });
+  } catch (e) {
+    console.error("Error bumping version:", e);
+  }
+}
+
+async function getRemoteVersions(): Promise<DataVersions | null> {
+  try {
+    const snap = await getDoc(doc(db, C.CONFIG, 'versions'));
+    if (!snap.exists()) return null;
+    return snap.data() as DataVersions;
   } catch {
     return null;
   }
 }
 
-function setCachedData<T>(key: string, data: T[]) {
-  localStorage.setItem(`fin_cache_${key}`, JSON.stringify({
-    data,
-    timestamp: Date.now()
-  }));
+function getLocalVersion(key: string): string | null {
+  return localStorage.getItem(`fin_ver_${key}`);
 }
+
+function setLocalCache(key: string, data: any, version: string) {
+  localStorage.setItem(`fin_cache_${key}`, JSON.stringify(data));
+  localStorage.setItem(`fin_ver_${key}`, version);
+}
+
+function getLocalCache<T>(key: string): T[] | null {
+  const cached = localStorage.getItem(`fin_cache_${key}`);
+  return cached ? JSON.parse(cached) : null;
+}
+
+
 
 function invalidateCache(key?: string) {
   if (key) {
     localStorage.removeItem(`fin_cache_${key}`);
+    localStorage.removeItem(`fin_ver_${key}`);
   } else {
-    // Invalidate all
     Object.keys(localStorage).forEach(k => {
-      if (k.startsWith('fin_cache_')) localStorage.removeItem(k);
+      if (k.startsWith('fin_cache_') || k.startsWith('fin_ver_')) {
+        localStorage.removeItem(k);
+      }
     });
   }
 }
@@ -140,6 +221,16 @@ async function saveItem<T extends { id: string }>(col: string, item: T): Promise
     await setDoc(docRef, itemToSave);
     await createAuditLog(action, col, item.id, existing, itemToSave);
     invalidateCache(col);
+    if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
+      finance.recomputeStats().catch(console.error);
+      const isInvoice = col === C.INVOICES;
+      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      if (isInvoice && dataObj?.monthYear) {
+        bumpVersion('invoices', dataObj.monthYear);
+      } else {
+        bumpVersion(col === C.STUDENTS ? 'students' : 'classes');
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
   }
@@ -162,6 +253,16 @@ async function softDeleteItem(col: string, id: string): Promise<void> {
     await setDoc(docRef, updated);
     await createAuditLog('SOFT_DELETE', col, id, existing, updated);
     invalidateCache(col);
+    if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
+      finance.recomputeStats().catch(console.error);
+      const isInvoice = col === C.INVOICES;
+      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      if (isInvoice && dataObj?.monthYear) {
+        bumpVersion('invoices', dataObj.monthYear);
+      } else {
+        bumpVersion(col === C.STUDENTS ? 'students' : 'classes');
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, col);
   }
@@ -178,6 +279,16 @@ async function deleteItem(col: string, id: string): Promise<void> {
       await createAuditLog('HARD_DELETE', col, id, existing, null);
     }
     invalidateCache(col);
+    if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
+      finance.recomputeStats().catch(console.error);
+      const isInvoice = col === C.INVOICES;
+      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      if (isInvoice && dataObj?.monthYear) {
+        bumpVersion('invoices', dataObj.monthYear);
+      } else {
+        bumpVersion(col === C.STUDENTS ? 'students' : 'classes');
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, col);
   }
@@ -197,6 +308,16 @@ async function restoreDocument(col: string, id: string): Promise<void> {
     await setDoc(docRef, updated);
     await createAuditLog('UPDATE', col, id, existing, updated);
     invalidateCache(col);
+    if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
+      finance.recomputeStats().catch(console.error);
+      const isInvoice = col === C.INVOICES;
+      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      if (isInvoice && dataObj?.monthYear) {
+        bumpVersion('invoices', dataObj.monthYear);
+      } else {
+        bumpVersion(col === C.STUDENTS ? 'students' : 'classes');
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
   }
@@ -231,31 +352,46 @@ async function mergeBatchToCollection<T extends { id: string }>(col: string, ite
 // ─── Finance Service ──────────────────────────────────────────────────────
 export const finance = {
   // ── Classes ──────────────────────────────────────────────────────────────
-  getClasses:       ()                 => getAllFromCollection<ClassInfo>(C.CLASSES),
+  getClasses: () => getCachedOrFetch<ClassInfo>('classes', () => getAllFromCollection<ClassInfo>(C.CLASSES)),
   saveClass:        (c: ClassInfo)     => saveItem(C.CLASSES, c),
   deleteClass:      (id: string)       => softDeleteItem(C.CLASSES, id),
   saveAllClasses:   (cs: ClassInfo[])  => saveAllToCollection(C.CLASSES, cs),
   mergeBatchClasses:(cs: ClassInfo[])  => mergeBatchToCollection(C.CLASSES, cs),
 
   // ── Students ─────────────────────────────────────────────────────────────
-  getStudents:       ()                 => getAllFromCollection<Student>(C.STUDENTS),
+  getStudents: () => getCachedOrFetch<Student>('students', () => getAllFromCollection<Student>(C.STUDENTS)),
   saveStudent:       (s: Student)       => saveItem(C.STUDENTS, s),
   deleteStudent:     (id: string)       => softDeleteItem(C.STUDENTS, id),
   mergeBatchStudents:(ss: Student[])    => mergeBatchToCollection(C.STUDENTS, ss),
 
   // ── Services (ex-Snacks) ──────────────────────────────────────────────────
-  getServices:       ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
+  getServices: () => getCachedOrFetch<ServiceItem>('services', () => getAllFromCollection<ServiceItem>(C.SERVICES)),
   saveService:       (s: ServiceItem)      => saveItem(C.SERVICES, s),
   deleteService:     (id: string)          => softDeleteItem(C.SERVICES, id),
   saveAllServices:   (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
   // Legacy aliases
-  getSnacks:         ()                    => getAllFromCollection<ServiceItem>(C.SERVICES),
+  getSnacks:         ()                    => finance.getServices(),
   saveSnack:         (s: ServiceItem)      => saveItem(C.SERVICES, s),
   deleteSnack:       (id: string)          => softDeleteItem(C.SERVICES, id),
   saveAllSnacks:     (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
 
   // ── Invoices ─────────────────────────────────────────────────────────────
-  getInvoices:       ()                 => getAllFromCollection<Invoice>(C.INVOICES),
+  getInvoices: () => getCachedOrFetch<Invoice>('invoices_all', () => getAllFromCollection<Invoice>(C.INVOICES)),
+  getInvoicesByMonth: async (monthYear: string): Promise<Invoice[]> => {
+    const formatted = monthYear.replace(/[\/-]/g, '-');
+    return getCachedOrFetch<Invoice>('invoices', async () => {
+      const q = query(collection(db, C.INVOICES), where("monthYear", "==", formatted));
+      const snap = await getDocs(q);
+      let records = snap.docs.map(d => d.data() as Invoice).filter(i => !i.deletedAt);
+      
+      if (records.length === 0 && monthYear.includes('/')) {
+        const q2 = query(collection(db, C.INVOICES), where("monthYear", "==", monthYear));
+        const snap2 = await getDocs(q2);
+        records = snap2.docs.map(d => d.data() as Invoice).filter(i => !i.deletedAt);
+      }
+      return records;
+    }, formatted);
+  },
   saveInvoice:       (inv: Invoice)     => saveItem(C.INVOICES, inv),
   deleteInvoice:     (id: string)       => softDeleteItem(C.INVOICES, id),
   saveBatchInvoices: (invs: Invoice[])  => mergeBatchToCollection(C.INVOICES, invs),
@@ -417,28 +553,24 @@ export const finance = {
   // ─── CONSUMPTION ──────────────────────────────────────────────────────────
   getConsumption: () => getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION),
   getConsumptionByMonth: async (monthYear: string): Promise<ConsumptionRecord[]> => {
-    try {
-      const formatted = monthYear.replace('/', '-');
+    const formatted = monthYear.replace(/[\/-]/g, '-');
+    return getCachedOrFetch<ConsumptionRecord>('consumption', async () => {
       const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted));
       const snap = await getDocs(q);
-      const records = snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
+      let records = snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
       
-      // Fallback: check with slash if nothing found (for legacy data)
       if (records.length === 0 && monthYear.includes('/')) {
         const q2 = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
         const snap2 = await getDocs(q2);
-        return snap2.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
+        records = snap2.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
       }
-      
       return records;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, C.CONSUMPTION);
-      return [];
-    }
+    }, formatted);
   },
 
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {
     try {
+      if (records.length === 0) return;
       const batch = writeBatch(db);
       for (const record of records) {
         const docRef = doc(db, C.CONSUMPTION, record.id);
@@ -446,6 +578,9 @@ export const finance = {
       }
       await batch.commit();
       invalidateCache(C.CONSUMPTION);
+      
+      const monthYear = records[0].monthYear;
+      if (monthYear) bumpVersion('consumption', monthYear);
     } catch (error) {
       handleFirestoreError(error, OperationType.ADD, C.CONSUMPTION);
       throw error;
@@ -632,13 +767,12 @@ export const finance = {
 
   // ── Billing Drafts ────────────────────────────────────────────────────────
   getBillingDraft: async (monthYear: string): Promise<BillingDraft | null> => {
-    try {
-      const id = monthYear.replace('/', '-');
-      const snap = await getDoc(doc(db, C.BILLING_DRAFTS, id));
-      return snap.exists() ? snap.data() as BillingDraft : null;
-    } catch {
-      return null;
-    }
+    const formatted = monthYear.replace(/[\/-]/g, '-');
+    const records = await getCachedOrFetch<BillingDraft>(C.BILLING_DRAFTS, async () => {
+      const snap = await getDoc(doc(db, C.BILLING_DRAFTS, formatted));
+      return snap.exists() ? [snap.data() as BillingDraft] : [];
+    }, formatted);
+    return records.length > 0 ? records[0] : null;
   },
 
   getBillingDrafts: async (): Promise<any[]> => {
@@ -652,11 +786,12 @@ export const finance = {
 
   saveBillingDraft: async (draft: BillingDraft): Promise<void> => {
     try {
-      const id = draft.id.replace('/', '-');
+      const id = draft.id.replace(/[\/-]/g, '-');
       await setDoc(doc(db, C.BILLING_DRAFTS, id), {
         ...draft,
         lastUpdated: new Date().toISOString()
       }, { merge: true });
+      bumpVersion(C.BILLING_DRAFTS, id);
     } catch (error) {
       console.error('Error saving billing draft:', error);
     }
@@ -691,6 +826,133 @@ export const finance = {
       window.dispatchEvent(new CustomEvent('cardapio:logoUpdated', { detail: logo }));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `${C.CONFIG}/logo`);
+    }
+  },
+
+  // ── Stats ────────────────────────────────────────────────────────────────
+  getStats: async (): Promise<SystemStats> => {
+    try {
+      const snap = await getDoc(doc(db, C.CONFIG, STATS_DOC_ID));
+      if (snap.exists()) {
+        return snap.data() as SystemStats;
+      }
+      return await finance.recomputeStats();
+    } catch (error) {
+      console.error("Error getting stats:", error);
+      return {
+        totalStudents: 0,
+        totalClasses: 0,
+        totalInvoices: 0,
+        totalUnpaidInvoices: 0,
+        unpaidAmount: 0,
+        revenueCurrentMonth: 0,
+        paidInvoicesMonth: 0,
+        monthlySummary: {},
+        segmentSummary: {},
+        topDevedores: [],
+        lastUpdated: new Date().toISOString()
+      };
+    }
+  },
+
+  recomputeStats: async (): Promise<SystemStats> => {
+    try {
+      const [students, classes, invoices] = await Promise.all([
+        finance.getStudents(),
+        finance.getClasses(),
+        finance.getInvoices()
+      ]);
+
+      const now = new Date();
+      const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = now.getFullYear().toString();
+      
+      const currentMonthInvoices = invoices.filter(i => {
+        const parts = i.monthYear?.split(/[\/-]/) || [];
+        return (parts[0] === currentMonth && parts[1] === currentYear);
+      });
+      
+      // Monthly Summary
+      const monthlySummary: Record<string, any> = {};
+      invoices.forEach(inv => {
+        const parts = inv.monthYear?.split(/[\/-]/) || [];
+        if (parts[1] !== currentYear) return;
+        const month = parts[0];
+        if (!monthlySummary[month]) {
+          monthlySummary[month] = { faturado: 0, recebido: 0, paidCount: 0, pendingCount: 0 };
+        }
+        monthlySummary[month].faturado += inv.netAmount || 0;
+        if (inv.paymentStatus === 'PAID') {
+          monthlySummary[month].recebido += inv.amountCharged || inv.netAmount || 0;
+          monthlySummary[month].paidCount++;
+        } else {
+          monthlySummary[month].pendingCount++;
+        }
+      });
+      
+      // Segment Summary
+      const segmentSummary: Record<string, any> = {};
+      invoices.forEach(inv => {
+        const cls = classes.find(c => c.id === inv.classId);
+        const seg = cls?.segment || 'Outros';
+        if (!segmentSummary[seg]) segmentSummary[seg] = { faturado: 0, recebido: 0 };
+        segmentSummary[seg].faturado += inv.netAmount || 0;
+        if (inv.paymentStatus === 'PAID') {
+          segmentSummary[seg].recebido += inv.amountCharged || inv.netAmount || 0;
+        }
+      });
+
+      // Top Devedores
+      const debtMap: Record<string, number> = {};
+      invoices.filter(i => i.paymentStatus !== 'PAID' && i.dueDate && new Date(i.dueDate) < now).forEach(inv => {
+        debtMap[inv.studentId] = (debtMap[inv.studentId] || 0) + (inv.netAmount || 0);
+      });
+      const topDevedores = Object.entries(debtMap)
+        .map(([id, amount]) => ({ 
+          studentId: id, 
+          studentName: students.find(s => s.id === id)?.name || 'Desconhecido', 
+          amount 
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 10);
+
+      const stats: SystemStats = {
+        totalStudents: students.filter(s => !s.deletedAt).length,
+        totalClasses: classes.filter(c => !c.deletedAt).length,
+        totalInvoices: invoices.length,
+        totalUnpaidInvoices: invoices.filter(i => i.paymentStatus !== 'PAID').length,
+        unpaidAmount: invoices.filter(i => i.paymentStatus !== 'PAID').reduce((acc, i) => acc + (i.netAmount || 0), 0),
+        // Faturamento real (pago) do mês atual
+        revenueCurrentMonth: currentMonthInvoices.filter(i => i.paymentStatus === 'PAID').reduce((acc, i) => acc + (i.amountCharged || 0), 0),
+        paidInvoicesMonth: currentMonthInvoices.filter(i => i.paymentStatus === 'PAID').length,
+        monthlySummary,
+        segmentSummary,
+        topDevedores,
+        lastUpdated: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, C.CONFIG, STATS_DOC_ID), stats);
+      return stats;
+    } catch (error) {
+      console.error("Error recomputing stats:", error);
+      throw error;
+    }
+  },
+
+  updateStats: async (updates: Partial<Record<keyof SystemStats, any>>) => {
+    try {
+      const docRef = doc(db, C.CONFIG, STATS_DOC_ID);
+      const fsUpdates: any = { ...updates, lastUpdated: new Date().toISOString() };
+      
+      // Convert numbers to increment if they are intended to be deltas
+      // For simplicity in this implementation, we just call recompute 
+      // or manually increment. Given client-side constraints, recompute is safer 
+      // but increment is faster. Let's use recompute for accuracy for now, 
+      // or increment for basic counters.
+      
+      await setDoc(docRef, fsUpdates, { merge: true });
+    } catch (error) {
+      console.error("Error updating stats:", error);
     }
   }
 };

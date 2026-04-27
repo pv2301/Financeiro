@@ -10,7 +10,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
-import { Invoice, ClassInfo, Student } from '../types';
+import { Invoice, ClassInfo, Student, SystemStats } from '../types';
 import { finance } from '../services/finance';
 import { formatCurrencyBRL, cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
@@ -38,6 +38,7 @@ export default function ReportsTest() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [sysStats, setSysStats] = useState<SystemStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
@@ -46,11 +47,21 @@ export default function ReportsTest() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        // High performance path: Load stats doc first
+        const statsDoc = await finance.getStats();
+        setSysStats(statsDoc);
+
         const [inv, cls, stu] = await Promise.all([
           finance.getInvoices(), finance.getClasses(), finance.getStudents()
         ]);
@@ -73,6 +84,35 @@ export default function ReportsTest() {
   }, [invoices, period, selectedClass, searchTerm, students]);
 
   const stats = useMemo(() => {
+    const isGlobal = selectedClass === 'ALL' && !searchTerm && period === new Date().getFullYear().toString();
+    
+    if (isGlobal && sysStats) {
+      const monthlySummary = sysStats.monthlySummary || {};
+      const faturadoGlobal = Object.values(monthlySummary).reduce((a: any, b: any) => a + (b.faturado || 0), 0);
+      const recebidoGlobal = Object.values(monthlySummary).reduce((a: any, b: any) => a + (b.recebido || 0), 0);
+      return {
+        totalFaturado: faturadoGlobal,
+        totalRecebido: recebidoGlobal,
+        totalPendente: sysStats.unpaidAmount || 0,
+        totalVencido: (sysStats.topDevedores || []).reduce((a, b) => a + (b.amount || 0), 0),
+        repasseColegio: 0, 
+        taxasBancarias: 0, 
+        margemCanteen: 0, 
+        inadimplencia: (faturadoGlobal > 0) ? ((sysStats.unpaidAmount || 0) / faturadoGlobal) * 100 : 0,
+        descontoPessoal: 0,
+        descontoFaltas: 0,
+        totalBruto: 0,
+        ticketMedio: (sysStats.totalInvoices || 0) > 0 ? faturadoGlobal / sysStats.totalInvoices : 0,
+        topDevedores: (sysStats.topDevedores || []).map(d => ({ 
+          student: students.find(s => s.id === d.studentId), 
+          amount: d.amount 
+        })).filter(x => x.student),
+        paidCount: (sysStats.totalInvoices || 0) - (sysStats.totalUnpaidInvoices || 0),
+        pendingCount: sysStats.totalUnpaidInvoices || 0,
+        overdueCount: (sysStats.topDevedores || []).length,
+      };
+    }
+
     const now = new Date();
     const paid = filteredData.filter(i => i?.paymentStatus === 'PAID');
     const pending = filteredData.filter(i => i?.paymentStatus !== 'PAID');
@@ -118,9 +158,23 @@ export default function ReportsTest() {
       ticketMedio, topDevedores,
       paidCount: paid.length, pendingCount: pending.length, overdueCount: overdue.length,
     };
-  }, [filteredData, students]);
+  }, [filteredData, students, sysStats, selectedClass, searchTerm, period]);
 
   const revenueByMonth = useMemo(() => {
+    const isGlobal = selectedClass === 'ALL' && !searchTerm && period === new Date().getFullYear().toString();
+    if (isGlobal && sysStats) {
+      const monthlySummary = sysStats.monthlySummary || {};
+      return MONTHS.map((month, i) => {
+        const mNum = (i + 1).toString().padStart(2, '0');
+        const data = monthlySummary[mNum] || { faturado: 0, recebido: 0 };
+        return {
+          name: month,
+          Previsto: data.faturado || 0,
+          Realizado: data.recebido || 0,
+        };
+      });
+    }
+
     return MONTHS.map((month, i) => {
       const mNum = (i + 1).toString().padStart(2, '0');
       const mInv = invoices.filter(inv => {
@@ -134,9 +188,15 @@ export default function ReportsTest() {
         Realizado: mInv.filter(i => i.paymentStatus === 'PAID').reduce((a, c) => a + (c?.amountCharged || c?.netAmount || 0), 0),
       };
     });
-  }, [invoices, period]);
+  }, [invoices, period, sysStats, selectedClass, searchTerm]);
 
   const bySegment = useMemo(() => {
+    const isGlobal = selectedClass === 'ALL' && !searchTerm && period === new Date().getFullYear().toString();
+    if (isGlobal && sysStats) {
+      const segmentSummary = sysStats.segmentSummary || {};
+      return Object.entries(segmentSummary).map(([name, v]: [string, any]) => ({ name, ...v })).sort((a, b) => (b.recebido || 0) - (a.recebido || 0));
+    }
+
     const map: Record<string, { faturado: number; recebido: number }> = {};
     filteredData.forEach(inv => {
       const cls = classes.find(c => c.id === inv.classId);
@@ -146,7 +206,7 @@ export default function ReportsTest() {
       if (inv.paymentStatus === 'PAID') map[seg].recebido += inv.amountCharged || inv.netAmount || 0;
     });
     return Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.recebido - a.recebido);
-  }, [filteredData, classes]);
+  }, [filteredData, classes, sysStats, selectedClass, searchTerm, period]);
 
   const byClass = useMemo(() => {
     return classes.map(cls => {
@@ -162,7 +222,15 @@ export default function ReportsTest() {
 
   // --- Annual Report Specific Logic ---
   const annualData = useMemo(() => {
+    const isGlobal = selectedClass === 'ALL' && !searchTerm && period === new Date().getFullYear().toString();
+    
     const yearSummary = MONTH_NAMES.map((name, index) => {
+      if (isGlobal && sysStats) {
+        const mNum = (index + 1).toString().padStart(2, '0');
+        const data = sysStats.monthlySummary[mNum] || { faturado: 0, recebido: 0 };
+        return { name, index, cobranca: 0, boletos: data.recebido, total: data.recebido };
+      }
+
       const monthInvoices = invoices.filter(inv => {
         if (!inv.monthYear?.includes(period)) return false;
         const mNum = (index + 1).toString().padStart(2, '0');
@@ -184,7 +252,7 @@ export default function ReportsTest() {
     });
 
     return { summary };
-  }, [invoices, period]);
+  }, [invoices, period, sysStats, selectedClass, searchTerm]);
 
   const dailyBreakdown = useMemo(() => {
     const year = parseInt(period);
@@ -369,8 +437,9 @@ export default function ReportsTest() {
                   </div>
                 </div>
                 <div className="h-[240px] w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                    <AreaChart data={revenueByMonth} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  {isReady && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={Array.isArray(revenueByMonth) ? revenueByMonth : []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gPrev" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.12}/>
@@ -389,6 +458,7 @@ export default function ReportsTest() {
                       <Area type="monotone" dataKey="Realizado" stroke="#10B981" strokeWidth={2.5} fillOpacity={1} fill="url(#gReal)" />
                     </AreaChart>
                   </ResponsiveContainer>
+                )}
                 </div>
               </div>
 
@@ -399,9 +469,10 @@ export default function ReportsTest() {
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Receita recebida</p>
                 </div>
                 <div className="h-[180px] w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                    <PieChart>
-                      <Pie data={bySegment} dataKey="recebido" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                  {isReady && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={Array.isArray(bySegment) ? bySegment : []} dataKey="recebido" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
                         {bySegment.map((entry, i) => (
                           <Cell key={i} fill={SEGMENT_COLORS[entry.name] || '#94A3B8'} />
                         ))}
@@ -409,6 +480,7 @@ export default function ReportsTest() {
                       <RechartsTooltip formatter={(v: number) => [formatCurrencyBRL(v), '']} contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.15)', fontSize: 10, fontWeight: 900 }} />
                     </PieChart>
                   </ResponsiveContainer>
+                )}
                 </div>
                 <div className="space-y-2 mt-2">
                   {bySegment.map((seg, i) => (
@@ -516,8 +588,9 @@ export default function ReportsTest() {
               <h3 className="text-base font-black text-slate-900 uppercase tracking-tight mb-1">Receita por Turma</h3>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-6">Faturado vs Recebido</p>
               <div style={{ height: Math.max(240, byClass.length * 44) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={byClass.map(x => ({ name: x.cls.name, Faturado: x.faturado, Recebido: x.recebido }))} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
+                {isReady && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={Array.isArray(byClass) ? byClass.map(x => ({ name: x.cls.name, Faturado: x.faturado, Recebido: x.recebido })) : []} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
                     <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#F1F5F9" />
                     <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94A3B8' }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
                     <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748B' }} width={110} />
@@ -526,6 +599,7 @@ export default function ReportsTest() {
                     <Bar dataKey="Recebido" fill="#10B981" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
 

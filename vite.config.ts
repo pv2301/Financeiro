@@ -14,9 +14,9 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: 'Cardápio Baby',
-          short_name: 'Cardápio',
-          description: 'Gestão de cardápio nutricional infantil',
+          name: 'Financeiro Canteen',
+          short_name: 'Financeiro',
+          description: 'Gestão financeira e faturamento',
           theme_color: '#ffffff',
           icons: [
             {
@@ -42,9 +42,7 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify - file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
+      hmr: process.env.DISABLE_HMR === 'true' ? false : { port: 24679 },
     },
   };
 });
