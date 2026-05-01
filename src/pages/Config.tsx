@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Save, Calendar, DollarSign, Settings, Zap, Download, ArrowUpRight, Umbrella, Sun
+  Calendar, DollarSign, Settings, Zap, Download, ArrowUpRight, Umbrella, Sun, Cloud, Check, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { finance } from '../services/finance';
@@ -34,6 +34,7 @@ export default function Config() {
   const [boletoFee, setBoletoFee] = useState<number>(3.50);
   const [boletoFeeInput, setBoletoFeeInput] = useState<string>("3,50");
   const [defaultCollegeShare, setDefaultCollegeShare] = useState<number>(20);
+  const [integralCollegeShare, setIntegralCollegeShare] = useState<number>(15);
   const [ageRefDay, setAgeRefDay] = useState<number>(0); 
   const [defaultDueDay, setDefaultDueDay] = useState<number>(10);
   const [collegeShareBySegment, setCollegeShareBySegment] = useState<Record<string, number>>({
@@ -44,12 +45,36 @@ export default function Config() {
     'Educação Infantil': 'LANCHE_COLETIVO',
     'Ensino Fundamental I': 'LANCHE_COLETIVO'
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const isLoadedRef = useRef(false);
+  const lastSavedRef = useRef("");
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [segments, setSegments] = useState<string[]>([]);
 
   const [totalStudents, setTotalStudents] = useState(0);
   const [totalClasses, setTotalClasses] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Display "saved X seconds ago" label
+  const [savedAgoLabel, setSavedAgoLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!savedAt) return;
+    const update = () => {
+      const secs = Math.round((Date.now() - savedAt.getTime()) / 1000);
+      if (secs < 60) setSavedAgoLabel(`${secs}s atrás`);
+      else setSavedAgoLabel(`${Math.round(secs / 60)}min atrás`);
+    };
+    update();
+    const interval = setInterval(update, 5000);
+    return () => clearInterval(interval);
+  }, [savedAt]);
+
+  const handleForceRefresh = useCallback(async () => {
+    setIsLoading(true);
+    isLoadedRef.current = false;
+    await loadData();
+  }, []);
 
   useEffect(() => { loadData(); }, []);
 
@@ -72,19 +97,24 @@ export default function Config() {
         setScholasticDays(globalConfig.scholasticDays || {});
         
         const vac: Record<string, boolean> = {};
-        Object.entries(globalConfig.scholasticDays || {}).forEach(([m, d]) => {
-           if (d === 0) vac[m] = true;
-        });
+        if (globalConfig.scholasticDays) {
+          Object.entries(globalConfig.scholasticDays).forEach(([m, d]) => {
+            if (Number(d) === 0) vac[m] = true;
+          });
+        }
         setVacationMonths(vac);
 
         const fee = globalConfig.boletoEmissionFee ?? 3.50;
         setBoletoFee(fee);
         setBoletoFeeInput(fee.toFixed(2).replace('.', ','));
         setDefaultCollegeShare(globalConfig.defaultCollegeSharePercent ?? 20);
+        setIntegralCollegeShare(globalConfig.integralCollegeSharePercent ?? 15);
         setAgeRefDay(globalConfig.ageReferenceDay || 0);
         setDefaultDueDay(globalConfig.defaultDueDay ?? 10);
         if (globalConfig.collegeShareBySegment) setCollegeShareBySegment(globalConfig.collegeShareBySegment);
         if (globalConfig.mandatorySnackBySegment) setMandatorySnackBySegment(globalConfig.mandatorySnackBySegment);
+        
+        setTimeout(() => { isLoadedRef.current = true; }, 500);
       }
     } catch (e) {
       console.error(e);
@@ -94,26 +124,42 @@ export default function Config() {
     }
   };
 
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+
+    const config = {
+      scholasticDays,
+      boletoEmissionFee: boletoFee,
+      defaultCollegeSharePercent: defaultCollegeShare,
+      integralCollegeSharePercent: integralCollegeShare,
+      ageReferenceDay: ageRefDay,
+      defaultDueDay: defaultDueDay,
+      collegeShareBySegment,
+      mandatorySnackBySegment
+    };
+
+    const dataStr = JSON.stringify(config);
+    if (dataStr === lastSavedRef.current) return;
+
+    const timer = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        await finance.saveConfig(config);
+        lastSavedRef.current = dataStr;
+        setSavedAt(new Date());
+      } catch (e) {
+        console.error("Auto-save failed", e);
+        showToast('Erro ao salvar configurações');
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [scholasticDays, boletoFee, defaultCollegeShare, integralCollegeShare, ageRefDay, defaultDueDay, collegeShareBySegment, mandatorySnackBySegment]);
+
   const handleSave = async () => {
-    setIsLoading(true);
-    try {
-      const config = {
-        scholasticDays,
-        boletoEmissionFee: boletoFee,
-        defaultCollegeSharePercent: defaultCollegeShare,
-        ageReferenceDay: ageRefDay,
-        defaultDueDay: defaultDueDay,
-        collegeShareBySegment,
-        mandatorySnackBySegment
-      };
-      await finance.saveConfig(config);
-      showToast('Configurações Salvas!');
-    } catch (e) {
-      console.error(e);
-      showToast('Erro ao Salvar');
-    } finally {
-      setIsLoading(false);
-    }
+    // Mantido apenas para compatibilidade
   };
 
   const toggleVacation = (monthIndex: number) => {
@@ -177,12 +223,30 @@ export default function Config() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleForceRefresh}
+            disabled={isLoading}
+            className="flex items-center gap-2 bg-white text-slate-500 px-4 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all border border-slate-200 shadow-sm disabled:opacity-40"
+            title="Recarregar configurações do servidor"
+          >
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
           <button onClick={exportData} className="flex items-center gap-3 bg-white text-slate-900 px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all border border-slate-200 shadow-sm">
              <Download size={16} className="text-brand-blue" /> Backup
           </button>
-          <button onClick={handleSave} className="flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-lg">
-             <Save size={16} className="text-brand-lime" /> Salvar Alterações
-          </button>
+          
+          <div className={cn(
+            "flex items-center gap-3 px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all min-w-[160px] justify-center",
+            isSaving ? "bg-slate-100 text-slate-400" : savedAt ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-slate-50 text-slate-400 border border-slate-100"
+          )}>
+             {isSaving
+               ? <><Cloud size={16} className="animate-pulse" /> Salvando...</>
+               : savedAt
+                 ? <><Check size={16} /> Salvo {savedAgoLabel}</>
+                 : <><Cloud size={16} /> Aguardando...</>
+             }
+          </div>
         </div>
       </header>
 
@@ -214,7 +278,7 @@ export default function Config() {
              <div className="grid grid-cols-3 md:grid-cols-4 gap-6">
                 {months.map((mes, idx) => {
                   const key = `${currentYear}-${String(idx + 1).padStart(2, '0')}`;
-                  const isVac = vacationMonths[key];
+                  const isVac = vacationMonths[key] || (scholasticDays[key] !== undefined && Number(scholasticDays[key]) === 0);
                   return (
                     <div key={mes} className={cn(
                       "p-5 rounded-2xl border transition-all space-y-4",
@@ -306,6 +370,17 @@ export default function Config() {
                           </div>
                        </div>
                      ))}
+
+                     {/* Campo INTEGRAL conforme solicitado */}
+                     <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                          <p className="text-[10px] font-black text-indigo-600 uppercase tracking-tight truncate flex-1">Aba Integral (Serviços)</p>
+                          <div className="relative w-20">
+                             <input type="number" value={integralCollegeShare}
+                               onChange={e => setIntegralCollegeShare(parseInt(e.target.value) || 0)}
+                               className="w-full p-2 bg-white border border-indigo-200 rounded-xl font-black text-indigo-600 text-sm text-center pr-6 outline-none focus:border-indigo-400" />
+                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-indigo-300 font-black">%</span>
+                          </div>
+                     </div>
                   </div>
                </div>
             </div>

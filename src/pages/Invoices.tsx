@@ -7,7 +7,8 @@ import {
   CreditCard, ShieldCheck, ArrowUpRight, ChevronRight,
   MoreVertical, Layers, Activity, MousePointer2,
   PieChart, DollarSign, Wallet, ShieldAlert,
-  Globe, Smartphone, Barcode, LayoutList, Columns
+  Globe, Smartphone, Barcode, LayoutList, Columns,
+  Archive, RotateCcw, Ban, Eye, EyeOff
 } from 'lucide-react';
 import { Invoice, Student, ClassInfo } from '../types';
 import { finance } from '../services/finance';
@@ -27,12 +28,15 @@ export default function Invoices() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'PAID'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'PAID' | 'CANCELLED'>('ALL');
+  const [view, setView] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
+  const [showCancelled, setShowCancelled] = useState(false);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   const [filterMonth, setFilterMonth] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [groupByDate, setGroupByDate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
   const [payTarget, setPayTarget] = useState<{ id: string; name: string } | null>(null);
   const { selectedIds, toggleId, toggleAll, clearAll } = usePersistentSelection('invoices_selected_ids');
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'dueDate', direction: 'desc' });
@@ -51,7 +55,25 @@ export default function Invoices() {
         finance.getClasses(),
         finance.getGlobalConfig()
       ]);
-      setInvoices(invData);
+      
+      // Auto-archive check (paid > 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const toAutoArchive = invData.filter(i => 
+        i.paymentStatus === 'PAID' && 
+        !i.archivedAt && 
+        i.paymentDate && 
+        new Date(i.paymentDate) < thirtyDaysAgo
+      );
+
+      if (toAutoArchive.length > 0) {
+        await Promise.all(toAutoArchive.map(i => finance.archiveInvoice(i.id)));
+        const updatedInvoices = await finance.getInvoices();
+        setInvoices(updatedInvoices);
+      } else {
+        setInvoices(invData);
+      }
+
       setStudents(stuData);
       setClasses(classData);
       if (configData) setBoletoFee(configData.boletoEmissionFee ?? 3.5);
@@ -97,14 +119,21 @@ export default function Invoices() {
     }
   }, [payTarget, invoices]);
 
-  const confirmDelete = async () => {
+  const confirmCancel = async () => {
     if (!deleteTarget) return;
-    await finance.deleteInvoice(deleteTarget.id);
+    await finance.cancelInvoice(deleteTarget.id);
     setDeleteTarget(null);
     await loadData();
   };
 
-  const handleBulkAction = async (action: 'PAY' | 'DELETE') => {
+  const confirmArchive = async () => {
+    if (!archiveTarget) return;
+    await finance.archiveInvoice(archiveTarget.id);
+    setArchiveTarget(null);
+    await loadData();
+  };
+
+  const handleBulkAction = async (action: 'PAY' | 'CANCEL' | 'ARCHIVE') => {
     setIsLoading(true);
     try {
       const ids = Array.from(selectedIds);
@@ -120,10 +149,12 @@ export default function Invoices() {
             oscilacao: 0
           }) : Promise.resolve();
         }));
-      } else {
-        await Promise.all(ids.map(id => finance.deleteInvoice(id)));
+      } else if (action === 'CANCEL') {
+        await Promise.all(ids.map(id => finance.cancelInvoice(id)));
+      } else if (action === 'ARCHIVE') {
+        await Promise.all(ids.map(id => finance.archiveInvoice(id)));
       }
-      setSelectedIds(new Set());
+      clearAll();
       await loadData();
     } catch (e) {
       console.error(e);
@@ -134,6 +165,14 @@ export default function Invoices() {
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
+      // Visibility logic
+      const isArchived = !!inv.archivedAt;
+      const isCancelled = inv.paymentStatus === 'CANCELLED';
+
+      if (view === 'ACTIVE' && isArchived) return false;
+      if (view === 'ARCHIVED' && !isArchived) return false;
+      if (isCancelled && !showCancelled && filterStatus !== 'CANCELLED') return false;
+
       const name = getStudentName(inv.studentId).toLowerCase();
       const matchesSearch = name.includes(searchTerm.toLowerCase()) || inv.id.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === 'ALL' || inv.paymentStatus === filterStatus;
@@ -154,7 +193,7 @@ export default function Invoices() {
       if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [invoices, searchTerm, filterStatus, filterCategory, filterMonth, sortConfig, students]);
+  }, [invoices, searchTerm, filterStatus, filterCategory, filterMonth, sortConfig, students, view, showCancelled]);
 
   const groupedInvoices = useMemo(() => {
     if (!groupByDate) return { 'Tudo': filteredInvoices };
@@ -261,17 +300,41 @@ export default function Invoices() {
           
           <div className="flex items-center gap-3 w-full lg:w-auto">
             <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
-                {(['ALL', 'PENDING', 'PAID'] as const).map(st => (
-                  <button key={st} onClick={() => setFilterStatus(st)} className={cn("px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all", filterStatus === st ? "bg-white shadow-md text-slate-900 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
-                    {st === 'ALL' ? 'Todas' : st === 'PENDING' ? 'Pendentes' : 'Pagas'}
+                {(['ALL', 'PENDING', 'PAID', 'CANCELLED'] as const).map(st => (
+                  <button key={st} onClick={() => {
+                    setFilterStatus(st);
+                    if (st === 'CANCELLED') setShowCancelled(true);
+                  }} className={cn("px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all", filterStatus === st ? "bg-white shadow-md text-slate-900 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
+                    {st === 'ALL' ? 'Todas' : st === 'PENDING' ? 'Pendentes' : st === 'PAID' ? 'Pagas' : 'Canceladas'}
                   </button>
                 ))}
             </div>
 
+            <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner ml-2">
+                <button onClick={() => setView('ACTIVE')} className={cn("px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all", view === 'ACTIVE' ? "bg-white shadow-md text-slate-900 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
+                   <Activity size={14} className="inline mr-2" /> Ativas
+                </button>
+                <button onClick={() => setView('ARCHIVED')} className={cn("px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all", view === 'ARCHIVED' ? "bg-white shadow-md text-slate-900 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
+                   <Archive size={14} className="inline mr-2" /> Arquivadas
+                </button>
+            </div>
+
+            <button 
+              onClick={() => setShowCancelled(!showCancelled)} 
+              className={cn(
+                "p-3 rounded-xl border transition-all",
+                showCancelled ? "bg-rose-50 border-rose-200 text-rose-500" : "bg-white border-slate-200 text-slate-400"
+              )}
+              title={showCancelled ? "Ocultar Cancelados" : "Exibir Cancelados"}
+            >
+              {showCancelled ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl shadow-lg border border-white/10">
                   <button onClick={() => handleBulkAction('PAY')} className="px-4 py-2.5 text-emerald-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Baixar</button>
-                  <button onClick={() => handleBulkAction('DELETE')} className="px-4 py-2.5 text-rose-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Excluir</button>
+                  <button onClick={() => handleBulkAction('ARCHIVE')} className="px-4 py-2.5 text-indigo-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Arquivar</button>
+                  <button onClick={() => handleBulkAction('CANCEL')} className="px-4 py-2.5 text-rose-400 font-black text-[9px] uppercase tracking-widest hover:bg-white/10 rounded-xl transition-all">Cancelar</button>
               </div>
             )}
           </div>
@@ -401,12 +464,14 @@ export default function Invoices() {
                       </td>
                       <td className="px-4 py-4 text-center">
                          <div className="flex flex-col items-center gap-1">
-                           <span className={cn(
-                             "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
-                             inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                           )}>
-                             {inv.paymentStatus === 'PAID' ? 'Pago' : 'Pendente'}
-                           </span>
+                            <span className={cn(
+                              "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
+                              inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
+                              inv.paymentStatus === 'CANCELLED' ? "bg-slate-100 text-slate-400 border-slate-200" :
+                              "bg-amber-50 text-amber-600 border-amber-100"
+                            )}>
+                              {inv.paymentStatus === 'PAID' ? 'Pago' : inv.paymentStatus === 'CANCELLED' ? 'Cancelado' : 'Pendente'}
+                            </span>
                            {inv.paymentMethod && (
                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">{inv.paymentMethod}</span>
                            )}
@@ -414,10 +479,15 @@ export default function Invoices() {
                       </td>
                       <td className="px-8 py-4 text-right">
                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            {inv.paymentStatus === 'PENDING' && (
-                              <button onClick={() => setPayTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"><CheckCircle2 size={18} /></button>
-                            )}
-                            <button onClick={() => setDeleteTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={18} /></button>
+                             {inv.paymentStatus === 'PENDING' && (
+                               <button onClick={() => setPayTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all" title="Baixar"><CheckCircle2 size={18} /></button>
+                             )}
+                             {inv.paymentStatus === 'PAID' && !inv.archivedAt && (
+                               <button onClick={() => setArchiveTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all" title="Arquivar"><Archive size={18} /></button>
+                             )}
+                             {inv.paymentStatus !== 'CANCELLED' && (
+                               <button onClick={() => setDeleteTarget({ id: inv.id, name: getStudentName(inv.studentId) })} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Cancelar"><Ban size={18} /></button>
+                             )}
                          </div>
                       </td>
                     </tr>
@@ -429,7 +499,8 @@ export default function Invoices() {
         </div>
       </div>
 
-      <ConfirmDialog isOpen={!!deleteTarget} title="Excluir" message={`Deseja excluir a fatura de "${deleteTarget?.name}"?`} confirmLabel="Excluir" variant="danger" onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog isOpen={!!deleteTarget} title="Cancelar Fatura" message={`Deseja cancelar permanentemente a fatura de "${deleteTarget?.name}"? Esta ação não pode ser desfeita.`} confirmLabel="Cancelar Fatura" variant="danger" onConfirm={confirmCancel} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog isOpen={!!archiveTarget} title="Arquivar Fatura" message={`Deseja arquivar a fatura de "${archiveTarget?.name}"? Ela será movida para a aba de histórico.`} confirmLabel="Arquivar" variant="info" onConfirm={confirmArchive} onCancel={() => setArchiveTarget(null)} />
       
       {/* Modal de Método de Pagamento */}
       <AnimatePresence>

@@ -7,7 +7,7 @@ export const BILLING_MODE_LABELS: Record<BillingMode, string> = {
   'POSTPAID_CONSUMPTION': 'Pós-Pago',
 };
 
-export type PaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 
 // ─── ClassInfo (Turma) ─────────────────────────────────────────────────────
 export interface ClassInfo {
@@ -137,7 +137,9 @@ export interface Invoice {
   error?: string;
   isIntegral?: boolean;
   hasImportedConsumption?: boolean;
-  items?: { description: string; type: string; amount: number }[]; // Added for detailed reports
+  items?: { description?: string; type?: string; amount?: number; name?: string; quantity?: number }[]; // Added for detailed reports and display
+  archivedAt?: string;
+  cancelledAt?: string;
 
   deletedAt?: string | null;
   deletedBy?: string | null;
@@ -181,6 +183,7 @@ export interface GlobalConfig {
   boletoEmissionFee: number;
   defaultDueDay: number;
   defaultCollegeSharePercent: number;
+  integralCollegeSharePercent: number;
   ageReferenceDay: number;
   collegeShareBySegment?: Record<string, number>;
   mandatorySnackBySegment?: Record<string, string>; // { 'Berçário': 'ALMOCO', ... }

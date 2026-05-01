@@ -249,9 +249,6 @@ export const IntegralBillingTable: React.FC<IntegralBillingTableProps> = ({
                       onChange={(e) => {
                         const val = e.target.value;
                         setBankSlipNumbers(prev => ({ ...prev, [inv.studentId]: val }));
-                        if (val.trim() !== "" && !selectedIds.has(inv.id)) {
-                          setSelectedIds(prev => new Set([...prev, inv.id]));
-                        }
                       }}
                       placeholder="Nº TÍTULO"
                       className="w-full text-center py-2 bg-slate-50 border-2 border-slate-100 rounded-xl text-[10px] font-black focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue transition-all text-slate-700 uppercase"

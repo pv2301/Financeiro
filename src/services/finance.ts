@@ -29,16 +29,16 @@ import {
 } from '../types';
 
 const C = {
-  STUDENTS:  'fin_students',
-  CLASSES:   'fin_classes',
-  SERVICES:  'fin_snacks', 
-  INVOICES:  'fin_invoices',
-  CONFIG:    'fin_config',
-  PRESENCE:  'fin_presence',
+  STUDENTS: 'fin_students',
+  CLASSES: 'fin_classes',
+  SERVICES: 'fin_snacks',
+  INVOICES: 'fin_invoices',
+  CONFIG: 'fin_config',
+  PRESENCE: 'fin_presence',
   CONSUMPTION: 'fin_consumption',
   AUDIT_LOGS: 'fin_audit_logs',
   BILLING_DRAFTS: 'fin_billing_drafts',
-  STATS: 'fin_config', 
+  STATS: 'fin_config',
 };
 
 const STATS_DOC_ID = 'stats';
@@ -54,6 +54,15 @@ const VERSION_BUCKETS: Record<string, string> = {
   'consumption': 'consumption'
 };
 
+interface DataVersions {
+  students?: string;
+  classes?: string;
+  services?: string;
+  invoices?: string | Record<string, string>;
+  drafts?: string | Record<string, string>;
+  consumption?: string | Record<string, string>;
+}
+
 function getVersionBucket(bucket: string): string {
   return VERSION_BUCKETS[bucket] || bucket;
 }
@@ -66,13 +75,13 @@ async function getCachedOrFetch<T>(
 ): Promise<T[]> {
   try {
     const cacheKey = subKey ? `${bucket}_${subKey.replace(/[\/-]/g, '-')}` : bucket;
-    
+
     const versions = await getRemoteVersions();
     const localVer = getLocalVersion(cacheKey);
     const vBucket = getVersionBucket(bucket);
-    
-    const remoteVer = subKey 
-      ? (versions as any)?.[vBucket]?.[subKey.replace(/[\/-]/g, '-')] 
+
+    const remoteVer = subKey
+      ? (versions as any)?.[vBucket]?.[subKey.replace(/[\/-]/g, '-')]
       : (versions as any)?.[vBucket];
 
     // If version matches, return local cache
@@ -83,12 +92,12 @@ async function getCachedOrFetch<T>(
 
     // Otherwise, fetch from Firestore
     const data = await fetchFn();
-    
+
     // Update local cache if we have a remote version to lock on
     if (remoteVer) {
       setLocalCache(cacheKey, data, remoteVer);
     }
-    
+
     return data;
   } catch (error) {
     console.error(`Error in getCachedOrFetch for ${bucket}:`, error);
@@ -101,7 +110,7 @@ async function bumpVersion(bucket: string, subKey?: string): Promise<void> {
     const vRef = doc(db, C.CONFIG, 'versions');
     const update: any = {};
     const vBucket = getVersionBucket(bucket);
-    
+
     if (subKey) {
       const cleanSub = subKey.replace(/[\/-]/g, '-');
       update[`${vBucket}.${cleanSub}`] = new Date().getTime().toString();
@@ -165,7 +174,7 @@ async function getAllFromCollection<T extends { deletedAt?: string | null }>(col
       if (item.billingMode === 'ANTICIPATED_DAYS') item.billingMode = 'PREPAID_DAYS';
       return item as T;
     }).filter(item => !item.deletedAt);
-    
+
     return data;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, col);
@@ -218,7 +227,7 @@ async function saveItem<T extends { id: string }>(col: string, item: T): Promise
     if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
       finance.recomputeStats().catch(console.error);
       const isInvoice = col === C.INVOICES;
-      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      const dataObj = (typeof item === 'object' ? item : (existing || itemToSave || {})) as any;
       if (isInvoice && dataObj?.monthYear) {
         bumpVersion('invoices', dataObj.monthYear);
       } else {
@@ -235,22 +244,22 @@ async function softDeleteItem(col: string, id: string): Promise<void> {
     const docRef = doc(db, col, id);
     const existingSnap = await getDoc(docRef);
     if (!existingSnap.exists()) return;
-    
+
     const existing = existingSnap.data();
     if (existing.deletedAt) return; // Already soft-deleted
-    
+
     const auth = getAuth();
     const userEmail = auth.currentUser?.email || 'sistema@financeiro.com';
 
     const updated = { ...existing, deletedAt: new Date().toISOString(), deletedBy: userEmail };
-    
+
     await setDoc(docRef, updated);
     await createAuditLog('SOFT_DELETE', col, id, existing, updated);
     invalidateCache(col);
     if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
       finance.recomputeStats().catch(console.error);
       const isInvoice = col === C.INVOICES;
-      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      const dataObj = (existing || updated || {}) as any;
       if (isInvoice && dataObj?.monthYear) {
         bumpVersion('invoices', dataObj.monthYear);
       } else {
@@ -276,7 +285,7 @@ async function deleteItem(col: string, id: string): Promise<void> {
     if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
       finance.recomputeStats().catch(console.error);
       const isInvoice = col === C.INVOICES;
-      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      const dataObj = (existing || {}) as any;
       if (isInvoice && dataObj?.monthYear) {
         bumpVersion('invoices', dataObj.monthYear);
       } else {
@@ -293,19 +302,19 @@ async function restoreDocument(col: string, id: string): Promise<void> {
     const docRef = doc(db, col, id);
     const existingSnap = await getDoc(docRef);
     if (!existingSnap.exists()) return;
-    
+
     const existing = existingSnap.data();
     const updated = { ...existing };
     delete updated.deletedAt;
     delete updated.deletedBy;
-    
+
     await setDoc(docRef, updated);
     await createAuditLog('UPDATE', col, id, existing, updated);
     invalidateCache(col);
     if ([C.STUDENTS, C.CLASSES, C.INVOICES].includes(col)) {
       finance.recomputeStats().catch(console.error);
       const isInvoice = col === C.INVOICES;
-      const dataObj = (typeof item === 'object' ? item : (existing || updated || {})) as any;
+      const dataObj = (existing || updated || {}) as any;
       if (isInvoice && dataObj?.monthYear) {
         bumpVersion('invoices', dataObj.monthYear);
       } else {
@@ -343,31 +352,41 @@ async function mergeBatchToCollection<T extends { id: string }>(col: string, ite
   }
 }
 
+// ─── Utility: chunk array into sub-arrays of maxSize ────────────────────────────────────
+/** Splits an array into chunks of at most maxSize. Used for Firestore 'in' query limits. */
+function chunked<T>(arr: T[], maxSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += maxSize) {
+    chunks.push(arr.slice(i, i + maxSize));
+  }
+  return chunks;
+}
+
 // ─── Finance Service ──────────────────────────────────────────────────────
 export const finance = {
   // ── Classes ──────────────────────────────────────────────────────────────
   getClasses: () => getCachedOrFetch<ClassInfo>('classes', () => getAllFromCollection<ClassInfo>(C.CLASSES)),
-  saveClass:        (c: ClassInfo)     => saveItem(C.CLASSES, c),
-  deleteClass:      (id: string)       => softDeleteItem(C.CLASSES, id),
-  saveAllClasses:   (cs: ClassInfo[])  => saveAllToCollection(C.CLASSES, cs),
-  mergeBatchClasses:(cs: ClassInfo[])  => mergeBatchToCollection(C.CLASSES, cs),
+  saveClass: (c: ClassInfo) => saveItem(C.CLASSES, c),
+  deleteClass: (id: string) => softDeleteItem(C.CLASSES, id),
+  saveAllClasses: (cs: ClassInfo[]) => saveAllToCollection(C.CLASSES, cs),
+  mergeBatchClasses: (cs: ClassInfo[]) => mergeBatchToCollection(C.CLASSES, cs),
 
   // ── Students ─────────────────────────────────────────────────────────────
   getStudents: () => getCachedOrFetch<Student>('students', () => getAllFromCollection<Student>(C.STUDENTS)),
-  saveStudent:       (s: Student)       => saveItem(C.STUDENTS, s),
-  deleteStudent:     (id: string)       => softDeleteItem(C.STUDENTS, id),
-  mergeBatchStudents:(ss: Student[])    => mergeBatchToCollection(C.STUDENTS, ss),
+  saveStudent: (s: Student) => saveItem(C.STUDENTS, s),
+  deleteStudent: (id: string) => softDeleteItem(C.STUDENTS, id),
+  mergeBatchStudents: (ss: Student[]) => mergeBatchToCollection(C.STUDENTS, ss),
 
   // ── Services (ex-Snacks) ──────────────────────────────────────────────────
   getServices: () => getCachedOrFetch<ServiceItem>('services', () => getAllFromCollection<ServiceItem>(C.SERVICES)),
-  saveService:       (s: ServiceItem)      => saveItem(C.SERVICES, s),
-  deleteService:     (id: string)          => softDeleteItem(C.SERVICES, id),
-  saveAllServices:   (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
+  saveService: (s: ServiceItem) => saveItem(C.SERVICES, s),
+  deleteService: (id: string) => softDeleteItem(C.SERVICES, id),
+  saveAllServices: (ss: ServiceItem[]) => saveAllToCollection(C.SERVICES, ss),
   // Legacy aliases
-  getSnacks:         ()                    => finance.getServices(),
-  saveSnack:         (s: ServiceItem)      => saveItem(C.SERVICES, s),
-  deleteSnack:       (id: string)          => softDeleteItem(C.SERVICES, id),
-  saveAllSnacks:     (ss: ServiceItem[])   => saveAllToCollection(C.SERVICES, ss),
+  getSnacks: () => finance.getServices(),
+  saveSnack: (s: ServiceItem) => saveItem(C.SERVICES, s),
+  deleteSnack: (id: string) => softDeleteItem(C.SERVICES, id),
+  saveAllSnacks: (ss: ServiceItem[]) => saveAllToCollection(C.SERVICES, ss),
 
   // ── Invoices ─────────────────────────────────────────────────────────────
   getInvoices: () => getCachedOrFetch<Invoice>('invoices_all', () => getAllFromCollection<Invoice>(C.INVOICES)),
@@ -377,7 +396,7 @@ export const finance = {
       const q = query(collection(db, C.INVOICES), where("monthYear", "==", formatted));
       const snap = await getDocs(q);
       let records = snap.docs.map(d => d.data() as Invoice).filter(i => !i.deletedAt);
-      
+
       if (records.length === 0 && monthYear.includes('/')) {
         const q2 = query(collection(db, C.INVOICES), where("monthYear", "==", monthYear));
         const snap2 = await getDocs(q2);
@@ -386,12 +405,49 @@ export const finance = {
       return records;
     }, formatted);
   },
-  saveInvoice:       (inv: Invoice)     => saveItem(C.INVOICES, inv),
-  deleteInvoice:     (id: string)       => softDeleteItem(C.INVOICES, id),
-  saveBatchInvoices: (invs: Invoice[])  => mergeBatchToCollection(C.INVOICES, invs),
+  saveInvoice: (inv: Invoice) => saveItem(C.INVOICES, inv),
+  deleteInvoice: (id: string) => softDeleteItem(C.INVOICES, id),
+  cancelInvoice: async (id: string) => {
+    try {
+      const docRef = doc(db, C.INVOICES, id);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return;
+      const inv = snap.data() as Invoice;
+      const updated = {
+        ...inv,
+        paymentStatus: 'CANCELLED' as const,
+        cancelledAt: new Date().toISOString()
+      };
+      await setDoc(docRef, updated);
+      await createAuditLog('CANCEL_INVOICE', C.INVOICES, id, inv as any, updated as any);
+      invalidateCache(C.INVOICES);
+      if (inv.monthYear) bumpVersion('invoices', inv.monthYear);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, C.INVOICES);
+    }
+  },
+  archiveInvoice: async (id: string) => {
+    try {
+      const docRef = doc(db, C.INVOICES, id);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return;
+      const inv = snap.data() as Invoice;
+      const updated = {
+        ...inv,
+        archivedAt: new Date().toISOString()
+      };
+      await setDoc(docRef, updated);
+      await createAuditLog('ARCHIVE_INVOICE', C.INVOICES, id, inv as any, updated as any);
+      invalidateCache(C.INVOICES);
+      if (inv.monthYear) bumpVersion('invoices', inv.monthYear);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, C.INVOICES);
+    }
+  },
+  saveBatchInvoices: (invs: Invoice[]) => mergeBatchToCollection(C.INVOICES, invs),
 
   // ── Audit Logs ───────────────────────────────────────────────────────────
-  getAuditLogs:      ()                 => getAllFromCollection<AuditLog>(C.AUDIT_LOGS),
+  getAuditLogs: () => getAllFromCollection<AuditLog>(C.AUDIT_LOGS),
 
 
   /**
@@ -440,7 +496,7 @@ export const finance = {
       const referenceAmount = row.originalAmount || invoice.netAmount;
       const hasDivergence = Math.abs(row.amountCharged - referenceAmount) > 0.01;
       const oscilacao = row.amountCharged - referenceAmount;
-      
+
       let notes = invoice.notes || '';
 
       if (hasDivergence) {
@@ -494,7 +550,7 @@ export const finance = {
       const docRef = doc(db, C.CONFIG, 'global');
       const existingSnap = await getDoc(docRef);
       const existing = existingSnap.exists() ? existingSnap.data() : null;
-      
+
       await setDoc(docRef, data, { merge: true });
       await createAuditLog('UPDATE', C.CONFIG, 'global', existing, data);
       invalidateCache(C.CONFIG);
@@ -514,6 +570,7 @@ export const finance = {
         boletoEmissionFee: data.boletoEmissionFee ?? 3.50,
         defaultDueDay: data.defaultDueDay ?? 10,
         defaultCollegeSharePercent: data.defaultCollegeSharePercent ?? 20,
+        integralCollegeSharePercent: data.integralCollegeSharePercent ?? 15,
         ageReferenceDay: data.ageReferenceDay ?? 5,
         collegeShareBySegment: data.collegeShareBySegment || {
           'Berçário': 20,
@@ -530,7 +587,7 @@ export const finance = {
       return null;
     }
   },
-   saveGlobalConfig: async (data: Partial<GlobalConfig>): Promise<void> => {
+  saveGlobalConfig: async (data: Partial<GlobalConfig>): Promise<void> => {
     try {
       const docRef = doc(db, C.CONFIG, 'global');
       const existingSnap = await getDoc(docRef);
@@ -552,7 +609,7 @@ export const finance = {
       const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted));
       const snap = await getDocs(q);
       let records = snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
-      
+
       if (records.length === 0 && monthYear.includes('/')) {
         const q2 = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
         const snap2 = await getDocs(q2);
@@ -572,7 +629,7 @@ export const finance = {
       }
       await batch.commit();
       invalidateCache(C.CONSUMPTION);
-      
+
       const monthYear = records[0].monthYear;
       if (monthYear) bumpVersion('consumption', monthYear);
     } catch (error) {
@@ -582,65 +639,131 @@ export const finance = {
   },
 
   // ─── DATA DELETION (Danger Zone) ──────────────────────────────────────────
-  
-  /** Deleta alunos e todos os seus vínculos (boletos e consumos) */
+
+  /**
+   * Soft-deletes a batch of documents in a single Firestore batch write.
+   * Used internally to replace N serial softDeleteItem calls with one round-trip.
+   * Max 500 ops per batch — callers must chunk if needed.
+   */
+
+  /**
+   * Deleta alunos e todos os seus vínculos (boletos e consumos).
+   * FIX (BUG-04): Uses parallel Promise.all + batch writes instead of serial for-await loops.
+   * Old: N*(M+1) sequential round-trips. New: ~3 parallel fetches + 1 batch write.
+   */
   deleteStudents: async (ids: string[]) => {
-    for (const id of ids) {
-      await softDeleteItem(C.STUDENTS, id);
-      
-      const invSnap = await getDocs(query(collection(db, C.INVOICES), where("studentId", "==", id)));
-      for (const d of invSnap.docs) {
-        await softDeleteItem(C.INVOICES, d.id);
-      }
-      
-      // Consumption remains a hard delete if necessary, or soft delete it
-      // Let's soft delete consumption too for consistency
-      const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("studentId", "==", id)));
-      for (const d of consSnap.docs) {
-        await softDeleteItem(C.CONSUMPTION, d.id);
-      }
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    const auth = getAuth();
+    const userEmail = auth.currentUser?.email || 'sistema@financeiro.com';
+
+    // Fetch student docs, invoices and consumption in parallel (chunked for Firestore 'in' limit)
+    const idChunks = chunked(ids, 25);
+    const [studentDocs, ...restSnaps] = await Promise.all([
+      Promise.all(ids.map(id => getDoc(doc(db, C.STUDENTS, id)))),
+      ...idChunks.map(chunk => getDocs(query(collection(db, C.INVOICES), where('studentId', 'in', chunk)))),
+      ...idChunks.map(chunk => getDocs(query(collection(db, C.CONSUMPTION), where('studentId', 'in', chunk)))),
+    ]);
+
+    const halfIdx = idChunks.length;
+    const invoiceSnaps = restSnaps.slice(0, halfIdx);
+    const consSnaps = restSnaps.slice(halfIdx);
+
+    // Build refs list for batch soft-delete
+    const allRefs: Array<{ ref: any; existing: any }> = [
+      ...(studentDocs as any[]).map(snap => ({ ref: snap.ref, existing: snap.exists() ? snap.data() : null })),
+      ...invoiceSnaps.flatMap((s: any) => s.docs.map((d: any) => ({ ref: d.ref, existing: d.data() }))),
+      ...consSnaps.flatMap((s: any) => s.docs.map((d: any) => ({ ref: d.ref, existing: d.data() }))),
+    ];
+
+    // Batch soft-delete in chunks of 400 (Firestore limit is 500 ops)
+    for (let i = 0; i < allRefs.length; i += 400) {
+      const chunk = allRefs.slice(i, i + 400);
+      const batch = writeBatch(db);
+      chunk.forEach(({ ref, existing }) => {
+        if (existing && !existing.deletedAt) {
+          batch.set(ref, { ...existing, deletedAt: now, deletedBy: userEmail });
+        }
+      });
+      await batch.commit();
     }
+
+    // Invalidate caches once for all affected collections
+    invalidateCache(C.STUDENTS);
+    invalidateCache(C.INVOICES);
+    invalidateCache(C.CONSUMPTION);
+    finance.recomputeStats().catch(console.error);
+    bumpVersion('students');
   },
 
-  /** Deleta turmas e todos os alunos vinculados a elas */
+  /**
+   * Deleta turmas e todos os alunos vinculados a elas.
+   * FIX (BUG-04): Fetches all student IDs for all classes in parallel, then delegates to deleteStudents.
+   */
   deleteClasses: async (ids: string[]) => {
-    for (const classId of ids) {
-      const q = query(collection(db, C.STUDENTS), where("classId", "==", classId));
-      const snap = await getDocs(q);
-      const studentIds = snap.docs.map(d => d.id);
-      
-      if (studentIds.length > 0) {
-        await finance.deleteStudents(studentIds);
-      }
-      
-      await softDeleteItem(C.CLASSES, classId);
+    if (ids.length === 0) return;
+
+    // Fetch students for all classes in parallel
+    const studentSnapshots = await Promise.all(
+      ids.map(classId =>
+        getDocs(query(collection(db, C.STUDENTS), where('classId', '==', classId)))
+      )
+    );
+
+    const allStudentIds = studentSnapshots.flatMap(snap => snap.docs.map(d => d.id));
+
+    // Delete all students (and their invoices/consumption) in one optimized call
+    if (allStudentIds.length > 0) {
+      await finance.deleteStudents(allStudentIds);
     }
+
+    // Delete the class documents themselves in parallel
+    await Promise.all(ids.map(id => softDeleteItem(C.CLASSES, id)));
+    bumpVersion('classes');
   },
 
-  /** Deleta todos os dados financeiros (boletos e consumos) de um mês específico */
+  /**
+   * Deleta todos os dados financeiros (boletos e consumos) de um mês específico.
+   * FIX (BUG-04): Fetches all docs in parallel and applies a single batch soft-delete.
+   */
   deleteMonthlyData: async (monthYear: string) => {
     const formatted = monthYear.replace('/', '-');
-    // 1. Delete Invoices (Invoices usually use slash)
-    const invSnap = await getDocs(query(collection(db, C.INVOICES), where("monthYear", "==", monthYear)));
-    for (const d of invSnap.docs) {
-      await softDeleteItem(C.INVOICES, d.id);
-    }
-    
-    // 2. Delete Consumption (Supports both)
-    const consSnap = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted)));
-    for (const d of consSnap.docs) {
-      await softDeleteItem(C.CONSUMPTION, d.id);
-    }
-    // Fallback for legacy consumption with slash
-    if (monthYear.includes('/')) {
-      const consSnap2 = await getDocs(query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear)));
-      for (const d of consSnap2.docs) {
-        await softDeleteItem(C.CONSUMPTION, d.id);
-      }
+    const now = new Date().toISOString();
+    const auth = getAuth();
+    const userEmail = auth.currentUser?.email || 'sistema@financeiro.com';
+
+    // Fetch invoices and consumption in parallel (both format variants)
+    const [invBySlash, consByDash, consBySlash] = await Promise.all([
+      getDocs(query(collection(db, C.INVOICES), where('monthYear', '==', monthYear))),
+      getDocs(query(collection(db, C.CONSUMPTION), where('monthYear', '==', formatted))),
+      monthYear.includes('/')
+        ? getDocs(query(collection(db, C.CONSUMPTION), where('monthYear', '==', monthYear)))
+        : Promise.resolve({ docs: [] as any[] }),
+    ]);
+
+    // Collect all non-deleted docs
+    const allDocs = [
+      ...invBySlash.docs,
+      ...consByDash.docs,
+      ...consBySlash.docs,
+    ].filter(d => !d.data().deletedAt);
+
+    // Batch soft-delete in chunks of 400
+    for (let i = 0; i < allDocs.length; i += 400) {
+      const chunk = allDocs.slice(i, i + 400);
+      const batch = writeBatch(db);
+      chunk.forEach(d => {
+        batch.set(d.ref, { ...d.data(), deletedAt: now, deletedBy: userEmail });
+      });
+      await batch.commit();
     }
 
-    // 3. Delete Billing Draft
+    // Delete billing draft for this month
     await finance.clearBillingDraft(monthYear);
+
+    invalidateCache(C.INVOICES);
+    invalidateCache(C.CONSUMPTION);
+    bumpVersion('invoices', monthYear);
   },
 
   /** Deleta registros de consumo específicos de alunos em um mês */
@@ -652,7 +775,7 @@ export const finance = {
       for (let i = 0; i < studentIds.length; i += CHUNK_SIZE) {
         const chunk = studentIds.slice(i, i + CHUNK_SIZE);
         const q = query(
-          collection(db, C.CONSUMPTION), 
+          collection(db, C.CONSUMPTION),
           where("monthYear", "==", monthYear),
           where("studentId", "in", chunk)
         );
@@ -692,13 +815,13 @@ export const finance = {
         if (data.deletedAt && data.deletedAt < thresholdISO) {
           batch.delete(d.ref);
           count++;
-          
+
           // Delete audit logs related to this doc if we want, or keep them. 
           // Keeping them is better for audit trail.
         }
       }
     }
-    
+
     if (count > 0) {
       await batch.commit();
     }
@@ -714,9 +837,9 @@ export const finance = {
       { name: 'Consumo', col: C.CONSUMPTION },
       { name: 'Serviços', col: C.SERVICES }
     ];
-    
+
     const results: any[] = [];
-    
+
     for (const { name, col } of collectionsToCheck) {
       const snap = await getDocs(collection(db, col));
       for (const d of snap.docs) {
@@ -730,31 +853,31 @@ export const finance = {
         }
       }
     }
-    
+
     return results.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   },
 
   /** Limpa absolutamente tudo das coleções principais */
   deleteAllData: async (categories: { students?: boolean, classes?: boolean, financial?: boolean }) => {
     const batch = writeBatch(db);
-    
+
     if (categories.financial) {
       const invs = await getDocs(collection(db, C.INVOICES));
       invs.forEach(d => batch.delete(d.ref));
       const cons = await getDocs(collection(db, C.CONSUMPTION));
       cons.forEach(d => batch.delete(d.ref));
     }
-    
+
     if (categories.students) {
       const stds = await getDocs(collection(db, C.STUDENTS));
       stds.forEach(d => batch.delete(d.ref));
     }
-    
+
     if (categories.classes) {
       const clss = await getDocs(collection(db, C.CLASSES));
       clss.forEach(d => batch.delete(d.ref));
     }
-    
+
     await batch.commit();
     invalidateCache(); // Invalidate all since multiple collections were hit
   },
@@ -860,12 +983,12 @@ export const finance = {
       const now = new Date();
       const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
       const currentYear = now.getFullYear().toString();
-      
+
       const currentMonthInvoices = invoices.filter(i => {
         const parts = i.monthYear?.split(/[\/-]/) || [];
         return (parts[0] === currentMonth && parts[1] === currentYear);
       });
-      
+
       // Monthly Summary
       const monthlySummary: Record<string, any> = {};
       invoices.forEach(inv => {
@@ -883,7 +1006,7 @@ export const finance = {
           monthlySummary[month].pendingCount++;
         }
       });
-      
+
       // Segment Summary
       const segmentSummary: Record<string, any> = {};
       invoices.forEach(inv => {
@@ -902,10 +1025,10 @@ export const finance = {
         debtMap[inv.studentId] = (debtMap[inv.studentId] || 0) + (inv.netAmount || 0);
       });
       const topDevedores = Object.entries(debtMap)
-        .map(([id, amount]) => ({ 
-          studentId: id, 
-          studentName: students.find(s => s.id === id)?.name || 'Desconhecido', 
-          amount 
+        .map(([id, amount]) => ({
+          studentId: id,
+          studentName: students.find(s => s.id === id)?.name || 'Desconhecido',
+          amount
         }))
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 10);
@@ -937,13 +1060,13 @@ export const finance = {
     try {
       const docRef = doc(db, C.CONFIG, STATS_DOC_ID);
       const fsUpdates: any = { ...updates, lastUpdated: new Date().toISOString() };
-      
+
       // Convert numbers to increment if they are intended to be deltas
       // For simplicity in this implementation, we just call recompute 
       // or manually increment. Given client-side constraints, recompute is safer 
       // but increment is faster. Let's use recompute for accuracy for now, 
       // or increment for basic counters.
-      
+
       await setDoc(docRef, fsUpdates, { merge: true });
     } catch (error) {
       console.error("Error updating stats:", error);

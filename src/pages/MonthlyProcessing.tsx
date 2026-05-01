@@ -76,6 +76,7 @@ export default function MonthlyProcessing() {
   const [ageRefDay, setAgeRefDay] = useState<number>(0);
   const [defaultDueDay, setDefaultDueDay] = useState<number>(10);
   const [collegeShareBySegment, setCollegeShareBySegment] = useState<Record<string, number>>({});
+  const [integralCollegeSharePercent, setIntegralCollegeSharePercent] = useState<number>(15);
   const [mandatorySnackBySegment, setMandatorySnackBySegment] = useState<Record<string, string>>({});
   const [messageTemplates, setMessageTemplates] = useState({
     fixed: "{MANDATORY_SNACK} - {MONTH_YEAR}\n{STUDENT_NAME}\n{CLASS_NAME}\nFALTAS: {ABSENCES}",
@@ -125,6 +126,7 @@ export default function MonthlyProcessing() {
           setAgeRefDay(config.ageReferenceDay || 0);
           setDefaultDueDay(config.defaultDueDay || 10);
           setCollegeShareBySegment(config.collegeShareBySegment || {});
+          setIntegralCollegeSharePercent(config.integralCollegeSharePercent ?? 15);
           setMandatorySnackBySegment(config.mandatorySnackBySegment || {});
           if (config.messageTemplates) setMessageTemplates(config.messageTemplates);
         }
@@ -211,12 +213,13 @@ export default function MonthlyProcessing() {
         nossoNumero: "",
         filename: student.filenameSuffix || "",
         paymentStatus: "PENDING",
-        collegeSharePercent: studentClass?.collegeSharePercent || collegeShareBySegment[studentClass?.segment || ''] || 0,
+        collegeSharePercent: integralCollegeSharePercent,
         boletoEmissionFee: boletoFee,
-        collegeShareAmount: (amount - boletoFee) * ((studentClass?.collegeSharePercent || 0) / 100),
+        collegeShareAmount: (amount - boletoFee) * (integralCollegeSharePercent / 100),
         totalServices: items.reduce((acc: any, it: any) => acc + it.quantity, 0),
         isIntegral: true,
         note: items.map((i: any) => `${i.name} (x${i.quantity})`).join(", "),
+        items: items,
       });
     });
 
@@ -225,12 +228,13 @@ export default function MonthlyProcessing() {
       const nameB = students.find(s => s.id === b.studentId)?.name || "";
       return nameA.localeCompare(nameB);
     }));
-  }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay, categoryPrices]);
+  }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay, categoryPrices, scholasticDays]);
 
   const getDraftData = useCallback(() => ({
     manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, 
-    integralItems, removedStudentIds, selectedIds: Array.from(selectedIds)
-  }), [manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds]);
+    integralItems, removedStudentIds, selectedIds: Array.from(selectedIds),
+    categoryPrices
+  }), [manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds, categoryPrices]);
 
   // --- Draft Persistence ---
   const saveCurrentDraft = useCallback(async (overrideData?: any, silent: boolean = false) => {
@@ -248,6 +252,7 @@ export default function MonthlyProcessing() {
     if (!silent) setIsLoadingDraft(false);
   }, [monthYear, getDraftData]);
 
+  // --- 1. Load Initial Data (Month Change) ---
   useEffect(() => {
     async function init() {
       setIsLoadingDraft(true);
@@ -269,13 +274,17 @@ export default function MonthlyProcessing() {
         }
         const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
         setDbConsumption(consumption || []);
-        generatePreview(consumption || []);
       } finally {
         setIsLoadingDraft(false);
       }
     }
     init();
-  }, [monthYear, students.length, generatePreview]);
+  }, [monthYear, students.length]);
+
+  // --- 2. Generate Preview (Data Changes) ---
+  useEffect(() => {
+    generatePreview(dbConsumption);
+  }, [generatePreview, dbConsumption]);
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
@@ -288,7 +297,8 @@ export default function MonthlyProcessing() {
     if (parts.length !== 2) return 0;
     const key = `${parts[1]}-${parts[0]}`;
     const val = scholasticDays[key];
-    return typeof val === "number" ? val : parseInt(val as string) || 0;
+    if (val === 0 || val === "0") return 0;
+    return typeof val === "number" ? val : (parseInt(val as string) || 22);
   };
 
   const handleConfirmSelection = useCallback(async (selectedIds: string[]) => {

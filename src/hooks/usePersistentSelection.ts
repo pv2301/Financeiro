@@ -1,10 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * A hook to manage selection state with persistence across page navigation.
  * Uses sessionStorage to keep selection within the same browser session.
+ *
+ * FIX (BUG-01): The lazy useState initializer handles the first mount.
+ * The storageKey sync effect skips the initial render via `isMountedRef`
+ * to avoid the race condition that caused immediate deselection of checkboxes.
  */
 export function usePersistentSelection(storageKey: string) {
+  const isMountedRef = useRef(false);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
     const stored = sessionStorage.getItem(storageKey);
     if (stored) {
@@ -13,24 +19,28 @@ export function usePersistentSelection(storageKey: string) {
         if (Array.isArray(parsed)) {
           return new Set(parsed);
         }
-      } catch (e) {
-        console.error('Error parsing stored selection:', e);
+      } catch {
+        // Ignore parse errors — start with empty selection
       }
     }
     return new Set();
   });
 
+  // Sync state when storageKey changes (e.g. switching tabs or months).
+  // Skips on initial mount — the lazy initializer above already loaded the correct state.
   useEffect(() => {
+    if (!isMountedRef.current) {
+      // First mount: mark as mounted. Do NOT re-read storage (lazy init already did it).
+      isMountedRef.current = true;
+      return;
+    }
+    // Subsequent key changes (tab/month switch): load stored selection for the new key
     const stored = sessionStorage.getItem(storageKey);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setSelectedIds(new Set(parsed));
-        } else {
-          setSelectedIds(new Set());
-        }
-      } catch (e) {
+        setSelectedIds(Array.isArray(parsed) ? new Set(parsed) : new Set());
+      } catch {
         setSelectedIds(new Set());
       }
     } else {
@@ -38,6 +48,7 @@ export function usePersistentSelection(storageKey: string) {
     }
   }, [storageKey]);
 
+  // Persist to sessionStorage whenever selection changes
   useEffect(() => {
     sessionStorage.setItem(storageKey, JSON.stringify(Array.from(selectedIds)));
   }, [selectedIds, storageKey]);
