@@ -494,7 +494,7 @@ export default function SystemCenterTest() {
 
       {/* --- Footer --- */}
       <footer className="pt-10 flex items-center justify-between opacity-30">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">HUB V1.0 &bull; 2026</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">HUB V1.1 &bull; 2026</p>
       </footer>
 
       <DeleteDataModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onSuccess={() => window.location.reload()} />

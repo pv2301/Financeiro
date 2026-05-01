@@ -117,6 +117,9 @@ export default function MonthlyProcessing() {
       const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
       setDbConsumption(consumption || []);
       console.log(`[MonthlyProcessing] ${consumption?.length || 0} registros de consumo carregados.`);
+    } catch (err: any) {
+      console.error("[MonthlyProcessing] Erro ao carregar consumo:", err);
+      showToast(err.message || "Erro de conexão com o banco de dados.");
     } finally {
       setIsLoadingDraft(false);
     }

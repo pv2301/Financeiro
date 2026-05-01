@@ -35,12 +35,30 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  // Detecção de Bloqueio por Ad-Blocker ou Firewall
+  const isBlocked = 
+    errorMessage.includes('ERR_BLOCKED_BY_CLIENT') || 
+    errorMessage.toLowerCase().includes('failed to fetch') ||
+    (error as any)?.code === 'unavailable' ||
+    !window.navigator.onLine;
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: isBlocked 
+      ? 'CONEXÃO BLOQUEADA: Verifique se o seu Ad-Blocker (uBlock, etc) está bloqueando as requisições para o Firestore. Desative-o para este site.' 
+      : errorMessage,
     uid: auth.currentUser?.uid,
     operationType,
     path,
   };
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  
+  // Se for bloqueio, lançamos uma mensagem limpa para o usuário
+  if (isBlocked) {
+    throw new Error(errInfo.error);
+  }
+
   throw new Error(JSON.stringify(errInfo));
 }
