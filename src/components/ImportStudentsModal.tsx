@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { X, Check, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, Check, Upload, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Student, ClassInfo, StudentImportResult } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
@@ -57,22 +57,28 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
   const [classChanges, setClassChanges] = useState<{ name: string; isNew: boolean; existingName?: string }[]>([]);
   const [result, setResult] = useState<StudentImportResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isReading, setIsReading] = useState(false);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(ws);
-    if (json.length === 0) return alert('Planilha vazia.');
-    setRows(json);
-    const cols = Object.keys(json[0] as object);
-    setDetectedCols(cols);
-    // Pre-select default columns that exist in the file
-    const defaults = new Set<string>();
-    cols.forEach(c => { if (COLUMN_MAP[c]?.default) defaults.add(c); });
-    setSelectedCols(defaults);
+    setIsReading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws);
+      if (json.length === 0) return alert('Planilha vazia.');
+      setRows(json);
+      const cols = Object.keys(json[0] as object);
+      setDetectedCols(cols);
+      // Pre-select default columns that exist in the file
+      const defaults = new Set<string>();
+      cols.forEach(c => { if (COLUMN_MAP[c]?.default) defaults.add(c); });
+      setSelectedCols(defaults);
+    } finally {
+      setIsReading(false);
+    }
   };
 
   const toggleCol = (col: string) => {
@@ -217,11 +223,19 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
           {step === 'SELECT_COLUMNS' && (
             <div className="space-y-5">
               {rows.length === 0 ? (
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-10 cursor-pointer hover:border-brand-blue/40 transition-colors">
-                  <Upload size={32} className="text-slate-300 mb-3" />
-                  <span className="font-bold text-slate-500">Selecione a planilha Excel</span>
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-10 cursor-pointer hover:border-brand-blue/40 transition-colors bg-slate-50/30">
+                  <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center mb-4 transition-transform hover:scale-105">
+                    {isReading ? (
+                      <Loader2 size={32} className="text-brand-blue animate-spin" />
+                    ) : (
+                      <Upload size={32} className="text-slate-300" />
+                    )}
+                  </div>
+                  <span className="font-bold text-slate-700">
+                    {isReading ? 'Lendo planilha...' : 'Selecione a planilha Excel'}
+                  </span>
                   <span className="text-xs text-slate-400 mt-1">LISTA ALUNOS CFC BABY ao 5º ANO.xlsx</span>
-                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} disabled={isReading} />
                 </label>
               ) : (
                 <>
@@ -268,8 +282,12 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
               </div>
               <div className="flex justify-between">
                 <button onClick={() => setStep('SELECT_COLUMNS')} className="px-5 py-3 text-slate-500 font-bold rounded-2xl hover:bg-slate-100">Voltar</button>
-                <button onClick={executeImport} disabled={loading} className="px-6 py-3 bg-brand-blue text-white rounded-2xl font-black text-sm disabled:opacity-50">
-                  {loading ? 'Importando...' : `Importar ${rows.length} Alunos`}
+                <button onClick={executeImport} disabled={loading} className="px-6 py-3 bg-brand-blue text-white rounded-2xl font-black text-sm disabled:opacity-50 flex items-center gap-2">
+                  {loading ? (
+                    <><Loader2 size={18} className="animate-spin" /> Importando...</>
+                  ) : (
+                    `Importar ${rows.length} Alunos`
+                  )}
                 </button>
               </div>
             </div>

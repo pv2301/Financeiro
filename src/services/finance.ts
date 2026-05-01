@@ -341,11 +341,14 @@ async function saveAllToCollection<T extends { id: string }>(col: string, items:
 
 async function mergeBatchToCollection<T extends { id: string }>(col: string, items: T[]): Promise<void> {
   try {
-    const batch = writeBatch(db);
-    items.forEach(item =>
-      batch.set(doc(db, col, item.id), JSON.parse(JSON.stringify(item)), { merge: true })
-    );
-    await batch.commit();
+    const chunks = chunked(items, 500);
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(item =>
+        batch.set(doc(db, col, item.id), JSON.parse(JSON.stringify(item)), { merge: true })
+      );
+      await batch.commit();
+    }
     invalidateCache(col);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, col);
@@ -470,68 +473,60 @@ export const finance = {
 
     const result: PaymentImportResult = {
       processed: 0,
-      notFound: 0,
       divergences: 0,
+      notFound: 0,
       details: []
     };
 
-    const batch = writeBatch(db);
+    const chunks = chunked(bankRows, 500);
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      for (const row of chunk) {
+        const nn = row.nossoNumero.replace(/^0+/, '').trim();
+        const invoice = invoicesByNosso.get(row.nossoNumero.trim()) || invoicesByNosso.get(nn);
 
-    for (const row of bankRows) {
-      const nn = row.nossoNumero.replace(/^0+/, '').trim(); // normaliza zeros à esquerda
-      const invoice = invoicesByNosso.get(row.nossoNumero.trim()) || invoicesByNosso.get(nn);
+        if (!invoice || !invoice.id) {
+          result.notFound++;
+          result.details.push({ nossoNumero: row.nossoNumero, studentName: row.pagador, status: 'NOT_FOUND' });
+          continue;
+        }
 
-      if (!invoice || !invoice.id) {
-        result.notFound++;
+        const referenceAmount = invoice.netAmount;
+        const oscilacao = row.amountCharged - referenceAmount;
+        const hasDivergence = Math.abs(oscilacao) > 0.05;
+
+        let notes = invoice.notes || '';
+        if (hasDivergence) {
+          result.divergences++;
+          const divergenceNote = `[DIVERGÊNCIA BANCO] Título: R$${referenceAmount.toFixed(2)} | Pago: R$${row.amountCharged.toFixed(2)} | Dif: R$${oscilacao.toFixed(2)}`;
+          notes = notes ? `${notes}\n${divergenceNote}` : divergenceNote;
+        }
+
+        const collegeBase = invoice.netAmount - emissionFee;
+        const collegeShareAmount = Math.max(0, collegeBase * invoice.collegeSharePercent / 100);
+
+        const updated: Invoice = {
+          ...invoice,
+          paymentStatus: 'PAID',
+          paymentDate: row.paymentDate,
+          amountCharged: row.amountCharged,
+          oscilacao,
+          pagador: row.pagador,
+          collegeShareAmount,
+          notes
+        };
+
+        batch.set(doc(db, C.INVOICES, invoice.id), JSON.parse(JSON.stringify(updated)));
+        result.processed++;
         result.details.push({
           nossoNumero: row.nossoNumero,
           studentName: row.pagador,
-          status: 'NOT_FOUND'
+          status: hasDivergence ? 'VALUE_DIVERGENCE' : 'OK',
+          divergenceNote: hasDivergence ? `Cobrado R$${row.amountCharged.toFixed(2)} vs Título R$${referenceAmount.toFixed(2)}` : undefined
         });
-        continue;
       }
-
-      // Verifica divergência de valor entre o que foi pago e o valor do título no banco
-      // Ou entre o pago e o líquido do sistema se o originalAmount não vier
-      const referenceAmount = row.originalAmount || invoice.netAmount;
-      const hasDivergence = Math.abs(row.amountCharged - referenceAmount) > 0.01;
-      const oscilacao = row.amountCharged - referenceAmount;
-
-      let notes = invoice.notes || '';
-
-      if (hasDivergence) {
-        result.divergences++;
-        const divergenceNote = `[DIVERGÊNCIA BANCO] Título: R$${referenceAmount.toFixed(2)} | Pago: R$${row.amountCharged.toFixed(2)} | Dif: R$${oscilacao.toFixed(2)}`;
-        notes = notes ? `${notes}\n${divergenceNote}` : divergenceNote;
-      }
-
-      // Recalculate college share with updated data
-      const collegeBase = invoice.netAmount - emissionFee;
-      const collegeShareAmount = Math.max(0, collegeBase * invoice.collegeSharePercent / 100);
-
-      const updated: Invoice = {
-        ...invoice,
-        paymentStatus: 'PAID',
-        paymentDate: row.paymentDate,
-        amountCharged: row.amountCharged,
-        oscilacao,
-        pagador: row.pagador,
-        collegeShareAmount,
-        notes
-      };
-
-      batch.set(doc(db, C.INVOICES, invoice.id), JSON.parse(JSON.stringify(updated)));
-
-      result.processed++;
-      result.details.push({
-        nossoNumero: row.nossoNumero,
-        studentName: row.pagador,
-        status: hasDivergence ? 'VALUE_DIVERGENCE' : 'OK',
-        divergenceNote: hasDivergence ? `Cobrado R$${row.amountCharged.toFixed(2)} vs Título R$${referenceAmount.toFixed(2)}` : undefined
-      });
+      await batch.commit();
     }
-
-    await batch.commit();
     invalidateCache(C.INVOICES);
     return result;
   },
@@ -1069,17 +1064,35 @@ export const finance = {
     try {
       const docRef = doc(db, C.CONFIG, STATS_DOC_ID);
       const fsUpdates: any = { ...updates, lastUpdated: new Date().toISOString() };
-
-      // Convert numbers to increment if they are intended to be deltas
-      // For simplicity in this implementation, we just call recompute 
-      // or manually increment. Given client-side constraints, recompute is safer 
-      // but increment is faster. Let's use recompute for accuracy for now, 
-      // or increment for basic counters.
-
       await setDoc(docRef, fsUpdates, { merge: true });
     } catch (error) {
       console.error("Error updating stats:", error);
     }
+  },
+
+  /** 
+   * Limpa o cache local de uma coleção específica ou todas.
+   * Útil para garantir consistência após operações manuais ou importações.
+   */
+  invalidateCache: (collectionName?: string) => {
+    if (collectionName) {
+      invalidateCache(collectionName);
+    } else {
+      // Limpa todos os caches financeiros conhecidos
+      [C.STUDENTS, C.CLASSES, C.SERVICES, C.INVOICES, C.CONSUMPTION, C.BILLING_DRAFTS].forEach(c => {
+        invalidateCache(c);
+      });
+    }
+  },
+
+  /** Limpa completamente o localStorage relacionado ao sistema */
+  clearAllCache: () => {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('fin_cache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   }
 };
 

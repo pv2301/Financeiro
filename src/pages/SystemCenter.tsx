@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Shield, Clock, Trash2, RotateCcw, AlertTriangle, ShieldAlert, 
   UserCheck, UserX, Plus, Database, FileText, CheckCircle2,
@@ -218,6 +218,14 @@ export default function SystemCenterTest() {
         </div>
 
         <div className="flex items-center gap-4">
+           <button 
+             onClick={() => loadData()} 
+             disabled={loading}
+             className="flex items-center gap-2 px-5 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest transition-all disabled:opacity-50"
+           >
+             {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+             Atualizar Dados
+           </button>
            <div className="px-5 py-3 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Status</p>
               <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">Online</p>
@@ -486,7 +494,7 @@ export default function SystemCenterTest() {
 
       {/* --- Footer --- */}
       <footer className="pt-10 flex items-center justify-between opacity-30">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Core v4.2 &bull; 2026</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">HUB V1.0 &bull; 2026</p>
       </footer>
 
       <DeleteDataModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onSuccess={() => window.location.reload()} />

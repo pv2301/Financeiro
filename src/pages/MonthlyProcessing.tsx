@@ -4,7 +4,7 @@ import {
   Calculator, Upload, CheckCircle2, Settings, Calendar, Search, X as XIcon, 
   Clock, AlertTriangle, Filter, Zap, MoreVertical, MessageSquare, ShieldCheck, 
   Copy, User, Receipt, Download, Layers, BarChart3, Pencil, Trash2, ArrowUpRight,
-  CreditCard, Plus
+  CreditCard, Plus, Loader2
 } from "lucide-react";
 import { FixedBillingTable } from '../components/MonthlyProcessing/FixedBillingTable';
 import { ConsumptionTable } from '../components/MonthlyProcessing/ConsumptionTable';
@@ -106,11 +106,17 @@ export default function MonthlyProcessing() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const refreshConsumption = useCallback(async () => {
+  const refreshConsumption = useCallback(async (force: boolean = false) => {
     setIsLoadingDraft(true);
     try {
+      // Se for um refresh forçado (pós-importação), aguardamos um instante para o Firestore propagar
+      if (force) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        finance.invalidateCache('fin_consumption'); 
+      }
       const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
       setDbConsumption(consumption || []);
+      console.log(`[MonthlyProcessing] ${consumption?.length || 0} registros de consumo carregados.`);
     } finally {
       setIsLoadingDraft(false);
     }
@@ -407,6 +413,22 @@ export default function MonthlyProcessing() {
 
   return (
     <div className="p-4 md:p-10 pb-32 max-w-[1600px] mx-auto space-y-10 bg-slate-50/30 min-h-screen font-sans">
+      
+      {/* Indicador de Processamento em Background */}
+      <AnimatePresence>
+        {isLoadingDraft && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-white/10"
+          >
+            <Loader2 size={16} className="animate-spin text-brand-lime" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Sincronizando Dados...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       
       <header className="flex flex-col md:flex-row md:items-center justify-between bg-white p-8 rounded-3xl border border-slate-100 shadow-sm gap-6">
         <div className="space-y-2">
@@ -806,7 +828,7 @@ export default function MonthlyProcessing() {
       )}
 
       <ConfirmDialog isOpen={showSaveConfirm} title="Gerar Boletos Oficiais" message={`Você está prestes a gerar faturas para ${previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length} alunos selecionados. Prosseguir?`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
-      <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={async () => { await refreshConsumption(); showToast("Consumo Importado!"); }} monthYear={monthYear} students={students} />
+      <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={async () => { await refreshConsumption(true); showToast("Consumo Importado com Sucesso!"); }} monthYear={monthYear} students={students} />
       <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} messageTemplates={messageTemplates} setMessageTemplates={setMessageTemplates} setToast={showToast} />
       <IntegralModals 
         showIntegralSelectModal={showIntegralSelectModal} 

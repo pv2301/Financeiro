@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Upload, CheckCircle2, AlertTriangle, XCircle, X, FileSpreadsheet } from 'lucide-react';
+import { Upload, CheckCircle2, AlertTriangle, XCircle, X, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { PaymentImportResult } from '../types';
 import { finance } from '../services/finance';
 import * as XLSX from 'xlsx';
@@ -122,7 +122,7 @@ export default function ImportPaymentsModal({ boletoFee, onClose, onComplete }: 
               >
                 {isProcessing ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Loader2 size={18} className="animate-spin" />
                     Processando...
                   </>
                 ) : (

@@ -55,11 +55,7 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
     setIsRefreshing(true);
     try {
       // Invalidate cache to ensure fresh data
-      localStorage.removeItem('fin_cache_fin_students');
-      localStorage.removeItem('fin_cache_fin_classes');
-      localStorage.removeItem('fin_cache_fin_invoices');
-      localStorage.removeItem('fin_cache_fin_consumption');
-      localStorage.removeItem('fin_cache_fin_billing_drafts');
+      finance.invalidateCache();
 
       const [s, c, inv, drafts, consSnap] = await Promise.all([
         finance.getStudents(),
@@ -126,10 +122,14 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
     setProgress('Iniciando...');
 
     try {
-      // 1. Delete Financial Data by Month (parallel)
+      // 1. Delete Financial Data by Month (sequential to allow cancellation)
       if (selectedMonths.length > 0 && !cancelledRef.current) {
-        setProgress(`Excluindo dados de ${selectedMonths.length} mês(es)...`);
-        await Promise.all(selectedMonths.map(m => finance.deleteMonthlyData(m)));
+        for (let i = 0; i < selectedMonths.length; i++) {
+          if (cancelledRef.current) break;
+          const m = selectedMonths[i];
+          setProgress(`Excluindo dados de ${m} (${i + 1}/${selectedMonths.length})...`);
+          await finance.deleteMonthlyData(m);
+        }
       }
 
       // 2. Delete Students (parallel)
@@ -159,9 +159,8 @@ export default function DeleteDataModal({ isOpen, onClose, onSuccess }: DeleteDa
         setProgress(null);
       }
     } finally {
-      if (!cancelledRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
+      if (cancelledRef.current) setProgress(null);
     }
   };
 
