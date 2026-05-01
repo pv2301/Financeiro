@@ -55,6 +55,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   
+  // Despacha um evento global para que componentes de UI possam reagir (ex: mostrar Toast)
+  window.dispatchEvent(new CustomEvent('hub-error', { 
+    detail: { message: isBlocked ? errInfo.error : errorMessage, info: errInfo } 
+  }));
+
   // Se for bloqueio, lançamos uma mensagem limpa para o usuário
   if (isBlocked) {
     throw new Error(errInfo.error);

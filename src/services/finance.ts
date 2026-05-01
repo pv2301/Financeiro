@@ -25,7 +25,8 @@ import {
   ClassInfo,
   Student,
   ServiceItem,
-  UserPresence
+  UserPresence,
+  SystemStats
 } from '../types';
 
 const C = {

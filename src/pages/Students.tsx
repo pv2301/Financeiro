@@ -342,7 +342,7 @@ export default function Students() {
       <footer className="pt-10 flex items-center justify-between opacity-30">
         <div className="flex items-center gap-4">
           <ShieldCheck size={20} className="text-slate-400" />
-          <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Gestão de Matrículas &bull; HUB V1.1</p>
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Gestão de Matrículas &bull; HUB V1.2</p>
         </div>
       </footer>
 

@@ -30,11 +30,10 @@ import {
   MousePointer2,
   Server, 
   HardDrive, 
-  ShieldEllipsis, 
-  UserPlus, 
   ToggleLeft, 
   ToggleRight, 
-  Globe
+  Globe,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -56,7 +55,7 @@ import { auth } from './firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import CollaborationBar from './components/CollaborationBar';
 import { LogoManagerModal } from './components/LogoManagerModal';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
 
@@ -115,7 +114,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const RoleProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: ('ADMIN' | 'EDITOR' | 'VIEWER')[] }) => {
+const RoleProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: ('ADMIN' | 'EDITOR' | 'VIEWER' | 'NONE')[] }) => {
   const { profile } = useAuth();
   if (!profile || !roles.includes(profile.role)) {
     return <Navigate to="/" replace />;
@@ -169,6 +168,18 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     const saved = localStorage.getItem('dark_mode');
     return saved === 'true';
   });
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleError = (e: any) => {
+      const message = e.detail?.message || "Ocorreu um erro inesperado.";
+      setGlobalError(message);
+      setTimeout(() => setGlobalError(null), 5000);
+    };
+
+    window.addEventListener('hub-error', handleError as EventListener);
+    return () => window.removeEventListener('hub-error', handleError as EventListener);
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -392,6 +403,30 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           {children}
         </div>
       </main>
+      {/* Global Error Toast */}
+      <AnimatePresence>
+        {globalError && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] min-w-[320px] max-w-[90vw]"
+          >
+            <div className="bg-rose-600 text-white p-5 rounded-[2rem] shadow-2xl flex items-start gap-4 border border-rose-500/50 backdrop-blur-xl">
+              <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="flex-1 pr-2">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Erro de Sistema</p>
+                <p className="text-xs font-bold leading-relaxed">{globalError}</p>
+              </div>
+              <button onClick={() => setGlobalError(null)} className="text-white/40 hover:text-white transition-colors">
+                <LogOut size={16} className="rotate-90" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
