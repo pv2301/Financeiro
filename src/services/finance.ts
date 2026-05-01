@@ -622,14 +622,23 @@ export const finance = {
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {
     try {
       if (records.length === 0) return;
-      const batch = writeBatch(db);
-      for (const record of records) {
-        const docRef = doc(db, C.CONSUMPTION, record.id);
-        batch.set(docRef, record, { merge: true });
+      
+      // FIX: Use batching to handle more than 500 records
+      const chunks = [];
+      for (let i = 0; i < records.length; i += 500) {
+        chunks.push(records.slice(i, i + 500));
       }
-      await batch.commit();
-      invalidateCache(C.CONSUMPTION);
 
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        for (const record of chunk) {
+          const docRef = doc(db, C.CONSUMPTION, record.id);
+          batch.set(docRef, record, { merge: true });
+        }
+        await batch.commit();
+      }
+
+      invalidateCache(C.CONSUMPTION);
       const monthYear = records[0].monthYear;
       if (monthYear) bumpVersion('consumption', monthYear);
     } catch (error) {

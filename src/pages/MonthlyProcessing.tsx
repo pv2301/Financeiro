@@ -106,6 +106,16 @@ export default function MonthlyProcessing() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  const refreshConsumption = useCallback(async () => {
+    setIsLoadingDraft(true);
+    try {
+      const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
+      setDbConsumption(consumption || []);
+    } finally {
+      setIsLoadingDraft(false);
+    }
+  }, [monthYear]);
+
   // --- Data Loading ---
   useEffect(() => {
     async function load() {
@@ -272,14 +282,13 @@ export default function MonthlyProcessing() {
           setInvoiceNotes({}); setIntegralItems({}); setRemovedStudentIds([]); setSelectedIds(new Set());
           setCategoryPrices({ GRUPO: 0, MATERNAL: 0 });
         }
-        const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
-        setDbConsumption(consumption || []);
+        await refreshConsumption();
       } finally {
         setIsLoadingDraft(false);
       }
     }
     init();
-  }, [monthYear, students.length]);
+  }, [monthYear, students.length, refreshConsumption]);
 
   // --- 2. Generate Preview (Data Changes) ---
   useEffect(() => {
@@ -797,7 +806,7 @@ export default function MonthlyProcessing() {
       )}
 
       <ConfirmDialog isOpen={showSaveConfirm} title="Gerar Boletos Oficiais" message={`Você está prestes a gerar faturas para ${previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length} alunos selecionados. Prosseguir?`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
-      <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={() => { setMonthYear(monthYear); showToast("Consumo Importado!"); }} monthYear={monthYear} students={students} />
+      <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={async () => { await refreshConsumption(); showToast("Consumo Importado!"); }} monthYear={monthYear} students={students} />
       <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} messageTemplates={messageTemplates} setMessageTemplates={setMessageTemplates} setToast={showToast} />
       <IntegralModals 
         showIntegralSelectModal={showIntegralSelectModal} 

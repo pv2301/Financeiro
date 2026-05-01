@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Plus } from 'lucide-react';
+import { X, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Plus, Loader2 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { Student, ConsumptionRecord, ClassInfo } from '../types';
 import { finance } from '../services/finance';
@@ -310,10 +310,16 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
                   disabled={isProcessing}
                 />
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-colors ${dragActive ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
-                  {result ? <Plus size={28} /> : <Upload size={28} />}
+                  {isProcessing ? (
+                    <Loader2 size={28} className="animate-spin text-brand-blue" />
+                  ) : result ? (
+                    <Plus size={28} />
+                  ) : (
+                    <Upload size={28} />
+                  )}
                 </div>
                 <p className="font-bold text-slate-700 text-base">
-                  {isProcessing ? 'Lendo planilha...' : result ? 'Adicionar mais planilhas' : 'Clique ou arraste as planilhas aqui'}
+                  {isProcessing ? 'Processando planilhas...' : result ? 'Adicionar mais planilhas' : 'Clique ou arraste as planilhas aqui'}
                 </p>
                 <p className="text-slate-400 text-sm mt-1">Formato .xls ou .xlsx — múltiplos arquivos permitidos</p>
               </div>
@@ -406,9 +412,13 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
                   <button
                     onClick={handleConfirm}
                     disabled={isSaving || result.records.length === 0}
-                    className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-brand-blue hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-lg shadow-brand-blue/20"
+                    className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-brand-blue hover:bg-blue-600 disabled:opacity-50 transition-all shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-3"
                   >
-                    {isSaving ? 'Salvando...' : `Confirmar ${result.records.length} alunos`}
+                    {isSaving ? (
+                      <><Loader2 size={18} className="animate-spin" /> Salvando...</>
+                    ) : (
+                      `Confirmar ${result.records.length} alunos`
+                    )}
                   </button>
                 </div>
               )}
