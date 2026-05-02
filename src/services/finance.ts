@@ -176,12 +176,19 @@ async function getAllFromCollection<T extends { deletedAt?: string | null }>(
       : collection(db, col);
       
     const snap = await getDocs(q);
+    console.log(`[db] Raw count for "${col}": ${snap.docs.length}`);
+    
     const data = snap.docs.map(d => {
       const item = d.data() as any;
       if (item.billingMode === 'ANTICIPATED_FIXED') item.billingMode = 'PREPAID_FIXED';
       if (item.billingMode === 'ANTICIPATED_DAYS') item.billingMode = 'PREPAID_DAYS';
       return item as T;
-    }).filter(item => !item.deletedAt);
+    }).filter(item => {
+      if (item.deletedAt) {
+        console.log(`[db] Item ${item.id || 'unknown'} filtrado por deletedAt:`, item.deletedAt);
+      }
+      return !item.deletedAt;
+    });
 
     return data;
   } catch (error) {
@@ -649,6 +656,9 @@ export const finance = {
         const batch = writeBatch(db);
         for (const record of chunk) {
           const docRef = doc(db, C.CONSUMPTION, record.id);
+          if (chunks.indexOf(chunk) === 0 && record === chunk[0]) {
+             console.log(`[finance] Exemplo de path de salvamento: ${docRef.path}`);
+          }
           batch.set(docRef, {
             ...record,
             updatedAt: new Date().toISOString()
