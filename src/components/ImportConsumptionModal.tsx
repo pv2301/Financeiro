@@ -109,10 +109,15 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
       // Detect Period and Extract Month/Year
       if (typeof row[1] === 'string' && row[1].includes('Período:')) {
         periodLabel = row[2] || row[1].replace('Período:', '').trim();
-        // Tenta extrair mm/yyyy de algo como "01/04/2026"
         const dateMatch = periodLabel.match(/(\d{2})\/(\d{4})/);
         if (dateMatch) {
           detectedMonthYear = `${dateMatch[1]}-${dateMatch[2]}`;
+          
+          // VALIDAÇÃO CRÍTICA: O mês da planilha deve bater com o mês do sistema
+          const systemMonthYear = monthYear.replace('/', '-');
+          if (detectedMonthYear !== systemMonthYear) {
+            throw new Error(`Mês divergente! A planilha é de ${dateMatch[1]}/${dateMatch[2]}, mas o sistema está selecionado em ${monthYear}. Por favor, anexe a planilha correta ou mude o mês no sistema.`);
+          }
         }
         continue;
       }
