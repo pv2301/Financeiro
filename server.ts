@@ -11,6 +11,10 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+    app.use((req, res, next) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+      next();
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");

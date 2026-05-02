@@ -611,6 +611,8 @@ export const finance = {
     const formatted = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
     const alternate = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
     
+    console.log(`[finance] Buscando consumo para: "${formatted}" (alternativo: "${alternate}")`);
+    
     try {
       const [snap1, snap2] = await Promise.all([
         getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION, where('monthYear', '==', formatted)),
@@ -624,8 +626,10 @@ export const finance = {
         if (!merged.find(m => m.id === item.id)) merged.push(item);
       });
 
+      console.log(`[finance] Encontrados ${merged.length} registros no Firestore.`);
       return merged;
     } catch (error) {
+      console.error("[finance] Erro ao buscar consumo:", error);
       handleFirestoreError(error, OperationType.LIST, C.CONSUMPTION);
       return [];
     }
@@ -634,8 +638,8 @@ export const finance = {
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {
     try {
       if (records.length === 0) return;
+      console.log(`[finance] Salvando ${records.length} registros de consumo...`);
       
-      // FIX: Use batching to handle more than 500 records
       const chunks = [];
       for (let i = 0; i < records.length; i += 500) {
         chunks.push(records.slice(i, i + 500));
@@ -645,15 +649,20 @@ export const finance = {
         const batch = writeBatch(db);
         for (const record of chunk) {
           const docRef = doc(db, C.CONSUMPTION, record.id);
-          batch.set(docRef, record, { merge: true });
+          batch.set(docRef, {
+            ...record,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
         }
         await batch.commit();
       }
 
+      console.log("[finance] Lote de consumo salvo com sucesso.");
       invalidateCache(C.CONSUMPTION);
       const monthYear = records[0].monthYear;
       if (monthYear) bumpVersion('consumption', monthYear);
     } catch (error) {
+      console.error("[finance] Erro ao salvar consumo:", error);
       handleFirestoreError(error, OperationType.ADD, C.CONSUMPTION);
       throw error;
     }
