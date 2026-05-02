@@ -166,9 +166,16 @@ function invalidateCache(key?: string) {
   }
 }
 
-async function getAllFromCollection<T extends { deletedAt?: string | null }>(col: string): Promise<T[]> {
+async function getAllFromCollection<T extends { deletedAt?: string | null }>(
+  col: string, 
+  ...constraints: any[]
+): Promise<T[]> {
   try {
-    const snap = await getDocs(collection(db, col));
+    const q = constraints.length > 0 
+      ? query(collection(db, col), ...constraints)
+      : collection(db, col);
+      
+    const snap = await getDocs(q);
     const data = snap.docs.map(d => {
       const item = d.data() as any;
       if (item.billingMode === 'ANTICIPATED_FIXED') item.billingMode = 'PREPAID_FIXED';
@@ -178,7 +185,7 @@ async function getAllFromCollection<T extends { deletedAt?: string | null }>(col
 
     return data;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, col);
+    handleFirestoreError(error, OperationType.LIST, col);
     return [];
   }
 }
@@ -599,12 +606,6 @@ export const finance = {
 
   // ─── CONSUMPTION ──────────────────────────────────────────────────────────
   getConsumption: () => getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION),
-  getConsumptionByMonth: async (monthYear: string): Promise<ConsumptionRecord[]> => {
-    const formatted = monthYear.replace(/[\/-]/g, '-');
-    return getCachedOrFetch<ConsumptionRecord>('consumption', async () => {
-      const q = query(collection(db, C.CONSUMPTION), where("monthYear", "==", formatted));
-      const snap = await getDocs(q);
-      let records = snap.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
 
       if (records.length === 0 && monthYear.includes('/')) {
         const q2 = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));

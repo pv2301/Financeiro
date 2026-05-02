@@ -114,7 +114,7 @@ export default function MonthlyProcessing() {
         await new Promise(resolve => setTimeout(resolve, 800));
         finance.invalidateCache('fin_consumption'); 
       }
-      const consumption = await finance.getConsumptionByMonth(monthYear.replace("/", "-"));
+      const consumption = await finance.getConsumptionByMonth(monthYear);
       setDbConsumption(consumption || []);
       console.log(`[MonthlyProcessing] ${consumption?.length || 0} registros de consumo carregados.`);
     } catch (err: any) {
