@@ -611,23 +611,23 @@ export const finance = {
     const formatted = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
     const alternate = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
     
-    console.log(`[finance] Buscando consumo para: "${formatted}" (alternativo: "${alternate}")`);
+    console.log(`[finance] Buscando consumo (Fail-safe): "${formatted}"`);
     
     try {
-      const [snap1, snap2] = await Promise.all([
-        getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION, where('monthYear', '==', formatted)),
-        formatted !== alternate 
-          ? getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION, where('monthYear', '==', alternate))
-          : Promise.resolve([])
-      ]);
+      // Temporariamente buscando todos e filtrando localmente para diagnosticar problema de índice
+      const all = await getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION);
+      console.log(`[finance] Total de registros na coleção: ${all.length}`);
+      
+      const filtered = all.filter(item => 
+        item.monthYear === formatted || item.monthYear === alternate
+      );
 
-      const merged = [...snap1];
-      snap2.forEach(item => {
-        if (!merged.find(m => m.id === item.id)) merged.push(item);
-      });
+      if (filtered.length === 0 && all.length > 0) {
+        console.log("[finance] Amostra de mês no DB:", all[0].monthYear);
+      }
 
-      console.log(`[finance] Encontrados ${merged.length} registros no Firestore.`);
-      return merged;
+      console.log(`[finance] Encontrados ${filtered.length} registros para o período após filtro local.`);
+      return filtered;
     } catch (error) {
       console.error("[finance] Erro ao buscar consumo:", error);
       handleFirestoreError(error, OperationType.LIST, C.CONSUMPTION);

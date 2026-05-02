@@ -271,7 +271,12 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
 
     } catch (err: any) {
       console.error('Erro ao processar planilha:', err);
-      setError('Falha ao ler um ou mais arquivos. Verifique se estão no formato correto.');
+      // Exibir a mensagem real do erro (ex: Mês divergente) no modal
+      if (err.message && (err.message.includes('Mês') || err.message.includes('aluno'))) {
+        setError(err.message);
+      } else {
+        setError('Falha ao ler um ou mais arquivos. Verifique se estão no formato correto.');
+      }
     } finally {
       setIsProcessing(false);
     }
