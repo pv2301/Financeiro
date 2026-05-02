@@ -16,6 +16,7 @@ import { AuditLog } from '../types';
 import DeleteDataModal from '../components/DeleteDataModal';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
+import { SYSTEM_VERSION, SYSTEM_YEAR } from '../lib/constants';
 
 type TabType = 'audit' | 'access' | 'maintenance' | 'danger';
 
@@ -494,7 +495,7 @@ export default function SystemCenterTest() {
 
       {/* --- Footer --- */}
       <footer className="pt-10 flex items-center justify-between opacity-30">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">HUB V1.5 &bull; 2026</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{SYSTEM_VERSION} &bull; {SYSTEM_YEAR}</p>
       </footer>
 
       <DeleteDataModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onSuccess={() => window.location.reload()} />

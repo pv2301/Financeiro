@@ -266,8 +266,8 @@ export default function DashboardTest() {
       </div>
 
       <footer className="pt-10 flex items-center justify-between opacity-30">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">HUB V1.5</p>
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">2026 &bull; Secure Protocol</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{SYSTEM_VERSION}</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{SYSTEM_YEAR} &bull; Secure Protocol</p>
       </footer>
     </div>
   );

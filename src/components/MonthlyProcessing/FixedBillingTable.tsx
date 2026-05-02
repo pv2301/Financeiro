@@ -236,10 +236,10 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                     type="number"
                     min="0"
                     max={inv.billingMode === "PREPAID_DAYS" ? businessDays : 31}
-                    value={manualAbsences[inv.studentId] ?? ""}
+                    value={manualAbsences[inv.id] ?? ""}
                     onChange={(e) => {
                       const newVal = parseInt(e.target.value) || 0;
-                      setManualAbsences(prev => ({ ...prev, [inv.studentId]: newVal }));
+                      setManualAbsences(prev => ({ ...prev, [inv.id]: newVal }));
                       
                       const studentObj = students.find(st => st.id === inv.studentId);
                       const studentClass = classes.find(c => c.id === studentObj?.classId);
@@ -281,10 +281,10 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                   <div className="flex flex-col gap-1.5 min-w-[120px]">
                     <input
                       type="text"
-                      value={bankSlipNumbers[inv.studentId] || ""}
+                      value={bankSlipNumbers[inv.id] || ""}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setBankSlipNumbers(prev => ({ ...prev, [inv.studentId]: val }));
+                        setBankSlipNumbers(prev => ({ ...prev, [inv.id]: val }));
                       }}
                       placeholder="Nº TÍTULO"
                       className="w-full text-center py-2 bg-slate-50 border-2 border-slate-100 rounded-xl text-[10px] font-black focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue transition-all text-slate-700 uppercase"
@@ -292,9 +292,9 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                     <div className="relative">
                       <input
                         type="text"
-                        value={invoiceNotes[inv.studentId] || ""}
-                        onChange={(e) => setInvoiceNotes(prev => ({ ...prev, [inv.studentId]: e.target.value }))}
-                        onClick={() => setShowStudentNotes(prev => ({ ...prev, [inv.studentId]: !prev[inv.studentId] }))}
+                        value={invoiceNotes[inv.id] || ""}
+                        onChange={(e) => setInvoiceNotes(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                        onClick={() => setShowStudentNotes(prev => ({ ...prev, [inv.id]: !prev[inv.id] }))}
                         placeholder="OBSERVAÇÃO..."
                         className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-100 rounded-xl text-[10px] font-black focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue transition-all text-slate-600 uppercase"
                       />
@@ -304,8 +304,8 @@ export const FixedBillingTable: React.FC<FixedBillingTableProps> = ({
                 <td className="py-4 px-4 text-center border-y border-transparent group-hover:border-slate-100 transition-colors">
                   <input
                     type="date"
-                    value={manualDueDates[inv.studentId] || inv.dueDate}
-                    onChange={(e) => setManualDueDates(prev => ({ ...prev, [inv.studentId]: e.target.value }))}
+                    value={manualDueDates[inv.id] || inv.dueDate}
+                    onChange={(e) => setManualDueDates(prev => ({ ...prev, [inv.id]: e.target.value }))}
                     className="text-[10px] font-black text-slate-600 bg-slate-50 border-2 border-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:ring-4 focus:ring-brand-blue/10 focus:border-brand-blue transition-all uppercase"
                   />
                 </td>

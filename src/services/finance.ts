@@ -176,19 +176,12 @@ async function getAllFromCollection<T extends { deletedAt?: string | null }>(
       : collection(db, col);
       
     const snap = await getDocs(q);
-    console.log(`[db] Raw count for "${col}": ${snap.docs.length}`);
-    
     const data = snap.docs.map(d => {
       const item = d.data() as any;
       if (item.billingMode === 'ANTICIPATED_FIXED') item.billingMode = 'PREPAID_FIXED';
       if (item.billingMode === 'ANTICIPATED_DAYS') item.billingMode = 'PREPAID_DAYS';
       return item as T;
-    }).filter(item => {
-      if (item.deletedAt) {
-        console.log(`[db] Item ${item.id || 'unknown'} filtrado por deletedAt:`, item.deletedAt);
-      }
-      return !item.deletedAt;
-    });
+    }).filter(item => !item.deletedAt);
 
     return data;
   } catch (error) {
@@ -618,25 +611,15 @@ export const finance = {
     const formatted = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
     const alternate = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
     
-    console.log(`[finance] Buscando consumo (Fail-safe): "${formatted}"`);
-    
     try {
-      // Temporariamente buscando todos e filtrando localmente para diagnosticar problema de índice
       const all = await getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION);
-      console.log(`[finance] Total de registros na coleção: ${all.length}`);
       
       const filtered = all.filter(item => 
         item.monthYear === formatted || item.monthYear === alternate
       );
 
-      if (filtered.length === 0 && all.length > 0) {
-        console.log("[finance] Amostra de mês no DB:", all[0].monthYear);
-      }
-
-      console.log(`[finance] Encontrados ${filtered.length} registros para o período após filtro local.`);
       return filtered;
     } catch (error) {
-      console.error("[finance] Erro ao buscar consumo:", error);
       handleFirestoreError(error, OperationType.LIST, C.CONSUMPTION);
       return [];
     }
@@ -645,7 +628,6 @@ export const finance = {
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {
     try {
       if (records.length === 0) return;
-      console.log(`[finance] Salvando ${records.length} registros de consumo...`);
       
       const chunks = [];
       for (let i = 0; i < records.length; i += 500) {
@@ -656,9 +638,6 @@ export const finance = {
         const batch = writeBatch(db);
         for (const record of chunk) {
           const docRef = doc(db, C.CONSUMPTION, record.id);
-          if (chunks.indexOf(chunk) === 0 && record === chunk[0]) {
-             console.log(`[finance] Exemplo de path de salvamento: ${docRef.path}`);
-          }
           batch.set(docRef, {
             ...record,
             updatedAt: new Date().toISOString(),
@@ -669,7 +648,6 @@ export const finance = {
         await batch.commit();
       }
 
-      console.log("[finance] Lote de consumo salvo com sucesso.");
       invalidateCache(C.CONSUMPTION);
       const monthYear = records[0].monthYear;
       if (monthYear) bumpVersion('consumption', monthYear);

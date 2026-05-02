@@ -167,57 +167,108 @@ export default function MonthlyProcessing() {
       if (!studentClass) return;
 
       const consumption = consumptionData.find((d) => d.studentId === student.id);
-      if (studentClass.billingMode === 'POSTPAID_CONSUMPTION' && !consumption && !bankSlipNumbers[student.id]) return;
 
-      const calcResult = calculateStudentInvoice({
-        student, studentClass, services, consumption,
-        manualAbsences: manualAbsences[student.id] || 0,
-        businessDays, monthYear, ageRefDay, emissionFee: boletoFee,
-        collegeShareBySegment, mandatorySnackBySegment,
-        categoryPrices
-      });
+      // --- 1. MENSALIDADE FIXA (Se aplicável) ---
+      if (studentClass.billingMode !== 'POSTPAID_CONSUMPTION') {
+        const invId = `preview_fixed_${student.id}_${monthYear.replace('/', '-')}`;
+        const absences = manualAbsences[invId] ?? manualAbsences[student.id] ?? 0;
 
-      let dueDate = manualDueDates[student.id];
-      if (!dueDate) {
-        const [m, y] = monthYear.split("/").map(Number);
-        const targetDate = new Date(y, m, student.dueDay || defaultDueDay);
-        dueDate = format(targetDate, "yyyy-MM-dd");
+        const calcResult = calculateStudentInvoice({
+          student, studentClass, services, 
+          consumption: undefined, 
+          manualAbsences: absences,
+          businessDays, monthYear, ageRefDay, emissionFee: boletoFee,
+          collegeShareBySegment, mandatorySnackBySegment,
+          categoryPrices
+        });
+
+        let dueDate = manualDueDates[invId] || manualDueDates[student.id];
+        if (!dueDate) {
+          const [m, y] = monthYear.split("/").map(Number);
+          const targetDate = new Date(y, m, student.dueDay || defaultDueDay);
+          dueDate = format(targetDate, "yyyy-MM-dd");
+        }
+
+        newInvoices.push({
+          id: invId,
+          studentId: student.id,
+          classId: studentClass.id,
+          monthYear,
+          dueDate,
+          billingMode: studentClass.billingMode,
+          grossAmount: calcResult.grossAmount,
+          absenceDays: absences,
+          absenceDiscountAmount: calcResult.absenceDiscountAmount,
+          personalDiscountAmount: calcResult.personalDiscountAmount,
+          netAmount: calcResult.netAmount,
+          nossoNumero: "",
+          filename: student.filenameSuffix || "",
+          paymentStatus: "PENDING",
+          collegeSharePercent: studentClass.collegeSharePercent || collegeShareBySegment[studentClass.segment] || 0,
+          boletoEmissionFee: boletoFee,
+          collegeShareAmount: calcResult.collegeShareAmount,
+          totalServices: calcResult.totalServices,
+          hasImportedConsumption: false,
+        });
       }
 
-      newInvoices.push({
-        id: `preview_${student.id}_${monthYear.replace('/', '-')}`,
-        studentId: student.id,
-        classId: studentClass.id,
-        monthYear,
-        dueDate,
-        billingMode: studentClass.billingMode,
-        grossAmount: calcResult.grossAmount,
-        absenceDays: manualAbsences[student.id] || 0,
-        absenceDiscountAmount: calcResult.absenceDiscountAmount,
-        personalDiscountAmount: calcResult.personalDiscountAmount,
-        netAmount: calcResult.netAmount,
-        nossoNumero: "",
-        filename: student.filenameSuffix || "",
-        paymentStatus: "PENDING",
-        collegeSharePercent: studentClass.collegeSharePercent || collegeShareBySegment[studentClass.segment] || 0,
-        boletoEmissionFee: boletoFee,
-        collegeShareAmount: calcResult.collegeShareAmount,
-        totalServices: calcResult.totalServices,
-        hasImportedConsumption: !!consumption,
-      });
+      // --- 2. CONSUMO (Se houver dados na planilha) ---
+      if (consumption) {
+        const invId = `preview_cons_${student.id}_${monthYear.replace('/', '-')}`;
+        const consumptionCalc = calculateStudentInvoice({
+          student, 
+          studentClass: { ...studentClass, billingMode: 'POSTPAID_CONSUMPTION' }, 
+          services, 
+          consumption,
+          manualAbsences: 0, 
+          businessDays, monthYear, ageRefDay, emissionFee: boletoFee,
+          collegeShareBySegment, mandatorySnackBySegment,
+          categoryPrices
+        });
+
+        let dueDate = manualDueDates[invId] || manualDueDates[`cons_${student.id}`];
+        if (!dueDate) {
+          const [m, y] = monthYear.split("/").map(Number);
+          const targetDate = new Date(y, m, student.dueDay || defaultDueDay);
+          dueDate = format(targetDate, "yyyy-MM-dd");
+        }
+
+        newInvoices.push({
+          id: `preview_cons_${student.id}_${monthYear.replace('/', '-')}`,
+          studentId: student.id,
+          classId: studentClass.id,
+          monthYear,
+          dueDate,
+          billingMode: 'POSTPAID_CONSUMPTION',
+          grossAmount: consumptionCalc.grossAmount,
+          absenceDays: 0,
+          absenceDiscountAmount: 0,
+          personalDiscountAmount: consumptionCalc.personalDiscountAmount,
+          netAmount: consumptionCalc.netAmount,
+          nossoNumero: "",
+          filename: student.filenameSuffix || "",
+          paymentStatus: "PENDING",
+          collegeSharePercent: studentClass.collegeSharePercent || collegeShareBySegment[studentClass.segment] || 0,
+          boletoEmissionFee: boletoFee,
+          collegeShareAmount: consumptionCalc.collegeShareAmount,
+          totalServices: consumptionCalc.totalServices,
+          hasImportedConsumption: true,
+        });
+      }
     });
 
     // Integral Items
     Object.entries(integralItems).forEach(([studentId, items]: [string, any]) => {
+      const invId = `preview_integral_${studentId}_${monthYear.replace('/', '-')}`;
       const student = students.find(s => s.id === studentId);
       if (!student) return;
       const amount = items.reduce((a: any, b: any) => a + (b.price * b.quantity), 0);
 
       const studentClass = classes.find(c => c.id === student.classId);
-      const dueDate = manualDueDates[studentId] || format(new Date(monthYear.split('/')[1] as any, parseInt(monthYear.split('/')[0]) as any, student.dueDay || defaultDueDay), "yyyy-MM-dd");
+      const dueDate = manualDueDates[invId] || manualDueDates[studentId] || format(new Date(monthYear.split('/')[1] as any, parseInt(monthYear.split('/')[0]) as any, student.dueDay || defaultDueDay), "yyyy-MM-dd");
 
       newInvoices.push({
-        id: `preview_integral_${studentId}_${monthYear.replace('/', '-')}`,
+        id: invId,
         studentId,
         classId: studentClass?.id || 'integral',
         monthYear,
@@ -381,19 +432,19 @@ export default function MonthlyProcessing() {
     setIsSavingInvoices(true);
     try {
       const currentMonthInvoices = await finance.getInvoicesByMonth(monthYear);
-      const toSave = previewInvoices.filter(inv => selectedIds.has(inv.id) && !!bankSlipNumbers[inv.studentId]);
+      const toSave = previewInvoices.filter(inv => selectedIds.has(inv.id) && !!bankSlipNumbers[inv.id]);
       const duplicates = toSave.filter(inv => 
-        currentMonthInvoices.some(ex => ex.studentId === inv.studentId && Math.abs(ex.netAmount - inv.netAmount) < 0.01)
+        currentMonthInvoices.some(ex => ex.studentId === inv.studentId && Math.abs(ex.netAmount - inv.netAmount) < 0.01 && ex.billingMode === inv.billingMode)
       );
-      if (duplicates.length > 0 && !window.confirm(`AVISO: Detectamos ${duplicates.length} possíveis duplicidades (mesmo aluno e valor já faturados este mês). Deseja continuar mesmo assim?`)) {
+      if (duplicates.length > 0 && !window.confirm(`AVISO: Detectamos ${duplicates.length} possíveis duplicidades (mesmo aluno, valor e tipo já faturados este mês). Deseja continuar mesmo assim?`)) {
         setIsSavingInvoices(false);
         return;
       }
       await Promise.all(toSave.map(inv => finance.saveInvoice({
         ...inv,
-        bankSlipNumber: bankSlipNumbers[inv.studentId],
-        note: invoiceNotes[inv.studentId],
-        dueDate: manualDueDates[inv.studentId] || inv.dueDate,
+        bankSlipNumber: bankSlipNumbers[inv.id],
+        note: invoiceNotes[inv.id],
+        dueDate: manualDueDates[inv.id] || inv.dueDate,
         createdAt: new Date().toISOString()
       })));
       showToast(`${toSave.length} Títulos Gerados!`);
