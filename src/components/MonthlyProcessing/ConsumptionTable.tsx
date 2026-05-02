@@ -92,9 +92,9 @@ export const ConsumptionTable: React.FC<ConsumptionTableProps> = ({
   }, [previewInvoices, students, classFilter, segmentFilter, studentSearch, consumptionFilter, dbConsumption, sortOrder]);
 
   return (
-    <div className="mt-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="mt-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-visible min-h-[500px]">
       <div className="relative">
-        <table className="w-full text-left border-separate border-spacing-y-2 px-4 mb-64">
+        <table className="w-full text-left border-separate border-spacing-y-2 px-4 mb-96">
           <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-sm">
 
             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">

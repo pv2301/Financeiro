@@ -65,13 +65,16 @@ export function getPriceKey(studentClass: ClassInfo, student: Student | null, pr
 
   // Se for modo CONSUMO, ignora a turma e usa apenas a idade baseada na tabela do Berçário
   // Regra do Usuário: "Todo consumo importado da aba CONSUMO deve ser feito apenas com base na idade da criança nao importando sua turma"
-  if (isConsumption && student && student.birthDate) {
-    const refDate = new Date(year, month - 1, ageRefDay || 1); 
-    const ageMonths = calculateAgeInMonths(student.birthDate, refDate);
-    
-    if (ageMonths <= 9) return 'Berçário|Baby';
-    if (ageMonths <= 12) return 'Berçário|Ninho';
-    return 'Berçário|Extra'; // Correspondente a "A partir de 13 meses"
+  if (isConsumption) {
+    if (student && student.birthDate) {
+      const refDate = new Date(year, month - 1, ageRefDay || 1); 
+      const ageMonths = calculateAgeInMonths(student.birthDate, refDate);
+      
+      if (ageMonths <= 9) return 'Berçário|Baby';
+      if (ageMonths <= 12) return 'Berçário|Ninho';
+      return 'Berçário|Extra';
+    }
+    return 'Berçário|Extra'; // Fallback se não tiver data de nascimento
   }
 
   const seg = studentClass.segment;
@@ -218,11 +221,12 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     }
   }
 
-  // 3. Absence & Combo Discount calculation
+  // 3. Combo Discount calculation (Consumption only)
   if (studentClass.billingMode === 'POSTPAID_CONSUMPTION' && distinctServicesCount > 1) {
     comboDiscountAmount = grossAmount * 0.10;
   }
 
+  // 4. Absence Discount calculation
   if (applyAbsenceDiscount && manualAbsences > 0) {
     const priceKey = getPriceKey(studentClass, student, monthYear, ageRefDay);
     const mandatoryId = mandatorySnackBySegment ? mandatorySnackBySegment[studentClass.segment] : null;
@@ -236,15 +240,24 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     }
   }
 
-  // 4. Final amounts
+  // 5. Final amounts
+  // Combo discount IS subtracted from netAmount for consumption IMMEDIATELY (not punctuality)
   netAmount = Math.max(0, grossAmount - comboDiscountAmount - absenceDiscountAmount);
 
+  // 6. Personal Discount (Now always treated as punctuality discount per user request)
   if (student.personalDiscount > 0) {
-    personalDiscountAmount = netAmount * (student.personalDiscount / 100);
-    
-    // Rule: If NOT a punctuality discount, it's a permanent discount -> subtract now
-    if (!student.hasTimelyPaymentDiscount) {
-      netAmount = Math.max(0, netAmount - personalDiscountAmount);
+    // For Consumption: Rule says apply Personal only if Combo criterion was NOT met
+    if (studentClass.billingMode === 'POSTPAID_CONSUMPTION') {
+      if (comboDiscountAmount === 0) {
+        personalDiscountAmount = netAmount * (student.personalDiscount / 100);
+        // Note: Personal discount for consumption is punctuality-based -> do NOT subtract from netAmount
+      } else {
+        personalDiscountAmount = 0; // Non-cumulative
+      }
+    } else {
+      // For Monthly/Integral: Always calculate for display (punctuality)
+      personalDiscountAmount = netAmount * (student.personalDiscount / 100);
+      // Note: do NOT subtract from netAmount
     }
   }
 

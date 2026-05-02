@@ -4,11 +4,12 @@ import {
   Calculator, Upload, CheckCircle2, Settings, Calendar, Search, X as XIcon, 
   Clock, AlertTriangle, Filter, Zap, MoreVertical, MessageSquare, ShieldCheck, 
   Copy, User, Receipt, Download, Layers, BarChart3, Pencil, Trash2, ArrowUpRight,
-  CreditCard, Plus, Loader2, Activity
+  CreditCard, Plus, Loader2, Activity, AlertCircle
 } from "lucide-react";
 import { FixedBillingTable } from '../components/MonthlyProcessing/FixedBillingTable';
 import { ConsumptionTable } from '../components/MonthlyProcessing/ConsumptionTable';
 import { IntegralBillingTable } from '../components/MonthlyProcessing/IntegralBillingTable';
+import { BillingRulesCard } from '../components/MonthlyProcessing/BillingRulesCard';
 import { motion, AnimatePresence } from "motion/react";
 import {
   Student,
@@ -109,6 +110,7 @@ export default function MonthlyProcessing() {
 
   const refreshConsumption = useCallback(async (force: boolean = false) => {
     setIsLoadingDraft(true);
+    setDbConsumption([]); // Clear old data to prevent "leakage" between months
     try {
       if (force) {
         await new Promise(resolve => setTimeout(resolve, 800));
@@ -265,17 +267,20 @@ export default function MonthlyProcessing() {
 
     // Integral Items
     Object.entries(integralItems).forEach(([studentId, items]: [string, any]) => {
+      if (removedStudentIds.includes(studentId)) return;
       const invId = `preview_integral_${studentId}_${monthYear.replace('/', '-')}`;
       const student = students.find(s => s.id === studentId);
       if (!student) return;
+      
       const amount = items.reduce((a: any, b: any) => a + (b.price * b.quantity), 0);
-
+      
       const studentClass = classes.find(c => c.id === student.classId);
       const dueDate = manualDueDates[invId] || manualDueDates[studentId] || format(new Date(monthYear.split('/')[1] as any, parseInt(monthYear.split('/')[0]) as any, student.dueDay || defaultDueDay), "yyyy-MM-dd");
 
       const pDiscount = student.personalDiscount || 0;
+      // Rule: Integral discount is always punctuality-based
       const personalDiscountAmount = amount * (pDiscount / 100);
-      const netAmount = amount - personalDiscountAmount;
+      const netAmount = amount; // Do not subtract punctuality discount from netAmount
 
       newInvoices.push({
         id: invId,
@@ -288,6 +293,7 @@ export default function MonthlyProcessing() {
         absenceDays: 0,
         absenceDiscountAmount: 0,
         personalDiscountAmount,
+        comboDiscountAmount: 0,
         netAmount,
         nossoNumero: "",
         filename: student.filenameSuffix || "",
@@ -410,17 +416,39 @@ export default function MonthlyProcessing() {
     showToast("Aluno removido do faturamento!");
   }, [removedStudentIds, selectedIds, getDraftData, saveCurrentDraft, showToast]);
 
-  const handleRemoveSelected = async () => {
+  const handleRemoveSelected = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+
     const studentIdsToRemove = previewInvoices
       .filter(inv => selectedIds.has(inv.id))
       .map(inv => inv.studentId);
     
+    if (studentIdsToRemove.length === 0) {
+      showToast("Nenhum aluno válido para remoção.");
+      return;
+    }
+
     const newRemoved = Array.from(new Set([...removedStudentIds, ...studentIdsToRemove]));
+    
+    // Also cleanup integralItems if they were in the removed list
+    const newIntegralItems = { ...integralItems };
+    studentIdsToRemove.forEach(sid => {
+      delete newIntegralItems[sid];
+    });
+
     setRemovedStudentIds(newRemoved);
+    setIntegralItems(newIntegralItems);
     setSelectedIds(new Set());
-    await saveCurrentDraft({ ...getDraftData(), removedStudentIds: newRemoved });
-    showToast(`${studentIdsToRemove.length} alunos removidos!`);
-  };
+
+    // Update draft with both removed list and cleaned integral items
+    await saveCurrentDraft({ 
+      ...getDraftData(), 
+      removedStudentIds: newRemoved,
+      integralItems: newIntegralItems 
+    });
+    
+    showToast(`${studentIdsToRemove.length} aluno(s) removido(s) do faturamento!`);
+  }, [selectedIds, previewInvoices, removedStudentIds, integralItems, getDraftData, saveCurrentDraft, showToast]);
 
   const handleCopyPreviousPrices = async () => {
     const parts = monthYear.split("/");
@@ -628,6 +656,9 @@ export default function MonthlyProcessing() {
           <div className="max-h-[calc(100vh-100px)] overflow-y-auto [scrollbar-gutter:stable] relative">
 
 
+          {/* Rules Summary Card */}
+          <BillingRulesCard activeTab={activeTab as any} />
+
           {activeTab === 'fixed' && (
             <>
                <div className="p-6 bg-slate-50/50 border-b border-slate-100">
@@ -719,7 +750,7 @@ export default function MonthlyProcessing() {
 
           {activeTab === 'consumption' && (
              <>
-               <div className="p-6 bg-slate-50/50 border-b border-slate-100">
+                <div className="p-6 bg-slate-50/50 border-b border-slate-100">
                  <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                    <div className="flex items-center gap-6">
                      <div className="w-14 h-14 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue shadow-lg">
@@ -777,7 +808,7 @@ export default function MonthlyProcessing() {
 
           {activeTab === 'integral' && (
              <>
-               <div className="p-6 bg-slate-50/50 border-b border-slate-100">
+                <div className="p-6 bg-slate-50/50 border-b border-slate-100">
                  <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                    <div className="flex items-center gap-6">
                      <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 shadow-lg">
@@ -918,7 +949,7 @@ export default function MonthlyProcessing() {
         onConfirmSelection={handleConfirmSelection}
       />
       
-        </div>
+      </div>
       </div>
       </div>
     </>

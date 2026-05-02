@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Copy, Plus, AlertTriangle, User, Receipt, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Copy, Plus, AlertTriangle, User, Receipt, ArrowUpDown } from 'lucide-react';
 import { Invoice, Student, ClassInfo, ServiceItem } from '../../types';
 import { cn, formatCurrencyBRL, formatFullAge } from '../../lib/utils';
 
@@ -78,9 +78,9 @@ export const IntegralBillingTable: React.FC<IntegralBillingTableProps> = ({
   }, [previewInvoices, students, classFilter, segmentFilter, studentSearch, sortOrder]);
 
   return (
-    <div className="mt-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="mt-6 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-visible min-h-[500px]">
       <div className="relative">
-        <table className="w-full text-left border-separate border-spacing-y-2 px-4 mb-64">
+        <table className="w-full text-left border-separate border-spacing-y-2 px-4 mb-96">
           <thead className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-sm">
             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
               <th className="py-4 px-4 text-center w-8">

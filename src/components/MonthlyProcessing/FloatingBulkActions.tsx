@@ -11,6 +11,7 @@ interface FloatingBulkActionsProps {
   getStudentMessage: (inv: Invoice) => string;
   invoices: Invoice[];
   students: Student[];
+  onRemove: () => void;
 }
 
 export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
@@ -19,7 +20,8 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
   activeTab,
   getStudentMessage,
   invoices,
-  students
+  students,
+  onRemove
 }) => {
   const [showCopySuccess, setShowCopySuccess] = React.useState(false);
 
@@ -67,6 +69,13 @@ export const FloatingBulkActions: React.FC<FloatingBulkActionsProps> = ({
            >
               {showCopySuccess ? <CheckCircle2 size={16} /> : <MessageSquare size={16} />}
               {showCopySuccess ? "Copiado!" : "Copiar Mensagens"}
+           </button>
+
+           <button 
+            onClick={onRemove} 
+            className="flex items-center gap-3 px-6 py-3 bg-rose-500 hover:bg-rose-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all text-white shadow-lg shadow-rose-500/20"
+           >
+              <Trash2 size={16} /> Remover da Lista
            </button>
            
            <button 
