@@ -266,4 +266,3 @@ export interface DataVersions {
   invoices: Record<string, string>;
   drafts: Record<string, string>;
 }
-

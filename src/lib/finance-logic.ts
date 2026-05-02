@@ -267,5 +267,5 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     billingMode: studentClass.billingMode,
     error: (input as any)._error,
     debug: (input as any)._debug
-  };
+  } as Partial<Invoice>;
 }
