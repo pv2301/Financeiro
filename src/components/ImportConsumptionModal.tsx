@@ -62,13 +62,31 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const cleanName = (name: string) => name.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+  const normalizeString = (str: string) => 
+    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+  const cleanName = (name: string) => {
+    // Remove parênteses e conteúdo (turmas ou info extra)
+    let cleaned = name.replace(/\s*\(.*?\)\s*/g, ' ');
+    // Remove "total" do início e "por cardápio" do fim
+    cleaned = cleaned.replace(/^total\s+/i, '').replace(/por cardápio/i, '');
+    return normalizeString(cleaned);
+  };
 
   const findStudent = (rawName: string) => {
     const cleanedRaw = cleanName(rawName);
-    let match = students.find(s => s.name.toLowerCase() === cleanedRaw);
+    if (!cleanedRaw) return null;
+
+    // 1. Busca exata (normalizada)
+    let match = students.find(s => normalizeString(s.name) === cleanedRaw);
     if (match) return match;
-    match = students.find(s => s.name.toLowerCase().includes(cleanedRaw) || cleanedRaw.includes(s.name.toLowerCase()));
+
+    // 2. Busca por inclusão
+    match = students.find(s => {
+      const sName = normalizeString(s.name);
+      return sName.includes(cleanedRaw) || cleanedRaw.includes(sName);
+    });
+    
     return match || null;
   };
 
@@ -79,6 +97,7 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
     const rows = xlsx.utils.sheet_to_json<any[]>(firstSheet, { header: 1 });
 
     let periodLabel = '';
+    let detectedMonthYear = monthYear.replace('/', '-'); // Default fallback
     let serviceNames: string[] = [];
     const studentMap = new Map<string, ConsumptionRecord>();
     const unmatched = new Set<string>();
@@ -87,8 +106,14 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
       const row = rows[i];
       if (!row || row.length === 0) continue;
 
+      // Detect Period and Extract Month/Year
       if (typeof row[1] === 'string' && row[1].includes('Período:')) {
         periodLabel = row[2] || row[1].replace('Período:', '').trim();
+        // Tenta extrair mm/yyyy de algo como "01/04/2026"
+        const dateMatch = periodLabel.match(/(\d{2})\/(\d{4})/);
+        if (dateMatch) {
+          detectedMonthYear = `${dateMatch[1]}-${dateMatch[2]}`;
+        }
         continue;
       }
 
@@ -104,20 +129,20 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
 
       // Check for Student Total row
       if (typeof row[0] === 'string' && row[0].toLowerCase().startsWith('total')) {
-        const rawName = row[0].replace(/total\s+/i, '').trim();
+        const rawName = row[0];
         const student = findStudent(rawName);
         if (!student) { 
-          unmatched.add(rawName); 
+          unmatched.add(rawName.replace(/^total\s+/i, '').replace(/por cardápio/i, '').trim()); 
           continue; 
         }
 
-        const recordId = `${student.id}_${monthYear.replace('/', '-')}`;
+        const recordId = `${student.id}_${detectedMonthYear}`;
         if (!studentMap.has(recordId)) {
           studentMap.set(recordId, {
             id: recordId,
             studentId: student.id,
-            monthYear: monthYear.replace('/', '-'),
-            periodLabel: '',
+            monthYear: detectedMonthYear,
+            periodLabel: periodLabel,
             summary: {},
             dailyDetails: []
           });
@@ -144,13 +169,13 @@ export default function ImportConsumptionModal({ isOpen, onClose, students, clas
         const student = findStudent(rawName);
         if (!student) continue;
 
-        const recordId = `${student.id}_${monthYear.replace('/', '-')}`;
+        const recordId = `${student.id}_${detectedMonthYear}`;
         if (!studentMap.has(recordId)) {
           studentMap.set(recordId, {
             id: recordId,
             studentId: student.id,
-            monthYear: monthYear.replace('/', '-'),
-            periodLabel: '',
+            monthYear: detectedMonthYear,
+            periodLabel: periodLabel,
             summary: {},
             dailyDetails: []
           });
