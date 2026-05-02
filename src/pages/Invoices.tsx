@@ -373,23 +373,23 @@ export default function Invoices() {
 
       {/* --- Invoices List - Compact Table --- */}
       <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
+        <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
+          <table className="w-full text-left border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10 bg-white">
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-8 py-5 w-10">
+                <th className="px-8 py-5 w-10 border-b border-slate-100">
                    <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredInvoices.length} 
                      onChange={() => toggleAll(filteredInvoices.map(i => i.id))}
                      className="w-4 h-4 rounded border-slate-300 accent-brand-blue" />
                 </th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Aluno / Pagador</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Boleto</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Liquidação</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Cobrado</th>
-                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                <th className="px-8 py-5 w-16"></th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Aluno / Pagador</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Boleto</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Vencimento</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Liquidação</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100">Valor</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right border-b border-slate-100">Valor Cobrado</th>
+                <th className="px-4 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-100">Status</th>
+                <th className="px-8 py-5 w-16 border-b border-slate-100"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -465,12 +465,12 @@ export default function Invoices() {
                       <td className="px-4 py-4 text-center">
                          <div className="flex flex-col items-center gap-1">
                             <span className={cn(
-                              "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
-                              inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
-                              inv.paymentStatus === 'CANCELLED' ? "bg-slate-100 text-slate-400 border-slate-200" :
-                              "bg-amber-50 text-amber-600 border-amber-100"
+                               "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
+                               inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
+                               inv.paymentStatus === 'CANCELLED' ? "bg-slate-100 text-slate-400 border-slate-200" :
+                               "bg-amber-50 text-amber-600 border-amber-100"
                             )}>
-                              {inv.paymentStatus === 'PAID' ? 'Pago' : inv.paymentStatus === 'CANCELLED' ? 'Cancelado' : 'Pendente'}
+                               {inv.paymentStatus === 'PAID' ? 'Pago' : inv.paymentStatus === 'CANCELLED' ? 'Cancelado' : 'Pendente'}
                             </span>
                            {inv.paymentMethod && (
                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">{inv.paymentMethod}</span>

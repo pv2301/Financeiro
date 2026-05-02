@@ -110,6 +110,7 @@ export interface Invoice {
   absenceDays: number;
   absenceDiscountAmount: number;
   personalDiscountAmount: number;
+  comboDiscountAmount?: number;
   netAmount: number;                // Valor do Título (enviado ao banco)
 
   // Boleto bancário
@@ -135,6 +136,7 @@ export interface Invoice {
   // Observações (editável pelo usuário, inclui divergências automáticas)
   notes?: string;
   error?: string;
+  debug?: string;
   isIntegral?: boolean;
   hasImportedConsumption?: boolean;
   items?: { description?: string; type?: string; amount?: number; name?: string; quantity?: number }[]; // Added for detailed reports and display
@@ -218,6 +220,7 @@ export interface BillingDraft {
   manualAbsences: Record<string, number>;
   bankSlipNumbers: Record<string, string>;
   manualDueDates?: Record<string, string>;
+  manualNetAmounts?: Record<string, number>;
   invoiceNotes?: Record<string, string>;
   integralItems?: Record<string, any>;
   removedStudentIds?: string[];

@@ -4,7 +4,7 @@ import {
   Download, Users, Search, DollarSign, Wallet,
   AlertCircle, Zap, ShieldCheck, LayoutDashboard, List as ListIcon,
   GraduationCap, Layers, ChevronDown, ArrowUpRight, Percent, Receipt,
-  Calendar, Table as TableIcon, TrendingUp
+  Calendar, Table as TableIcon, TrendingUp, TrendingDown, ArrowUpDown
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -246,13 +246,36 @@ export default function ReportsTest() {
     });
 
     let cumulative = 0;
-    const summary = yearSummary.map(m => {
+    const summary = yearSummary.map((m, idx) => {
       cumulative += m.total;
-      return { ...m, acumulado: cumulative };
+      const prevMonth = yearSummary[idx - 1];
+      let growth = 0;
+      if (prevMonth && prevMonth.total > 0) {
+        growth = Math.round(((m.total - prevMonth.total) / prevMonth.total) * 100);
+      }
+      return { ...m, acumulado: cumulative, growth, month: m.name };
     });
 
     return { summary };
   }, [invoices, period, sysStats, selectedClass, searchTerm]);
+
+  // Format raw data for the table
+  const rawDataFormatted = useMemo(() => {
+    return filteredData.map(inv => {
+      const student = students.find(s => s.id === inv.studentId);
+      const cls = classes.find(c => c.id === inv.classId);
+      const isConsumption = inv.hasImportedConsumption || (inv.items?.some(i => i.type === 'CONSUMPTION') ?? false);
+      
+      return {
+        studentName: student?.name || '—',
+        className: cls?.name || '—',
+        type: isConsumption ? 'CONSUMPTION' : 'FIXED',
+        grossAmount: inv.grossAmount || 0,
+        discountAmount: (inv.personalDiscountAmount || 0) + (inv.absenceDiscountAmount || 0),
+        netAmount: inv.netAmount || 0
+      };
+    });
+  }, [filteredData, students, classes]);
 
   const dailyBreakdown = useMemo(() => {
     const year = parseInt(period);
@@ -604,44 +627,29 @@ export default function ReportsTest() {
             </div>
 
             {/* Table — por turma */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[700px]">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-100">
-                      {['Turma', 'Segmento', 'Alunos', 'Faturado', 'Recebido', 'Pendente', 'Taxa'].map(h => (
-                        <th key={h} className="p-4 px-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
-                      ))}
+            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+              <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
+                <table className="w-full text-left border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white">
+                    <tr className="bg-slate-50/50">
+                      <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Turma / Segmento</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Alunos Ativos</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Mensalidades (Prev.)</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Consumo (Real)</th>
+                      <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Receita Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {byClass.map(({ cls, faturado, recebido, pendente, taxa, alunos }) => (
-                      <tr key={cls.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 px-6">
-                          <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{cls.name}</p>
+                    {byClass.map((item) => (
+                      <tr key={item.cls.id} className="group hover:bg-slate-50/50 transition-all">
+                        <td className="pl-12 pr-6 py-8">
+                          <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">{item.cls.name}</span>
                         </td>
-                        <td className="p-4 px-6">
-                          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{cls.segment}</span>
-                        </td>
-                        <td className="p-4 px-6 text-center">
-                          <span className="text-xs font-black text-slate-900">{alunos}</span>
-                        </td>
-                        <td className="p-4 px-6">
-                          <span className="text-xs font-black text-slate-900 tabular-nums">{formatCurrencyBRL(faturado)}</span>
-                        </td>
-                        <td className="p-4 px-6">
-                          <span className="text-xs font-black text-emerald-600 tabular-nums">{formatCurrencyBRL(recebido)}</span>
-                        </td>
-                        <td className="p-4 px-6">
-                          <span className={cn("text-xs font-black tabular-nums", pendente > 0 ? 'text-amber-600' : 'text-slate-400')}>{formatCurrencyBRL(pendente)}</span>
-                        </td>
-                        <td className="p-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className={cn("h-full rounded-full", taxa >= 90 ? 'bg-emerald-500' : taxa >= 60 ? 'bg-amber-400' : 'bg-rose-500')} style={{ width: `${taxa}%` }} />
-                            </div>
-                            <span className={cn("text-[9px] font-black tabular-nums", taxa >= 90 ? 'text-emerald-600' : taxa >= 60 ? 'text-amber-600' : 'text-rose-600')}>{taxa.toFixed(0)}%</span>
-                          </div>
+                        <td className="px-6 py-8 text-right font-black text-slate-700 text-sm">{item.alunos}</td>
+                        <td className="px-6 py-8 text-right font-bold text-slate-500 text-sm tabular-nums">{formatCurrencyBRL(item.faturado)}</td>
+                        <td className="px-6 py-8 text-right font-bold text-slate-500 text-sm tabular-nums">{formatCurrencyBRL(item.recebido)}</td>
+                        <td className="pl-6 pr-12 py-8 text-right">
+                          <span className="text-lg font-black text-slate-900 tabular-nums tracking-tighter">{formatCurrencyBRL(item.recebido)}</span>
                         </td>
                       </tr>
                     ))}
@@ -660,95 +668,44 @@ export default function ReportsTest() {
               <input type="text" placeholder="BUSCAR ALUNO..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 className="flex-1 bg-transparent font-bold text-[11px] text-slate-700 outline-none placeholder:text-slate-300" />
             </div>
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
-                    {['Aluno / Turma', 'Referência', 'Bruto', 'Líquido', 'Repasse', 'Status', ''].map((h, i) => (
-                      <th key={i} className="p-4 px-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">{h}</th>
+            <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+              <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
+                <table className="w-full text-left border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-white">
+                    <tr className="bg-slate-50/50">
+                      <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Aluno</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Turma</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Tipo</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Valor Bruto</th>
+                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Descontos</th>
+                      <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Valor Líquido</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {rawDataFormatted.map((item, idx) => (
+                      <tr key={idx} className="group hover:bg-slate-50/50 transition-all">
+                        <td className="pl-12 pr-6 py-8">
+                          <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">{item.studentName}</span>
+                        </td>
+                        <td className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.className}</td>
+                        <td className="px-6 py-8">
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                            item.type === 'CONSUMPTION' ? 'bg-brand-blue/5 text-brand-blue border-brand-blue/10' : 'bg-slate-100 text-slate-600 border-slate-200'
+                          )}>
+                            {item.type === 'CONSUMPTION' ? 'Consumo' : 'Mensalidade'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-8 text-right font-bold text-slate-400 text-sm tabular-nums">{formatCurrencyBRL(item.grossAmount)}</td>
+                        <td className="px-6 py-8 text-right font-bold text-rose-400 text-sm tabular-nums">-{formatCurrencyBRL(item.discountAmount)}</td>
+                        <td className="pl-6 pr-12 py-8 text-right">
+                          <span className="text-base font-black text-slate-900 tabular-nums tracking-tighter">{formatCurrencyBRL(item.netAmount)}</span>
+                        </td>
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredData.map(inv => {
-                    const s = students.find(x => x.id === inv.studentId);
-                    const c = classes.find(x => x.id === inv.classId);
-                    const isExp = expandedRow === inv.id;
-                    return (
-                      <React.Fragment key={inv.id}>
-                        <tr className={cn("hover:bg-slate-50 transition-colors", isExp && "bg-slate-50")}>
-                          <td className="p-4 px-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 text-xs">{s?.name.charAt(0) || '?'}</div>
-                              <div>
-                                <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{s?.name || '—'}</p>
-                                <p className="text-[8px] font-black text-brand-blue uppercase tracking-widest">{c?.name || '—'}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 px-6 text-xs font-bold text-slate-600 tabular-nums">{inv.monthYear}</td>
-                          <td className="p-4 px-6 text-xs font-black text-slate-500 tabular-nums">{formatCurrencyBRL(inv.grossAmount)}</td>
-                          <td className="p-4 px-6 text-xs font-black text-slate-900 tabular-nums">
-                            {(() => {
-                              const student = students.find(s => s.id === inv.studentId);
-                              const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
-                              if (isPaidInTime && student?.hasTimelyPaymentDiscount && (student.personalDiscount || 0) > 0) {
-                                return formatCurrencyBRL(inv.netAmount - (inv.personalDiscountAmount || 0));
-                              }
-                              return formatCurrencyBRL(inv.netAmount);
-                            })()}
-                          </td>
-                          <td className="p-4 px-6 text-xs font-black text-rose-500 tabular-nums">
-                            {(() => {
-                              const student = students.find(s => s.id === inv.studentId);
-                              const isPaidInTime = inv.paymentStatus === 'PAID' && inv.paymentDate && new Date(inv.paymentDate) <= new Date(inv.dueDate);
-                              let effectiveValor = inv.netAmount;
-                              if (isPaidInTime && student?.hasTimelyPaymentDiscount && (student.personalDiscount || 0) > 0) {
-                                effectiveValor = inv.netAmount - (inv.personalDiscountAmount || 0);
-                              }
-                              const valorCobrado = inv.amountCharged ?? inv.netAmount;
-                              const baseRepasse = Math.min(effectiveValor, valorCobrado);
-                              const sharePercent = inv.collegeSharePercent ?? 0;
-                              return formatCurrencyBRL(baseRepasse * (sharePercent / 100));
-                            })()}
-                          </td>
-                          <td className="p-4 px-6">
-                            <span className={cn("px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
-                              inv.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                              {inv.paymentStatus === 'PAID' ? 'Pago' : 'Pendente'}
-                            </span>
-                          </td>
-                          <td className="p-4 px-6">
-                            <button onClick={() => setExpandedRow(isExp ? null : inv.id)}
-                              className={cn("w-7 h-7 flex items-center justify-center rounded-lg transition-all", isExp ? "bg-slate-900 text-white" : "text-slate-400 hover:text-slate-900")}>
-                              <ChevronDown size={14} className={cn("transition-transform", isExp && "rotate-180")} />
-                            </button>
-                          </td>
-                        </tr>
-                        {isExp && (
-                          <tr className="bg-slate-50/50">
-                            <td colSpan={7} className="px-6 pb-4 pt-2">
-                              <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-inner grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[
-                                  { label: 'Desc. Pessoal', value: formatCurrencyBRL(inv.personalDiscountAmount || 0), color: 'text-indigo-600' },
-                                  { label: 'Desc. Faltas', value: formatCurrencyBRL(inv.absenceDiscountAmount || 0), color: 'text-amber-600' },
-                                  { label: 'Pago em', value: inv.paymentDate || '—', color: 'text-slate-900' },
-                                  { label: 'Valor Cobrado', value: inv.amountCharged ? formatCurrencyBRL(inv.amountCharged) : '—', color: 'text-emerald-600' },
-                                ].map((d, i) => (
-                                  <div key={i}>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{d.label}</p>
-                                    <p className={cn("text-sm font-black", d.color)}>{d.value}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </motion.div>
         )}
@@ -758,36 +715,43 @@ export default function ReportsTest() {
           <motion.div key="anual" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Summary Table */}
-              <div className="lg:col-span-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Consolidado Mensal</h3>
-                  <TrendingUp size={16} className="text-brand-blue" />
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="p-3 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest">Mês</th>
-                        <th className="p-3 px-4 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Boletos</th>
-                        <th className="p-3 px-6 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Acumulado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {annualData.summary.map((m, i) => (
-                        <tr key={m.name} onClick={() => setSelectedMonth(i)}
-                          className={cn("cursor-pointer transition-all hover:bg-slate-50", selectedMonth === i ? "bg-brand-blue/5 border-l-4 border-l-brand-blue" : "border-l-4 border-l-transparent")}>
-                          <td className="p-3 px-6 text-[10px] font-black text-slate-900 uppercase">{m.name}</td>
-                          <td className="p-3 px-4 text-right text-[10px] font-bold text-slate-600">{formatCurrencyBRL(m.boletos)}</td>
-                          <td className="p-3 px-6 text-right text-[10px] font-black text-brand-blue">{formatCurrencyBRL(m.acumulado)}</td>
+              <div className="lg:col-span-12 space-y-8">
+                <div className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+                  <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
+                    <table className="w-full text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 z-10 bg-white">
+                        <tr className="bg-slate-50/50">
+                          <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Mês de Referência</th>
+                          <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Receita Total</th>
+                          <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Crescimento</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {annualData.summary.map((month, idx) => (
+                          <tr key={month.month} className="group hover:bg-slate-50/50 transition-all">
+                            <td className="pl-12 pr-6 py-8">
+                              <span className="text-sm font-black text-slate-900 uppercase tracking-tighter">{month.month}</span>
+                            </td>
+                            <td className="px-6 py-8 text-right font-black text-slate-900 text-lg tabular-nums tracking-tighter">{formatCurrencyBRL(month.total)}</td>
+                            <td className="pl-6 pr-12 py-8 text-right">
+                              <div className={cn(
+                                "inline-flex items-center gap-2 px-4 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest border",
+                                month.growth >= 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"
+                              )}>
+                                {month.growth >= 0 ? <TrendingUp size={14} /> : <ArrowUpDown size={14} />}
+                                {month.growth > 0 ? `+${month.growth}%` : `${month.growth}%`}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
               {/* Daily Breakdown Table */}
-              <div className="lg:col-span-7 space-y-6">
+              <div className="lg:col-span-12 space-y-6">
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-brand-blue/10 text-brand-blue rounded-xl flex items-center justify-center"><TableIcon size={20} /></div>

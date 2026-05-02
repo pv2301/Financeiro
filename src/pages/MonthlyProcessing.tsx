@@ -4,7 +4,7 @@ import {
   Calculator, Upload, CheckCircle2, Settings, Calendar, Search, X as XIcon, 
   Clock, AlertTriangle, Filter, Zap, MoreVertical, MessageSquare, ShieldCheck, 
   Copy, User, Receipt, Download, Layers, BarChart3, Pencil, Trash2, ArrowUpRight,
-  CreditCard, Plus, Loader2
+  CreditCard, Plus, Loader2, Activity
 } from "lucide-react";
 import { FixedBillingTable } from '../components/MonthlyProcessing/FixedBillingTable';
 import { ConsumptionTable } from '../components/MonthlyProcessing/ConsumptionTable';
@@ -66,6 +66,7 @@ export default function MonthlyProcessing() {
   const [manualAbsences, setManualAbsences] = useState<Record<string, number>>({});
   const [bankSlipNumbers, setBankSlipNumbers] = useState<Record<string, string>>({});
   const [manualDueDates, setManualDueDates] = useState<Record<string, string>>({});
+  const [manualNetAmounts, setManualNetAmounts] = useState<Record<string, number>>({});
   const [invoiceNotes, setInvoiceNotes] = useState<Record<string, string>>({});
   const [integralItems, setIntegralItems] = useState<Record<string, any>>({});
   const [removedStudentIds, setRemovedStudentIds] = useState<string[]>([]);
@@ -111,7 +112,7 @@ export default function MonthlyProcessing() {
     try {
       if (force) {
         await new Promise(resolve => setTimeout(resolve, 800));
-        finance.invalidateCache('fin_consumption'); 
+        finance.invalidateCache('consumption'); 
       }
       const consumption = await finance.getConsumptionByMonth(monthYear);
       setDbConsumption(consumption || []);
@@ -166,7 +167,12 @@ export default function MonthlyProcessing() {
       const studentClass = classes.find((c) => c.id === student.classId);
       if (!studentClass) return;
 
-      const consumption = consumptionData.find((d) => d.studentId === student.id);
+      const formattedMonth = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
+      const alternateMonth = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
+      const consumption = consumptionData.find((d) => 
+        d.studentId === student.id && 
+        (d.monthYear === formattedMonth || d.monthYear === alternateMonth)
+      );
 
       // --- 1. MENSALIDADE FIXA (Se aplicável) ---
       if (studentClass.billingMode !== 'POSTPAID_CONSUMPTION') {
@@ -267,6 +273,10 @@ export default function MonthlyProcessing() {
       const studentClass = classes.find(c => c.id === student.classId);
       const dueDate = manualDueDates[invId] || manualDueDates[studentId] || format(new Date(monthYear.split('/')[1] as any, parseInt(monthYear.split('/')[0]) as any, student.dueDay || defaultDueDay), "yyyy-MM-dd");
 
+      const pDiscount = student.personalDiscount || 0;
+      const personalDiscountAmount = amount * (pDiscount / 100);
+      const netAmount = amount - personalDiscountAmount;
+
       newInvoices.push({
         id: invId,
         studentId,
@@ -277,8 +287,8 @@ export default function MonthlyProcessing() {
         grossAmount: amount,
         absenceDays: 0,
         absenceDiscountAmount: 0,
-        personalDiscountAmount: 0,
-        netAmount: amount,
+        personalDiscountAmount,
+        netAmount,
         nossoNumero: "",
         filename: student.filenameSuffix || "",
         paymentStatus: "PENDING",
@@ -300,10 +310,10 @@ export default function MonthlyProcessing() {
   }, [monthYear, students, classes, services, manualAbsences, manualDueDates, bankSlipNumbers, integralItems, removedStudentIds, boletoFee, collegeShareBySegment, mandatorySnackBySegment, defaultDueDay, ageRefDay, categoryPrices, scholasticDays]);
 
   const getDraftData = useCallback(() => ({
-    manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, 
+    manualAbsences, bankSlipNumbers, manualDueDates, manualNetAmounts, invoiceNotes, 
     integralItems, removedStudentIds, selectedIds: Array.from(selectedIds),
     categoryPrices
-  }), [manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds, categoryPrices]);
+  }), [manualAbsences, bankSlipNumbers, manualDueDates, manualNetAmounts, invoiceNotes, integralItems, removedStudentIds, selectedIds, categoryPrices]);
 
   // --- Draft Persistence ---
   const saveCurrentDraft = useCallback(async (overrideData?: any, silent: boolean = false) => {
@@ -331,13 +341,14 @@ export default function MonthlyProcessing() {
           setManualAbsences(draft.manualAbsences || {});
           setBankSlipNumbers(draft.bankSlipNumbers || {});
           setManualDueDates(draft.manualDueDates || {});
+          setManualNetAmounts(draft.manualNetAmounts || {});
           setInvoiceNotes(draft.invoiceNotes || {});
           setIntegralItems(draft.integralItems || {});
           setRemovedStudentIds(draft.removedStudentIds || []);
           setCategoryPrices(draft.categoryPrices || { GRUPO: 0, MATERNAL: 0 });
           setSelectedIds(new Set(draft.selectedIds || []));
         } else {
-          setManualAbsences({}); setBankSlipNumbers({}); setManualDueDates({});
+          setManualAbsences({}); setBankSlipNumbers({}); setManualDueDates({}); setManualNetAmounts({});
           setInvoiceNotes({}); setIntegralItems({}); setRemovedStudentIds([]); setSelectedIds(new Set());
           setCategoryPrices({ GRUPO: 0, MATERNAL: 0 });
         }
@@ -358,7 +369,7 @@ export default function MonthlyProcessing() {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     const timer = setTimeout(() => saveCurrentDraft(undefined, true), 2000);
     return () => clearTimeout(timer);
-  }, [manualAbsences, bankSlipNumbers, manualDueDates, invoiceNotes, integralItems, removedStudentIds, selectedIds, saveCurrentDraft]);
+  }, [manualAbsences, bankSlipNumbers, manualDueDates, manualNetAmounts, invoiceNotes, integralItems, removedStudentIds, selectedIds, saveCurrentDraft]);
 
   const getCurrentMonthDays = (): number => {
     const parts = monthYear.split("/");
@@ -445,6 +456,7 @@ export default function MonthlyProcessing() {
         bankSlipNumber: bankSlipNumbers[inv.id],
         note: invoiceNotes[inv.id],
         dueDate: manualDueDates[inv.id] || inv.dueDate,
+        netAmount: manualNetAmounts[inv.id] !== undefined ? manualNetAmounts[inv.id] : inv.netAmount,
         createdAt: new Date().toISOString()
       })));
       showToast(`${toSave.length} Títulos Gerados!`);
@@ -460,7 +472,8 @@ export default function MonthlyProcessing() {
   if (isLoading) return <div className="p-8 flex items-center justify-center min-h-screen"><div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-4 md:p-10 pb-32 max-w-[1600px] mx-auto space-y-10 bg-slate-50/30 min-h-screen font-sans">
+    <>
+      <div className="p-4 md:p-10 pb-32 max-w-[1600px] mx-auto space-y-10 bg-slate-50/30 min-h-screen font-sans">
       
       <AnimatePresence>
         {isLoadingDraft && (
@@ -476,22 +489,27 @@ export default function MonthlyProcessing() {
         )}
       </AnimatePresence>
 
-      <header className="flex flex-col md:flex-row md:items-center justify-between bg-white p-8 rounded-3xl border border-slate-100 shadow-sm gap-6">
-        <div className="space-y-2">
-          <h1 className={TXT.TITLE}>Fechamento Mensal</h1>
-          <p className={TXT.LABEL}>Gestão de faturamento e processamento automático</p>
-        </div>
+      <header className="flex flex-col md:flex-row md:items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-100 shadow-sm gap-4">
         <div className="flex items-center gap-4">
-           <button onClick={() => setShowTemplateModal(true)} className="flex items-center gap-2 bg-slate-50 text-slate-600 px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-100">
-              <MessageSquare size={16} /> Templates
+          <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0">
+            <Activity size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-tight">Fechamento Mensal</h1>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Processamento automático</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+           <button onClick={() => setShowTemplateModal(true)} className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-100">
+              <MessageSquare size={14} /> Templates
            </button>
-           <button onClick={() => navigate('/config')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-blue transition-all">
-             <Settings size={24} />
+           <button onClick={() => navigate('/config')} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-blue transition-all">
+             <Settings size={20} />
            </button>
         </div>
       </header>
 
-      <div className="space-y-6">
+      <div className="max-w-[1600px] mx-auto space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-brand-blue/30 transition-all">
             <div className="flex items-center gap-6">
@@ -553,11 +571,11 @@ export default function MonthlyProcessing() {
                 </button>
               );
             })}
-          </div>
-        </div>
-      </div>
+           </div>
+         </div>
+       
+       <div className="space-y-4">
 
-      <div className="space-y-8">
         <div className="sticky top-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4 w-full lg:flex-1">
                <div className="relative flex-1 lg:max-w-md">
@@ -575,12 +593,12 @@ export default function MonthlyProcessing() {
                </select>
             </div>
              <button 
-               disabled={selectedIds.size === 0 || previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length === 0} 
+               disabled={selectedIds.size === 0 || previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.id]).length === 0} 
                onClick={() => setShowSaveConfirm(true)} 
                className="flex items-center gap-3 px-10 py-5 bg-brand-blue text-white rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 font-black text-[11px] uppercase tracking-widest transition-all"
              >
-                <Zap size={18} className={cn("transition-colors", previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length > 0 ? "text-brand-lime" : "text-white/40")} /> 
-                Gerar Boletos ({previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length})
+                <Zap size={18} className={cn("transition-colors", previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.id]).length > 0 ? "text-brand-lime" : "text-white/40")} /> 
+                Gerar Boletos ({previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.id]).length})
              </button>
         </div>
 
@@ -606,10 +624,13 @@ export default function MonthlyProcessing() {
           })}
         </div>
 
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden min-h-[400px]">
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden min-h-[950px]">
+          <div className="max-h-[calc(100vh-100px)] overflow-y-auto [scrollbar-gutter:stable] relative">
+
+
           {activeTab === 'fixed' && (
             <>
-               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+               <div className="p-6 bg-slate-50/50 border-b border-slate-100">
                  <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                    <div className="flex items-center gap-6">
                      <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg">
@@ -698,11 +719,11 @@ export default function MonthlyProcessing() {
 
           {activeTab === 'consumption' && (
              <>
-               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+               <div className="p-6 bg-slate-50/50 border-b border-slate-100">
                  <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                    <div className="flex items-center gap-6">
                      <div className="w-14 h-14 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue shadow-lg">
-                       <Upload size={24} />
+                        <Upload size={24} />
                      </div>
                      <div>
                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Gestão de Consumo</h3>
@@ -745,17 +766,18 @@ export default function MonthlyProcessing() {
                   setShowStudentNotes={setShowStudentNotes}
                   manualDueDates={manualDueDates}
                   setManualDueDates={setManualDueDates}
+                  manualNetAmounts={manualNetAmounts}
+                  setManualNetAmounts={setManualNetAmounts}
                   formatStudentCopyId={formatStudentCopyId}
                   getStudentMessage={getStudentMessage}
                   setToast={showToast}
-                  onRemoveStudent={handleRemoveStudent}
                 />
              </>
           )}
 
           {activeTab === 'integral' && (
              <>
-               <div className="p-8 bg-slate-50/50 border-b border-slate-100">
+               <div className="p-6 bg-slate-50/50 border-b border-slate-100">
                  <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                    <div className="flex items-center gap-6">
                      <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 shadow-lg">
@@ -805,14 +827,16 @@ export default function MonthlyProcessing() {
                   formatStudentCopyId={formatStudentCopyId}
                   getStudentMessage={getStudentMessage}
                   setToast={showToast}
-                  onRemoveStudent={handleRemoveStudent}
-                />
-             </>
+              />
+            </>
           )}
+          </div>
         </div>
-      </div>
 
-      <AnimatePresence>
+        <AnimatePresence>
+
+
+
         {selectedIds.size > 0 && (
           <motion.div 
             initial={{ y: 100, opacity: 0 }}
@@ -874,7 +898,7 @@ export default function MonthlyProcessing() {
         />
       )}
 
-      <ConfirmDialog isOpen={showSaveConfirm} title="Gerar Boletos Oficiais" message={`Você está prestes a gerar faturas para ${previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.studentId]).length} alunos selecionados. Prosseguir?`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
+      <ConfirmDialog isOpen={showSaveConfirm} title="Gerar Boletos Oficiais" message={`Você está prestes a gerar faturas para ${previewInvoices.filter(i => selectedIds.has(i.id) && !!bankSlipNumbers[i.id]).length} alunos selecionados. Prosseguir?`} onConfirm={handleSaveInvoices} onCancel={() => setShowSaveConfirm(false)} variant="info" />
       <ImportConsumptionModal isOpen={showImportModal} onClose={() => setShowImportModal(false)} classes={classes} onSuccess={async () => { await refreshConsumption(true); showToast("Consumo Importado com Sucesso!"); }} monthYear={monthYear} students={students} />
       <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} messageTemplates={messageTemplates} setMessageTemplates={setMessageTemplates} setToast={showToast} />
       <IntegralModals 
@@ -893,6 +917,10 @@ export default function MonthlyProcessing() {
         getPriceKey={getPriceKey}
         onConfirmSelection={handleConfirmSelection}
       />
-    </div>
+      
+        </div>
+      </div>
+      </div>
+    </>
   );
 }

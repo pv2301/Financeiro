@@ -155,8 +155,11 @@ function getLocalCache<T>(key: string): T[] | null {
 
 function invalidateCache(key?: string) {
   if (key) {
-    localStorage.removeItem(`fin_cache_${key}`);
-    localStorage.removeItem(`fin_ver_${key}`);
+    const keysToRemove = Object.keys(localStorage).filter(k => 
+      k === `fin_cache_${key}` || k === `fin_ver_${key}` ||
+      k.startsWith(`fin_cache_${key}_`) || k.startsWith(`fin_ver_${key}_`)
+    );
+    keysToRemove.forEach(k => localStorage.removeItem(k));
   } else {
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('fin_cache_') || k.startsWith('fin_ver_')) {
@@ -607,22 +610,26 @@ export const finance = {
   // ─── CONSUMPTION ──────────────────────────────────────────────────────────
   getConsumption: () => getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION),
 
+  /** Recupera consumo mensal com cache otimizado */
   getConsumptionByMonth: async (monthYear: string) => {
     const formatted = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
     const alternate = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
     
-    try {
-      const all = await getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION);
-      
-      const filtered = all.filter(item => 
-        item.monthYear === formatted || item.monthYear === alternate
+    return getCachedOrFetch<ConsumptionRecord>('consumption', async () => {
+      // Otimizao: busca apenas o ms necessrio no Firestore
+      const q = query(
+        collection(db, C.CONSUMPTION), 
+        where("monthYear", "in", [formatted, alternate])
       );
-
-      return filtered;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, C.CONSUMPTION);
-      return [];
-    }
+      const snap = await getDocs(q);
+      const results = snap.docs.map(d => d.data() as ConsumptionRecord);
+      
+      // Filtro de segurança extra: garante que nenhum dado de outro mês "vaze"
+      return results.filter(r => 
+        !r.deletedAt && 
+        (r.monthYear === formatted || r.monthYear === alternate)
+      );
+    }, formatted);
   },
 
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {

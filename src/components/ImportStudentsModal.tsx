@@ -209,7 +209,7 @@ export default function ImportStudentsModal({ existingClasses, onClose, onComple
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center pt-8 px-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-start justify-center pt-8 px-4 overflow-y-auto">
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mb-8">
         {/* Header */}

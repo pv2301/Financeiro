@@ -11,39 +11,99 @@ export function calculateAgeInMonths(birthDateStr: string, refDate: Date): numbe
   return (years * 12) + months;
 }
 
-export function getPriceKey(studentClass: ClassInfo, student: Student | null, processingMonthYear: string, ageRefDay: number): string {
-  const seg = studentClass.segment;
-  const name = studentClass.name.toLowerCase();
+/**
+ * Normaliza nomes de serviços importados para os nomes padrão do sistema.
+ * Garante que variações de digitação ou nomes de planilhas externas encontrem o preço correto.
+ */
+export function normalizeServiceName(name: string): string {
+  const n = name.toUpperCase().trim()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
   
-  if (seg === 'Berçário') {
-    if (!student?.birthDate) return 'Berçário|Baby';
-    
-    const [m, y] = processingMonthYear.split('/').map(Number);
-    const refDay = ageRefDay || 5; 
-    const refDate = new Date(y, m - 1, refDay); 
+  // Mapeamentos específicos para Berçário (Tallita)
+  // Normalizamos para incluir "DA" se o sistema espera "DA", ou removemos se o sistema não tiver.
+  // Aqui assumimos o padrão "LANCHE DA TARDE" como alvo.
+  if (n.includes('LANCHE') && (n.includes('TARDE') || n.includes('VESPERTINO'))) {
+    return 'LANCHE DA TARDE';
+  }
+  if (n.includes('LANCHE') && (n.includes('MANHA') || n.includes('MATUTINO'))) {
+    return 'LANCHE DA MANHÃ';
+  }
+  
+  if (n.includes('ALMOCO')) return 'ALMOÇO';
+  if (n.includes('CEIA')) return 'CEIA';
+  
+  // Casos específicos de prefixos/sufixos (Ex: ALMOCO - CFC BABY)
+  if (n.includes('CFC BABY') || n.includes('CFCBABY')) {
+    if (n.includes('ALMOCO')) return 'ALMOÇO';
+    if (n.includes('CEIA')) return 'CEIA';
+  }
+
+  if (n.includes('LANCHE') && n.includes('COLETIVO')) return 'LANCHE COLETIVO';
+  if (n.includes('LANCHE') && n.includes('INTEGRAL')) return 'LANCHE INTEGRAL';
+  
+  return n;
+}
+
+export function getPriceKey(studentClass: ClassInfo, student: Student | null, processingMonthYear: string, ageRefDay: number): string {
+  const isConsumption = studentClass.billingMode === 'POSTPAID_CONSUMPTION' || (studentClass as any).hasImportedConsumption;
+  
+  // Normalização do mês/ano (aceita MM/yyyy ou YYYY-MM ou MM-yyyy)
+  let month = 0;
+  let year = 0;
+  if (processingMonthYear.includes('/')) {
+    [month, year] = processingMonthYear.split('/').map(Number);
+  } else if (processingMonthYear.includes('-')) {
+    const parts = processingMonthYear.split('-');
+    if (parts[0].length === 4) { // YYYY-MM
+      year = Number(parts[0]);
+      month = Number(parts[1]);
+    } else { // MM-YYYY
+      month = Number(parts[0]);
+      year = Number(parts[1]);
+    }
+  }
+
+  // Se for modo CONSUMO, ignora a turma e usa apenas a idade baseada na tabela do Berçário
+  // Regra do Usuário: "Todo consumo importado da aba CONSUMO deve ser feito apenas com base na idade da criança nao importando sua turma"
+  if (isConsumption && student && student.birthDate) {
+    const refDate = new Date(year, month - 1, ageRefDay || 1); 
     const ageMonths = calculateAgeInMonths(student.birthDate, refDate);
     
-    if (ageMonths >= 6 && ageMonths <= 9) return 'Berçário|Baby';
-    if (ageMonths >= 10 && ageMonths <= 12) return 'Berçário|Ninho';
-    if (ageMonths >= 13 && ageMonths <= 24) return 'Berçário|Extra';
+    if (ageMonths <= 9) return 'Berçário|Baby';
+    if (ageMonths <= 12) return 'Berçário|Ninho';
+    return 'Berçário|Extra'; // Correspondente a "A partir de 13 meses"
+  }
+
+  const seg = studentClass.segment;
+  const name = (studentClass.name || "").toLowerCase();
+
+  // Lógica normal por turma para faturamentos Fixos ou Integrais
+  if (seg === 'Berçário') {
+    if (!student || !student.birthDate) return 'Berçário|Baby';
     
-    return ageMonths < 6 ? 'Berçário|Baby' : 'Berçário|Extra';
+    const refDate = new Date(year, month - 1, ageRefDay || 1); 
+    const ageMonths = calculateAgeInMonths(student.birthDate, refDate);
+    
+    if (ageMonths <= 9) return 'Berçário|Baby';
+    if (ageMonths <= 12) return 'Berçário|Ninho';
+    return 'Berçário|Extra';
   }
   
   if (seg === 'Educação Infantil') {
-    if (name.includes('maternal')) return 'Educação Infantil|Maternal';
-    if (name.includes('grupo 1')) return 'Educação Infantil|Grupo 1';
-    if (name.includes('grupo 2')) return 'Educação Infantil|Grupo 2';
-    if (name.includes('grupo 3')) return 'Educação Infantil|Grupo 3';
+    const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); // Remove acentos
+    if (n.includes('maternal')) return 'Educação Infantil|Maternal';
+    if (n.includes('grupo 1') || n.includes('g1')) return 'Educação Infantil|Grupo 1';
+    if (n.includes('grupo 2') || n.includes('g2')) return 'Educação Infantil|Grupo 2';
+    if (n.includes('grupo 3') || n.includes('g3')) return 'Educação Infantil|Grupo 3';
     return 'Educação Infantil|Maternal'; 
   }
-
+  
   if (seg === 'Ensino Fundamental I' || seg === 'Fundamental') {
-    if (name.includes('1º') || name.includes('1o') || name.includes('ano 1')) return 'Ensino Fundamental I|Ano 1';
-    if (name.includes('2º') || name.includes('2o') || name.includes('ano 2')) return 'Ensino Fundamental I|Ano 2';
-    if (name.includes('3º') || name.includes('3o') || name.includes('ano 3')) return 'Ensino Fundamental I|Ano 3';
-    if (name.includes('4º') || name.includes('4o') || name.includes('ano 4')) return 'Ensino Fundamental I|Ano 4';
-    if (name.includes('5º') || name.includes('5o') || name.includes('ano 5')) return 'Ensino Fundamental I|Ano 5';
+    const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (n.includes('1') || n.includes('ano 1')) return 'Ensino Fundamental I|Ano 1';
+    if (n.includes('2') || n.includes('ano 2')) return 'Ensino Fundamental I|Ano 2';
+    if (n.includes('3') || n.includes('ano 3')) return 'Ensino Fundamental I|Ano 3';
+    if (n.includes('4') || n.includes('ano 4')) return 'Ensino Fundamental I|Ano 4';
     return 'Ensino Fundamental I|Ano 1'; 
   }
   
@@ -78,7 +138,9 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
   let grossAmount = 0;
   let absenceDiscountAmount = 0;
   let personalDiscountAmount = 0;
+  let comboDiscountAmount = 0;
   let netAmount = 0;
+  let distinctServicesCount = 0;
   let applyAbsenceDiscount = studentClass.applyAbsenceDiscount;
 
   // Rule: Force absence discount for PREPAID modes
@@ -126,18 +188,41 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
   } 
   else if (studentClass.billingMode === 'POSTPAID_CONSUMPTION') {
     if (consumption && consumption.summary) {
+      distinctServicesCount = Object.keys(consumption.summary).length;
       Object.entries(consumption.summary).forEach(([snackName, qty]) => {
-        const svc = services.find(s => s.name.toLowerCase() === snackName.toLowerCase());
+        const normalized = normalizeServiceName(snackName);
+        
+        // Busca agressiva: normaliza ambos os lados
+        let svc = services.find(s => {
+          const dbNormalized = normalizeServiceName(s.name);
+          return dbNormalized === normalized || s.id === normalized;
+        });
+        
+        if (!svc && normalized === 'LANCHE COLETIVO') {
+          svc = services.find(s => normalizeServiceName(s.name).includes('LANCHE COLETIVO'));
+        }
+
         if (svc) {
           const priceKey = getPriceKey(studentClass, student, monthYear, ageRefDay);
           const price = svc.priceByKey[priceKey] || 0;
           grossAmount += (price * qty);
+          
+          if (price === 0) {
+            (input as any)._debug = `${(input as any)._debug || ''} [Preço 0: ${snackName} p/ ${priceKey}]`.trim();
+          }
+        } else {
+          (input as any)._debug = `${(input as any)._debug || ''} [Não encontrado: ${snackName}]`.trim();
+          console.warn(`[finance-logic] Serviço não encontrado para cálculo: ${snackName} (Normalizado: ${normalized})`);
         }
       });
     }
   }
 
-  // 3. Absence Discount calculation
+  // 3. Absence & Combo Discount calculation
+  if (studentClass.billingMode === 'POSTPAID_CONSUMPTION' && distinctServicesCount > 1) {
+    comboDiscountAmount = grossAmount * 0.10;
+  }
+
   if (applyAbsenceDiscount && manualAbsences > 0) {
     const priceKey = getPriceKey(studentClass, student, monthYear, ageRefDay);
     const mandatoryId = mandatorySnackBySegment ? mandatorySnackBySegment[studentClass.segment] : null;
@@ -152,11 +237,10 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
   }
 
   // 4. Final amounts
-  const baseAfterAbsence = Math.max(0, grossAmount - absenceDiscountAmount);
-  netAmount = baseAfterAbsence;
+  netAmount = Math.max(0, grossAmount - comboDiscountAmount - absenceDiscountAmount);
 
   if (student.personalDiscount > 0) {
-    personalDiscountAmount = baseAfterAbsence * (student.personalDiscount / 100);
+    personalDiscountAmount = netAmount * (student.personalDiscount / 100);
     
     // Rule: If NOT a punctuality discount, it's a permanent discount -> subtract now
     if (!student.hasTimelyPaymentDiscount) {
@@ -175,11 +259,13 @@ export function calculateStudentInvoice(input: CalculationInput): Partial<Invoic
     grossAmount,
     absenceDiscountAmount,
     personalDiscountAmount,
+    comboDiscountAmount,
     netAmount,
     totalServices,
     collegeShareAmount,
     collegeSharePercent: effectiveSharePercent,
     billingMode: studentClass.billingMode,
-    error: (input as any)._error
+    error: (input as any)._error,
+    debug: (input as any)._debug
   };
 }

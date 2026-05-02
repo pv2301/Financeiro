@@ -7,9 +7,9 @@ export const ALL_SEGMENTS = [
   {
     key: 'Berçário' as Segment, label: 'Berçário',
     subKeys: [
-      { key: 'Berçário|Baby',   label: 'Baby (6 a 9 meses)' },
-      { key: 'Berçário|Ninho',  label: 'Ninho (10 a 12 meses)' },
-      { key: 'Berçário|Extra',  label: 'Extra (13 a 24 meses)' },
+      { key: 'Berçário|Baby',   label: '6 a 9 meses' },
+      { key: 'Berçário|Ninho',  label: '10 a 12 meses' },
+      { key: 'Berçário|Extra',  label: 'A partir de 13 meses' },
     ]
   },
   {
@@ -28,9 +28,9 @@ export const ALL_SEGMENTS = [
       { key: 'Ensino Fundamental I|Ano 2', label: '2º Ano' },
       { key: 'Ensino Fundamental I|Ano 3', label: '3º Ano' },
       { key: 'Ensino Fundamental I|Ano 4', label: '4º Ano' },
-      { key: 'Ensino Fundamental I|Ano 5', label: '5º Ano' },
     ]
   }
+
 ];
 
 interface Props {
@@ -87,7 +87,7 @@ export default function EditServiceModal({ service, onSave, onClose, isSaving, m
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-3xl shadow-xl border border-slate-200 w-full max-w-4xl my-auto">
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50 rounded-t-3xl sticky top-0 z-10">

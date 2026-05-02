@@ -215,17 +215,15 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Students List - Compact Table Style */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-         <div className="overflow-x-auto">
+         <div className="overflow-y-auto max-h-[calc(100vh-220px)] [scrollbar-gutter:stable]">
             <table className="w-full text-left border-collapse min-w-[1200px]">
-               <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
+               <thead className="sticky top-0 z-20 bg-slate-50 shadow-sm">
+                  <tr className="bg-slate-50 border-b border-slate-100">
                      <th className="p-4 w-12 text-center">
                         <input 
                           type="checkbox" 
                           className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
-                                                     checked={selectedIds.size > 0 && selectedIds.size === filteredStudents.length}
 
                            onChange={() => toggleAll(filteredStudents.map(s => s.id))}
 
@@ -233,7 +231,7 @@ export default function Students() {
                      </th>
                      <th className="p-6 w-12 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">#</th>
                      <th 
-                       className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50/80 z-10 cursor-pointer hover:text-brand-blue transition-colors"
+                       className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky left-0 bg-slate-50 z-10 cursor-pointer hover:text-brand-blue transition-colors"
                        onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                      >
                         <div className="flex items-center gap-2">
@@ -244,7 +242,7 @@ export default function Students() {
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável & Contato</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Turma</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Modalidade</th>
-                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Venc.</th>
+                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Venc..</th>
                      <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Desc.</th>
                      <th className="p-6 w-20"></th>
                   </tr>

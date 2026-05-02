@@ -186,15 +186,15 @@ export function Audit() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden"
           >
-            <div className="overflow-x-auto">
+            <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
               <table className="w-full text-left border-separate border-spacing-0">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-white">
                   <tr className="bg-slate-50/50">
-                    <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Timestamp / Protocolo</th>
-                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Usuário Administrativo</th>
-                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ação Executada</th>
-                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Entidade / Coleção</th>
-                    <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Identificador Interno</th>
+                    <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Timestamp / Protocolo</th>
+                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Usuário Administrativo</th>
+                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Ação Executada</th>
+                    <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Entidade / Coleção</th>
+                    <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Identificador Interno</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -272,60 +272,60 @@ export function Audit() {
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-[4rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden"
             >
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-separate border-spacing-0">
-                  <thead>
-                    <tr className="bg-slate-50/50">
-                      <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Exclusão / Cronograma</th>
-                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Autor da Ação</th>
-                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Tipo de Documento</th>
-                      <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Identificação Visual</th>
-                      <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Comandos de Recuperação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {deletedItems.length === 0 ? (
-                      <tr><td colSpan={5} className="p-32 text-center text-slate-300 font-black uppercase tracking-[0.2em]">Lixeira Limpa.</td></tr>
-                    ) : (
-                      deletedItems.map((item) => (
-                        <tr key={item.id} className="group hover:bg-slate-50/50 transition-all">
-                          <td className="pl-12 pr-6 py-8">
-                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
-                                   <Clock size={16} />
-                                </div>
-                                <span className="text-sm font-black text-slate-900 tabular-nums tracking-tighter">
-                                  {new Date(item.deletedAt).toLocaleString('pt-BR')}
-                                </span>
-                             </div>
-                          </td>
-                          <td className="px-6 py-8 font-bold text-slate-700 text-sm">{item.deletedBy || 'Sistema Central'}</td>
-                          <td className="px-6 py-8">
-                             <span className="px-4 py-1.5 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
-                                {item._collectionName}
-                             </span>
-                          </td>
-                          <td className="px-6 py-8">
-                             <span className="text-sm font-black text-slate-900 uppercase tracking-tighter max-w-xs truncate block">
-                                {item.name || item.studentName || item.nossoNumero || item.monthYear || item.id}
-                             </span>
-                          </td>
-                          <td className="pl-6 pr-12 py-8 text-right">
-                             <button
-                                onClick={() => handleRestore(item._collection, item.id)}
-                                disabled={restoring === item.id}
-                                className="inline-flex items-center gap-3 px-8 py-3 bg-brand-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-blue/90 transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50"
-                             >
-                                <RotateCcw size={16} className={cn(restoring === item.id && "animate-spin")} />
-                                {restoring === item.id ? 'Restaurando...' : 'Reativar Item'}
-                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                <div className="max-h-[calc(100vh-220px)] overflow-y-auto relative scrollbar-gutter-stable">
+                  <table className="w-full text-left border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-10 bg-white">
+                      <tr className="bg-slate-50/50">
+                        <th className="pl-12 pr-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Exclusão / Cronograma</th>
+                        <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Autor da Ação</th>
+                        <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Tipo de Documento</th>
+                        <th className="px-6 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Identificação Visual</th>
+                        <th className="pl-6 pr-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right border-b border-slate-100">Comandos de Recuperação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {deletedItems.length === 0 ? (
+                        <tr><td colSpan={5} className="p-32 text-center text-slate-300 font-black uppercase tracking-[0.2em]">Lixeira Limpa.</td></tr>
+                      ) : (
+                        deletedItems.map((item) => (
+                          <tr key={item.id} className="group hover:bg-slate-50/50 transition-all">
+                            <td className="pl-12 pr-6 py-8">
+                               <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
+                                     <Clock size={16} />
+                                  </div>
+                                  <span className="text-sm font-black text-slate-900 tabular-nums tracking-tighter">
+                                    {new Date(item.deletedAt).toLocaleString('pt-BR')}
+                                  </span>
+                               </div>
+                            </td>
+                            <td className="px-6 py-8 font-bold text-slate-700 text-sm">{item.deletedBy || 'Sistema Central'}</td>
+                            <td className="px-6 py-8">
+                               <span className="px-4 py-1.5 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  {item._collectionName}
+                               </span>
+                            </td>
+                            <td className="px-6 py-8">
+                               <span className="text-sm font-black text-slate-900 uppercase tracking-tighter max-w-xs truncate block">
+                                  {item.name || item.studentName || item.nossoNumero || item.monthYear || item.id}
+                               </span>
+                            </td>
+                            <td className="pl-6 pr-12 py-8 text-right">
+                               <button
+                                  onClick={() => handleRestore(item._collection, item.id)}
+                                  disabled={restoring === item.id}
+                                  className="inline-flex items-center gap-3 px-8 py-3 bg-brand-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-blue/90 transition-all shadow-lg shadow-brand-blue/20 disabled:opacity-50"
+                               >
+                                  <RotateCcw size={16} className={cn(restoring === item.id && "animate-spin")} />
+                                  {restoring === item.id ? 'Restaurando...' : 'Reativar Item'}
+                               </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
             </motion.div>
           </div>
         )}

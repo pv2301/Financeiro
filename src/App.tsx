@@ -249,7 +249,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       <aside 
         className={cn(
-          "bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col transition-all duration-500 relative z-[90] h-screen shrink-0",
+          "bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col transition-all duration-500 relative z-[90] md:z-[10] h-screen shrink-0",
           "fixed inset-y-0 left-0 md:relative md:translate-x-0 transition-transform",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 shadow-2xl md:shadow-none",
           isCollapsed ? "w-24" : "w-80"

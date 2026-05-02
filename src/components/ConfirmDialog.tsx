@@ -26,7 +26,7 @@ export default function ConfirmDialog({ isOpen, title, message, confirmLabel = '
     <AnimatePresence>
       {isOpen && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4"
+          className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4"
           onClick={isLoading ? undefined : onCancel}>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"

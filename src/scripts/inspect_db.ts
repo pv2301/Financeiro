@@ -1,16 +1,17 @@
 
-import { db } from "../lib/firebase";
+import { db } from "../firebase.ts";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
 async function inspectConsumption() {
   console.log("--- INSPEÇÃO DE CONSUMO ---");
   try {
-    const q = query(collection(db, "fin_consumption"));
+    const q = query(collection(db, "fin_services"));
     const snap = await getDocs(q);
-    console.log(`Total de documentos na coleção: ${snap.size}`);
+    console.log(`Total de serviços: ${snap.size}`);
     
-    snap.docs.slice(0, 5).forEach(doc => {
-      console.log(`Doc ID: ${doc.id}`, doc.data());
+    snap.docs.forEach(doc => {
+      console.log(`Serviço: ${doc.data().name}`);
+      console.log(`Preços:`, JSON.stringify(doc.data().priceByKey, null, 2));
     });
 
   } catch (err: any) {
