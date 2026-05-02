@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { finance } from '../services/finance';
 import { Student, ClassInfo } from '../types';
 import { cn, formatCurrencyBRL, formatFullAge } from '../lib/utils';
+import { SYSTEM_VERSION } from '../lib/constants';
 import { useNavigate } from 'react-router-dom';
 import ImportStudentsModal from '../components/ImportStudentsModal';
 import StudentModal from '../components/StudentModal';

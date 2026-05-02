@@ -15,6 +15,7 @@ import {
   Activity
 } from 'lucide-react';
 import { cn, formatCurrencyBRL } from '../lib/utils';
+import { SYSTEM_VERSION, SYSTEM_YEAR } from '../lib/constants';
 import { format } from 'date-fns';
 import { finance } from '../services/finance';
 import { useAuth } from '../hooks/useAuth';
