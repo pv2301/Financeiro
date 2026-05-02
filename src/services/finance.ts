@@ -661,7 +661,9 @@ export const finance = {
           }
           batch.set(docRef, {
             ...record,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+            deletedBy: null
           }, { merge: true });
         }
         await batch.commit();
