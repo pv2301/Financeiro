@@ -607,13 +607,28 @@ export const finance = {
   // ─── CONSUMPTION ──────────────────────────────────────────────────────────
   getConsumption: () => getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION),
 
-      if (records.length === 0 && monthYear.includes('/')) {
-        const q2 = query(collection(db, C.CONSUMPTION), where("monthYear", "==", monthYear));
-        const snap2 = await getDocs(q2);
-        records = snap2.docs.map(d => d.data() as ConsumptionRecord).filter(c => !c.deletedAt);
-      }
-      return records;
-    }, formatted);
+  getConsumptionByMonth: async (monthYear: string) => {
+    const formatted = monthYear.includes('/') ? monthYear.replace('/', '-') : monthYear;
+    const alternate = monthYear.includes('-') ? monthYear.replace('-', '/') : monthYear;
+    
+    try {
+      const [snap1, snap2] = await Promise.all([
+        getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION, where('monthYear', '==', formatted)),
+        formatted !== alternate 
+          ? getAllFromCollection<ConsumptionRecord>(C.CONSUMPTION, where('monthYear', '==', alternate))
+          : Promise.resolve([])
+      ]);
+
+      const merged = [...snap1];
+      snap2.forEach(item => {
+        if (!merged.find(m => m.id === item.id)) merged.push(item);
+      });
+
+      return merged;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, C.CONSUMPTION);
+      return [];
+    }
   },
 
   saveConsumptionRecords: async (records: ConsumptionRecord[]) => {

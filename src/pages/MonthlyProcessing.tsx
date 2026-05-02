@@ -33,7 +33,7 @@ const MONTHS_FULL = [
 ];
 const CURRENT_YEAR = new Date().getFullYear();
 
-// --- PADRONIZAÇÃƒO DE TEXTOS (DESIGN SYSTEM TOKENS) ---
+// --- PADRONIZAÇÃO DE TEXTOS (DESIGN SYSTEM TOKENS) ---
 const TXT = {
   LABEL: "text-[11px] font-black uppercase tracking-[0.1em] text-slate-400",
   VALUE: "text-base font-black text-slate-900 uppercase tracking-tight",
@@ -109,7 +109,6 @@ export default function MonthlyProcessing() {
   const refreshConsumption = useCallback(async (force: boolean = false) => {
     setIsLoadingDraft(true);
     try {
-      // Se for um refresh forçado (pós-importação), aguardamos um instante para o Firestore propagar
       if (force) {
         await new Promise(resolve => setTimeout(resolve, 800));
         finance.invalidateCache('fin_consumption'); 
@@ -321,16 +320,11 @@ export default function MonthlyProcessing() {
 
   const handleConfirmSelection = useCallback(async (selectedIds: string[]) => {
     const newItems = { ...integralItems };
-    
-    // Add new ones (don't remove existing ones)
     selectedIds.forEach(id => {
       if (!newItems[id]) newItems[id] = [];
     });
-
     setIntegralItems(newItems);
     setShowIntegralSelectModal(false);
-    
-    // Force preview update and save
     const draftData = { ...getDraftData(), integralItems: newItems };
     await finance.saveBillingDraft({
       id: monthYear,
@@ -387,18 +381,14 @@ export default function MonthlyProcessing() {
     setIsSavingInvoices(true);
     try {
       const currentMonthInvoices = await finance.getInvoicesByMonth(monthYear);
-
       const toSave = previewInvoices.filter(inv => selectedIds.has(inv.id) && !!bankSlipNumbers[inv.studentId]);
-      
       const duplicates = toSave.filter(inv => 
         currentMonthInvoices.some(ex => ex.studentId === inv.studentId && Math.abs(ex.netAmount - inv.netAmount) < 0.01)
       );
-
       if (duplicates.length > 0 && !window.confirm(`AVISO: Detectamos ${duplicates.length} possíveis duplicidades (mesmo aluno e valor já faturados este mês). Deseja continuar mesmo assim?`)) {
         setIsSavingInvoices(false);
         return;
       }
-
       await Promise.all(toSave.map(inv => finance.saveInvoice({
         ...inv,
         bankSlipNumber: bankSlipNumbers[inv.studentId],
@@ -412,12 +402,15 @@ export default function MonthlyProcessing() {
     finally { setIsSavingInvoices(false); setShowSaveConfirm(false); }
   };
 
+  const handleUpdateInvoice = useCallback((updated: Invoice) => {
+    setPreviewInvoices(prev => prev.map(inv => inv.id === updated.id ? updated : inv));
+  }, []);
+
   if (isLoading) return <div className="p-8 flex items-center justify-center min-h-screen"><div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div className="p-4 md:p-10 pb-32 max-w-[1600px] mx-auto space-y-10 bg-slate-50/30 min-h-screen font-sans">
       
-      {/* Indicador de Processamento em Background */}
       <AnimatePresence>
         {isLoadingDraft && (
           <motion.div 
@@ -432,7 +425,6 @@ export default function MonthlyProcessing() {
         )}
       </AnimatePresence>
 
-      
       <header className="flex flex-col md:flex-row md:items-center justify-between bg-white p-8 rounded-3xl border border-slate-100 shadow-sm gap-6">
         <div className="space-y-2">
           <h1 className={TXT.TITLE}>Fechamento Mensal</h1>
@@ -619,38 +611,37 @@ export default function MonthlyProcessing() {
                  </div>
                </div>
                <FixedBillingTable 
-              previewInvoices={previewInvoices}
-              students={students}
-              classes={classes}
-              services={services}
-              dbConsumption={dbConsumption}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              classFilter={classFilter}
-              segmentFilter={segmentFilter}
-              studentSearch={studentSearch}
-              manualAbsences={manualAbsences}
-              setManualAbsences={setManualAbsences}
-              setPreviewInvoices={setPreviewInvoices}
-              businessDays={getCurrentMonthDays()}
-              monthYear={monthYear}
-              ageRefDay={ageRefDay}
-              boletoFee={boletoFee}
-              mandatorySnackBySegment={mandatorySnackBySegment}
-              collegeShareBySegment={collegeShareBySegment}
-              bankSlipNumbers={bankSlipNumbers}
-              setBankSlipNumbers={setBankSlipNumbers}
-              invoiceNotes={invoiceNotes}
-              setInvoiceNotes={setInvoiceNotes}
-              showStudentNotes={showStudentNotes}
-              setShowStudentNotes={setShowStudentNotes}
-              manualDueDates={manualDueDates}
-              setManualDueDates={setManualDueDates}
-              formatStudentCopyId={formatStudentCopyId}
-              getStudentMessage={getStudentMessage}
-              setToast={showToast}
-              onRemoveStudent={handleRemoveStudent}
-            />
+                  previewInvoices={previewInvoices}
+                  students={students}
+                  classes={classes}
+                  services={services}
+                  dbConsumption={dbConsumption}
+                  selectedIds={selectedIds}
+                  setSelectedIds={setSelectedIds}
+                  classFilter={classFilter}
+                  segmentFilter={segmentFilter}
+                  studentSearch={studentSearch}
+                  manualAbsences={manualAbsences}
+                  setManualAbsences={setManualAbsences}
+                  setPreviewInvoices={setPreviewInvoices}
+                  businessDays={getCurrentMonthDays()}
+                  monthYear={monthYear}
+                  ageRefDay={ageRefDay}
+                  boletoFee={boletoFee}
+                  mandatorySnackBySegment={mandatorySnackBySegment}
+                  collegeShareBySegment={collegeShareBySegment}
+                  bankSlipNumbers={bankSlipNumbers}
+                  setBankSlipNumbers={setBankSlipNumbers}
+                  invoiceNotes={invoiceNotes}
+                  setInvoiceNotes={setInvoiceNotes}
+                  showStudentNotes={showStudentNotes}
+                  setShowStudentNotes={setShowStudentNotes}
+                  manualDueDates={manualDueDates}
+                  setManualDueDates={setManualDueDates}
+                  formatStudentCopyId={formatStudentCopyId}
+                  getStudentMessage={getStudentMessage}
+                  setToast={showToast}
+                />
             </>
           )}
 
@@ -681,33 +672,33 @@ export default function MonthlyProcessing() {
                  </div>
                </div>
                <ConsumptionTable 
-              previewInvoices={previewInvoices}
-              students={students}
-              classes={classes}
-              services={services}
-              dbConsumption={dbConsumption}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              classFilter={classFilter}
-              segmentFilter={segmentFilter}
-              studentSearch={studentSearch}
-              consumptionFilter={consumptionFilter}
-              recentlyImportedIds={recentlyImportedIds}
-              ageRefDay={ageRefDay}
-              monthYear={monthYear}
-              bankSlipNumbers={bankSlipNumbers}
-              setBankSlipNumbers={setBankSlipNumbers}
-              invoiceNotes={invoiceNotes}
-              setInvoiceNotes={setInvoiceNotes}
-              showStudentNotes={showStudentNotes}
-              setShowStudentNotes={setShowStudentNotes}
-              manualDueDates={manualDueDates}
-              setManualDueDates={setManualDueDates}
-              formatStudentCopyId={formatStudentCopyId}
-              getStudentMessage={getStudentMessage}
-              setToast={showToast}
-              onRemoveStudent={handleRemoveStudent}
-            />
+                  previewInvoices={previewInvoices}
+                  students={students}
+                  classes={classes}
+                  services={services}
+                  dbConsumption={dbConsumption}
+                  selectedIds={selectedIds}
+                  setSelectedIds={setSelectedIds}
+                  classFilter={classFilter}
+                  segmentFilter={segmentFilter}
+                  studentSearch={studentSearch}
+                  consumptionFilter={consumptionFilter}
+                  recentlyImportedIds={recentlyImportedIds}
+                  ageRefDay={ageRefDay}
+                  monthYear={monthYear}
+                  bankSlipNumbers={bankSlipNumbers}
+                  setBankSlipNumbers={setBankSlipNumbers}
+                  invoiceNotes={invoiceNotes}
+                  setInvoiceNotes={setInvoiceNotes}
+                  showStudentNotes={showStudentNotes}
+                  setShowStudentNotes={setShowStudentNotes}
+                  manualDueDates={manualDueDates}
+                  setManualDueDates={setManualDueDates}
+                  formatStudentCopyId={formatStudentCopyId}
+                  getStudentMessage={getStudentMessage}
+                  setToast={showToast}
+                  onRemoveStudent={handleRemoveStudent}
+                />
              </>
           )}
 
@@ -738,84 +729,87 @@ export default function MonthlyProcessing() {
                  </div>
                </div>
                <IntegralBillingTable 
-              previewInvoices={previewInvoices}
-              students={students}
-              classes={classes}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              classFilter={classFilter}
-              segmentFilter={segmentFilter}
-              studentSearch={studentSearch}
-              integralItems={integralItems}
-              setIntegralItems={setIntegralItems}
-              setShowIntegralSelectModal={setShowIntegralSelectModal}
-              setShowIntegralServiceModal={setShowIntegralServiceModal}
-              bankSlipNumbers={bankSlipNumbers}
-              setBankSlipNumbers={setBankSlipNumbers}
-              manualDueDates={manualDueDates}
-              setManualDueDates={setManualDueDates}
-              invoiceNotes={invoiceNotes}
-              setInvoiceNotes={setInvoiceNotes}
-              ageRefDay={ageRefDay}
-              monthYear={monthYear}
-              formatStudentCopyId={formatStudentCopyId}
-              getStudentMessage={getStudentMessage}
-              setToast={showToast}
-              onRemoveStudent={handleRemoveStudent}
-            />
-            </>
+                  previewInvoices={previewInvoices}
+                  students={students}
+                  classes={classes}
+                  services={services}
+                  dbConsumption={dbConsumption}
+                  selectedIds={selectedIds}
+                  setSelectedIds={setSelectedIds}
+                  classFilter={classFilter}
+                  segmentFilter={segmentFilter}
+                  studentSearch={studentSearch}
+                  integralItems={integralItems}
+                  setIntegralItems={setIntegralItems}
+                  setShowIntegralSelectModal={setShowIntegralSelectModal}
+                  setShowIntegralServiceModal={setShowIntegralServiceModal}
+                  bankSlipNumbers={bankSlipNumbers}
+                  setBankSlipNumbers={setBankSlipNumbers}
+                  manualDueDates={manualDueDates}
+                  setManualDueDates={setManualDueDates}
+                  invoiceNotes={invoiceNotes}
+                  setInvoiceNotes={setInvoiceNotes}
+                  ageRefDay={ageRefDay}
+                  monthYear={monthYear}
+                  formatStudentCopyId={formatStudentCopyId}
+                  getStudentMessage={getStudentMessage}
+                  setToast={showToast}
+                  onRemoveStudent={handleRemoveStudent}
+                />
+             </>
           )}
         </div>
       </div>
-        <AnimatePresence>
-          {selectedIds.size > 0 && (
-            <motion.div 
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-4xl"
-            >
-              <div className="bg-slate-900/95 backdrop-blur-md text-white p-5 rounded-3xl shadow-2xl flex items-center justify-between border border-white/10 overflow-hidden">
-                <div className="absolute top-0 left-0 h-full w-2 bg-brand-blue" />
-                <div className="flex items-center gap-6 pl-2">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Seleção Ativa</span>
-                    <span className="text-xl font-black text-white">{selectedIds.size} Alunos Selecionados</span>
-                  </div>
+
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-4xl"
+          >
+            <div className="bg-slate-900/95 backdrop-blur-md text-white p-5 rounded-3xl shadow-2xl flex items-center justify-between border border-white/10 overflow-hidden">
+              <div className="absolute top-0 left-0 h-full w-2 bg-brand-blue" />
+              <div className="flex items-center gap-6 pl-2">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Seleção Ativa</span>
+                  <span className="text-xl font-black text-white">{selectedIds.size} Alunos Selecionados</span>
                 </div>
-                
-                <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => {
-                         const allText = previewInvoices
-                           .filter(inv => selectedIds.has(inv.id))
-                           .map(inv => getStudentMessage(inv))
-                           .join("\n\n---\n\n");
-                         navigator.clipboard.writeText(allText);
-                         showToast("Copiado com sucesso!");
-                      }}
-                      className="px-6 py-3 bg-white/5 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
-                    >
-                      <Copy size={14} /> Copiar Mensagens
-                    </button>
-                    <div className="w-px h-8 bg-white/10 mx-2" />
-                    <button 
-                      onClick={() => handleRemoveSelected()}
-                      className="px-6 py-3 bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
-                    >
-                      <Trash2 size={14} /> Remover da Lista
-                    </button>
-                    <button 
-                      onClick={() => setSelectedIds(new Set())}
-                      className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
-                    >
-                       Fechar
-                    </button>
-               </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              
+              <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => {
+                       const allText = previewInvoices
+                         .filter(inv => selectedIds.has(inv.id))
+                         .map(inv => getStudentMessage(inv))
+                         .join("\n\n---\n\n");
+                       navigator.clipboard.writeText(allText);
+                       showToast("Copiado com sucesso!");
+                    }}
+                    className="px-6 py-3 bg-white/5 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                  >
+                    <Copy size={14} /> Copiar Mensagens
+                  </button>
+                  <div className="w-px h-8 bg-white/10 mx-2" />
+                  <button 
+                    onClick={() => handleRemoveSelected()}
+                    className="px-6 py-3 bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+                  >
+                    <Trash2 size={14} /> Remover da Lista
+                  </button>
+                  <button 
+                    onClick={() => setSelectedIds(new Set())}
+                    className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                  >
+                     Fechar
+                  </button>
+             </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {showCopyConfirm && (
         <ConfirmDialog
@@ -823,7 +817,6 @@ export default function MonthlyProcessing() {
           title="COPIAR VALORES?"
           message={`Deseja realmente carregar os valores de mensalidade do mês anterior? Isso irá substituir os valores atuais.`}
           confirmLabel="COPIAR AGORA"
-          cancelLabel="CANCELAR"
           onConfirm={handleCopyPreviousPrices}
           onCancel={() => setShowCopyConfirm(false)}
           variant="warning"
